@@ -1,0 +1,7 @@
+[Prospect]
+git-tree-sha1 = "a66b6ee1a130b3620c09abd060d45bf60629f4a1"
+lazy = true
+
+    [[Prospect.download]]
+    sha256 = "b9f3644cd2576b3fcd4201539bd836a4cb2fda0075c6cae45f7f164ab0ef3cc5"
+    url = "https://raw.githubusercontent.com/cfranken/ResearchArtifacts/main/prospect.tar.gz"

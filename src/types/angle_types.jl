@@ -1,0 +1,8 @@
+"Struct for spherical coordinate directions in θ (elevation angle) and ϕ (azimuth angle)"
+struct dirVector{FT}
+    θ::FT
+    ϕ::FT
+end 
+
+# Define dot product for the directional vector in spherical coordinates:
+LinearAlgebra.dot(Ω₁::dirVector, Ω₂::dirVector) = cos(Ω₁.θ) * cos(Ω₂.θ) + sin(Ω₁.θ) * sin(Ω₂.θ) * cos(Ω₂.ϕ - Ω₁.ϕ)
