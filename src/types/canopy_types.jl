@@ -1,8 +1,8 @@
 "Abstract Type for canopy scattering"
-abstract type AbstractCanopyScatteringType end
+abstract type AbstractCanopyScatteringType{FT<:AbstractFloat} end
 
 "Model for bi-lambertian canopy leaf scattering"
-Base.@kwdef struct BiLambertianCanopyScattering{FT<:AbstractFloat} <: AbstractCanopyScatteringType
+Base.@kwdef struct BiLambertianCanopyScattering{FT<:AbstractFloat} <: AbstractCanopyScatteringType{FT}
     "Lambertian Reflectance"
     R::FT = FT(0.3)
     "Lambertian Transmission"
@@ -12,7 +12,7 @@ Base.@kwdef struct BiLambertianCanopyScattering{FT<:AbstractFloat} <: AbstractCa
 end
 
 "Model for specular canopy leaf scattering"
-Base.@kwdef struct SpecularCanopyScattering{FT<:AbstractFloat} <: AbstractCanopyScatteringType
+Base.@kwdef struct SpecularCanopyScattering{FT<:AbstractFloat} <: AbstractCanopyScatteringType{FT}
     "Refractive index"
     nᵣ::FT = FT(1.5)
     "Roughness parameter"

@@ -1,5 +1,6 @@
 "Fresnel reflection"
 function Fᵣ(n::FT,θᵢ::FT) where FT
+    #@show rad2deg(θᵢ)
     # Refractive index of air
     nᵢ = FT(1)
     # Angle of transmitted light in medium:

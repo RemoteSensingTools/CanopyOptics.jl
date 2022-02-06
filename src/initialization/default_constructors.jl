@@ -66,3 +66,10 @@ function spherical_leaves(FT=Float64)
     α, β =  βparameters(deg2rad(θ), deg2rad(s));
     return LeafDistribution(Beta(FT(α), FT(β)), FT(2/π));
 end
+
+function flat_leaves(FT=Float64)
+    θ = FT(57.3)
+    s = FT(21.55)
+    α, β =  βparameters(deg2rad(θ), deg2rad(s));
+    return LeafDistribution(Beta(FT(α), FT(β)), FT(2/π));
+end

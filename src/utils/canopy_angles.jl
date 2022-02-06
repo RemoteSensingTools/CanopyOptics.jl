@@ -47,10 +47,71 @@ function scattering_model_lambertian(Ωⁱⁿ::dirVector, Ωᵒᵘᵗ::dirVector
 end
 
 function getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where FT
-    if Ωⁱⁿ.θ == Ωᵒᵘᵗ.θ && Ωⁱⁿ.ϕ==Ωᵒᵘᵗ.ϕ 
-        return Ωⁱⁿ
+    #@show Ωⁱⁿ,  Ωᵒᵘᵗ, Ωⁱⁿ ⋅ Ωᵒᵘᵗ
+    sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
+    sa > 1 ? sa = FT(1) : nothing
+    γ = acos(sa)/2 
+    ϕ = Ωᵒᵘᵗ.ϕ - Ωⁱⁿ.ϕ 
+  
+    θₗ = acos((cos(Ωⁱⁿ.θ) + cos(Ωᵒᵘᵗ.θ))/2cos(γ));
+    ϕₗ = acos(max(-1,min((sin(Ωⁱⁿ.θ) + sin(Ωᵒᵘᵗ.θ) * cos(ϕ))/(2cos(γ)*sin(θₗ)),FT(1))));
+    #@show Ωⁱⁿ.ϕ
+    #ϕₗ+Ωⁱⁿ.ϕ > 2π ? dirVector(θₗ,ϕₗ+Ωⁱⁿ.ϕ-2π) : dirVector(θₗ,ϕₗ+Ωⁱⁿ.ϕ)
+    return dirVector(θₗ,ϕₗ+Ωⁱⁿ.ϕ) # +Ωⁱⁿ.ϕ 
+end
+
+#See Eq 18, Canopy RT book
+function getSpecularΩ2(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where FT
+    sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
+    sa > 1 ? sa = FT(1) : nothing
+    
+    α = acos(sa)/2
+    # Relative azimuth angle:
+    ϕ = (Ωᵒᵘᵗ.ϕ - Ωⁱⁿ.ϕ) 
+    # Leaf polar angle:
+    θₗ = acos((cos(Ωⁱⁿ.θ) + cos(Ωᵒᵘᵗ.θ))/2cos(α));
+    
+    t = (sin(Ωⁱⁿ.θ) + sin(Ωᵒᵘᵗ.θ) * cos(ϕ))/(2cos(α)*sin(θₗ))
+    if isnan(t)
+        t = FT(1.0)
     end
-    θstar  = atan( sqrt(sin(Ωⁱⁿ.θ)^2 + sin(Ωᵒᵘᵗ.θ)^2 - 2sin(Ωⁱⁿ.θ)*sin(Ωᵒᵘᵗ.θ)*cos(Ωⁱⁿ.ϕ - Ωᵒᵘᵗ.ϕ)) / (cos(Ωᵒᵘᵗ.θ) - cos(Ωⁱⁿ.θ)))
-    ϕstar  = atan( (sin(Ωⁱⁿ.θ)*sin(Ωⁱⁿ.ϕ) - sin(Ωᵒᵘᵗ.θ)*sin(Ωᵒᵘᵗ.ϕ)) / (sin(Ωⁱⁿ.θ)*cos(Ωⁱⁿ.ϕ) - sin(Ωᵒᵘᵗ.θ)*cos(Ωᵒᵘᵗ.ϕ)))  
-    return dirVector(θstar+π/2,ϕstar)
+    # Leaf azimuth angle:
+    ϕₗ = acos(max(FT(-1),min(t,FT(1))))
+    ϕ > π   ? ϕₗ = 2π-ϕₗ-Ωⁱⁿ.ϕ : ϕₗ = ϕₗ+Ωⁱⁿ.ϕ
+    #θₗ > π/2 ? θₗ = θₗ - π/2  : nothing 
+    out = dirVector(θₗ,ϕₗ)
+    #ϕ > π   ? out = dirVector(θₗ,2π-ϕₗ-Ωⁱⁿ.ϕ) : out = dirVector(θₗ,ϕₗ+Ωⁱⁿ.ϕ)
+    #@show (Ωⁱⁿ ⋅ out) , (Ωᵒᵘᵗ ⋅ out)
+    #@show abs(((Ωⁱⁿ ⋅ out) - (Ωᵒᵘᵗ ⋅ out)) / (Ωᵒᵘᵗ ⋅ out)) * 100
+    #@show θₗ , ϕₗ 
+    @assert abs(((Ωⁱⁿ ⋅ out) - (Ωᵒᵘᵗ ⋅ out)) / (Ωᵒᵘᵗ ⋅ out)) * 100 < 1 "Leaf angle wrong, $Ωⁱⁿ, $Ωᵒᵘᵗ, $out"
+    return out 
+
+end
+
+function getSpecularΩ2(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
+    sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
+    #@show sa
+    sa > 1 ? sa = FT(1) : nothing
+    α = acos(sa)/2
+    #@show α
+    # Relative azimuth angle:
+    ϕ = (Ωᵒᵘᵗ.ϕ - Ωⁱⁿ.ϕ) 
+    # Leaf polar angle:
+    μₗ = ((Ωⁱⁿ.μ + Ωᵒᵘᵗ.μ)/2cos(α));
+    #@show μₗ
+    t = (sqrt(1-Ωⁱⁿ.μ^2) + sqrt(1-Ωᵒᵘᵗ.μ^2) * cos(ϕ))/(2cos(α)*sqrt(1-μₗ^2))
+    #@show t, sqrt(1-Ωⁱⁿ.μ^2) + sqrt(1-Ωᵒᵘᵗ.μ)
+    if isnan(t)
+        t = FT(1.0)
+    end
+    # Leaf azimuth angle:
+    ϕₗ = acos(max(FT(-1),min(t,FT(1))))
+    ϕ > π   ? ϕₗ = 2π-ϕₗ-Ωⁱⁿ.ϕ : ϕₗ = ϕₗ+Ωⁱⁿ.ϕ
+    #θₗ > π/2 ? θₗ = θₗ - π/2  : nothing 
+    out = dirVector_μ(μₗ,ϕₗ)
+    #@show out
+    #@show Ωⁱⁿ ⋅ out ,  Ωᵒᵘᵗ ⋅ out
+    @assert Ωⁱⁿ ⋅ out ≈  Ωᵒᵘᵗ ⋅ out "Leaf angle wrong, $Ωⁱⁿ, $Ωᵒᵘᵗ, $out"
+    return out, α
 end
