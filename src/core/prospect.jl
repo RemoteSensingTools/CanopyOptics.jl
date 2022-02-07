@@ -37,7 +37,7 @@ function prospect(
     Kall=(Ccab*Kcab + Ccar*Kcar + Canth*Kant + Cbrown*Kb + Cw*Kw + Cm*Km + Cprot*Kp +Ccbc * Kcbc) / N;
    
     # Adding eps() here to keep it stable and NOT set to 1 manually when Kall=0 (ForwardDiff won't work otherwise)
-    tau = (1 .-Kall).*exp.(-Kall) .+ Kall.^2 .*real.(expint.(Kall.+eps(FT)))
+    tau = (FT(1) .-Kall).*exp.(-Kall) .+ Kall.^2 .*real.(expint.(Kall.+eps(FT)))
 
     # ***********************************************************************
     # reflectance & transmittance of one layer
@@ -76,7 +76,7 @@ function prospect(
     # | transmitted through a pile of plates; Proc. Roy. Soc. Lond.
     # 11:545-556.
     # ***********************************************************************
-    D       = sqrt.(((FT(1) .+r.+t).*(FT(1) .+r.-t).*(FT(1) .-r.+t).*(FT(1) .-r.-t)).+10eps(FT))
+    D       = sqrt.(((FT(1) .+r.+t).*(FT(1) .+r.-t).*(FT(1) .-r.+t).*(FT(1) .-r.-t)).+5eps(FT))
     #println(typeof(D), typeof(r), typeof(t))
     rq      = r.^2
     tq      = t.^2
@@ -96,7 +96,7 @@ function prospect(
     Rsub[j] = 1 .-Tsub[j]
 
     # Reflectance & transmittance of the leaf: combine top layer with next N-1 layers
-    denom   = 1 .-Rsub.*r
+    denom   = FT(1) .-Rsub.*r
     # lambertian Tranmsission
     T    = Ta.*Tsub./denom
     # lambertian Reflectance

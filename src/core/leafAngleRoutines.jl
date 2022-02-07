@@ -87,6 +87,8 @@ function compScatteringMatricesΓ(mod::BiLambertianCanopyScattering, μ::Array{F
     # Reflection (change direction)
     𝐙⁻⁺ = zeros(length(μ), length(μ))
     
+    G = CanopyOptics.G(μ, LD)
+    ϖ = R+T
     # skip everything beyond m=0
     if m>0  
         return 𝐙⁺⁺, 𝐙⁻⁺
@@ -94,11 +96,11 @@ function compScatteringMatricesΓ(mod::BiLambertianCanopyScattering, μ::Array{F
     θₗ,w = gauleg(nQuad,FT(0),FT(π/2));
     for i in eachindex(θₗ)
         Ψ⁺, Ψ⁻ = compute_Ψ(μ,μ, cos(θₗ[i]));
-        𝐙⁺⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻)
+        𝐙⁺⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻) 
         Ψ⁺, Ψ⁻ = compute_Ψ(μ,-μ, cos(θₗ[i]));
-        𝐙⁻⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻)
+        𝐙⁻⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻) 
     end
-    return 𝐙⁺⁺, 𝐙⁻⁺
+    return 4𝐙⁺⁺ ./(G*ϖ), 4𝐙⁻⁺ ./(G*ϖ)
 end
 
 # Page 20, top of Knyazikhin and Marshak
@@ -106,21 +108,31 @@ end
 # ϕ = range(0.0, 2π,  length=200)
 # θ = range(0.0, π/2, length=150)
 # dirs = [dirVector(a,b) for a in θ, b in ϕ];
-# CanopyOptics.compute_specular_Γ.(dirs,[dirs[10,1]], [1.5], [0], [LD])
+# R = CanopyOptics.compute_specular_reflection.([dirs[10,1]],dirs, [1.5], [0.3], [LD])
 function compute_specular_reflection(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}, n, κ, LD) where FT
     Ωstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
-    θstar = min(abs(Ωstar.θ), (π-abs(Ωstar.θ))) # min(abs(Ωstar.θ), abs(π+Ωstar.θ))
-    if Ωⁱⁿ.θ ≈ Ωᵒᵘᵗ.θ && Ωⁱⁿ.ϕ ≈ Ωᵒᵘᵗ.ϕ
-        θstar = Ωⁱⁿ.θ
-    end
+    #θstar = min(abs(Ωstar.θ), (π-abs(Ωstar.θ))) # min(abs(Ωstar.θ), abs(π+Ωstar.θ))
+    θstar = Ωstar.θ;
+    #if Ωⁱⁿ.θ ≈ Ωᵒᵘᵗ.θ && Ωⁱⁿ.ϕ ≈ Ωᵒᵘᵗ.ϕ
+    #    θstar = Ωⁱⁿ.θ
+    #end
     # Still needs to be implemented!
-    K = 1.0
-    # Not sure this is right:
-    αstar = acos(abs(Ωⁱⁿ ⋅ Ωᵒᵘᵗ ))/2
-    #@show αstar, Ωstar, acos(abs(Ωⁱⁿ ⋅ Ωstar)), acos(abs(Ωᵒᵘᵗ ⋅ Ωstar))
-    #@show pdf(LD.LD,2Ωstar.θ/π), Fᵣ(n,αstar), Ωstar
-    1/8 * pdf(LD.LD,2θstar/π) * LD.scaling * K * Fᵣ(n,αstar)
-    #return αstar 
+    # incident angle on leaf surface (half of in and out angle):
+    sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
+    sa > 1 ? sa = FT(1) : nothing
+    αstar = acos(abs(sa))/2
+    #@show Ωstar.ϕ, Ωstar.θ
+    #a = (Ωⁱⁿ ⋅ Ωstar) * (Ωᵒᵘᵗ ⋅ Ωstar)
+    return FT(1/8) * pdf(LD.LD,2θstar/π) * LD.scaling * K(κ, αstar) * Fᵣ(n,αstar)
+    
+end
+
+function compute_specular_reflection(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, n, κ, LD) where FT
+    Ωstar, αstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
+    # Can change this later as well do have the pdf in μ, not theta!
+    θstar = acos(abs(Ωstar.μ));
+    # Eq. 2.39 in "Discrete Ordinates Method for Photon Transport in Leaf Canopies", page 59
+    return FT(1/8) * pdf(LD.LD,2θstar/π) * LD.scaling * K(κ, αstar) * Fᵣ(n,αstar)
 end
 
 function compScatteringMatricesΓ(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
@@ -148,4 +160,9 @@ function compScatteringMatricesΓ(mod::SpecularCanopyScattering, μ::Array{FT,1}
         𝐙⁺⁺[i,:] = Zdown * (w_azi .* f_weights)
     end
     return 𝐙⁺⁺, 𝐙⁻⁺
+end
+
+"The reduction factor proposed by Nilson and Kuusk, κ ≈ 0.1-0.3"
+function K(κ::FT, α::FT) where FT 
+    exp(-κ * tan(abs(α)));
 end
