@@ -8,6 +8,8 @@ makedocs(
          pages=[
                 "Home" => "index.md"
                ])
-deploydocs(;
-    repo="github.com/RemoteSensingTools/CanopyOptics.jl",
+deploydocs(
+    repo = "github.com/RemoteSensingTools/CanopyOptics.jl.git",
+    target = "build",
+    push_preview = true,
 )
