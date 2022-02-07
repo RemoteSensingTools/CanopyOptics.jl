@@ -87,12 +87,15 @@ function compScatteringMatricesΓ(mod::BiLambertianCanopyScattering, μ::Array{F
     # Reflection (change direction)
     𝐙⁻⁺ = zeros(length(μ), length(μ))
     
-    G = CanopyOptics.G(μ, LD)
-    ϖ = R+T
     # skip everything beyond m=0
     if m>0  
         return 𝐙⁺⁺, 𝐙⁻⁺
     end
+    # Ross kernel
+    G = CanopyOptics.G(μ, LD)
+    # Single Scattering Albedo (should make this a vector too)
+    ϖ = R+T
+
     θₗ,w = gauleg(nQuad,FT(0),FT(π/2));
     for i in eachindex(θₗ)
         Ψ⁺, Ψ⁻ = compute_Ψ(μ,μ, cos(θₗ[i]));
