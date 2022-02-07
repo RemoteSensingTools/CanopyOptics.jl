@@ -87,6 +87,8 @@ function compScatteringMatricesΓ(mod::BiLambertianCanopyScattering, μ::Array{F
     # Reflection (change direction)
     𝐙⁻⁺ = zeros(length(μ), length(μ))
     
+    G = CanopyOptics.G(μ, LD)
+    ϖ = R+T
     # skip everything beyond m=0
     if m>0  
         return 𝐙⁺⁺, 𝐙⁻⁺
@@ -94,11 +96,11 @@ function compScatteringMatricesΓ(mod::BiLambertianCanopyScattering, μ::Array{F
     θₗ,w = gauleg(nQuad,FT(0),FT(π/2));
     for i in eachindex(θₗ)
         Ψ⁺, Ψ⁻ = compute_Ψ(μ,μ, cos(θₗ[i]));
-        𝐙⁺⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻)
+        𝐙⁺⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻) 
         Ψ⁺, Ψ⁻ = compute_Ψ(μ,-μ, cos(θₗ[i]));
-        𝐙⁻⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻)
+        𝐙⁻⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻) 
     end
-    return 𝐙⁺⁺, 𝐙⁻⁺
+    return 4𝐙⁺⁺ ./(G*ϖ), 4𝐙⁻⁺ ./(G*ϖ)
 end
 
 # Page 20, top of Knyazikhin and Marshak
@@ -118,23 +120,11 @@ function compute_specular_reflection(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVe
     # incident angle on leaf surface (half of in and out angle):
     sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
     sa > 1 ? sa = FT(1) : nothing
-    αstar = acos(abs(sa ))/2
+    αstar = acos(abs(sa))/2
     #@show Ωstar.ϕ, Ωstar.θ
-    a = (Ωⁱⁿ ⋅ Ωstar) * (Ωᵒᵘᵗ ⋅ Ωstar)
-    #@show a, Ωstar
-    #return a
-    #@show (Ωⁱⁿ ⋅ Ωstar) , (Ωᵒᵘᵗ ⋅ Ωstar)
-    #return Ωstar.ϕ
-    #return a
-    #@show a
-    #if a<0
-        return FT(1/8) * pdf(LD.LD,2θstar/π) * LD.scaling * K(κ, αstar) * Fᵣ(n,αstar)
-    #else
-        return FT(0)
-    #end
-    #α = (Ωⁱⁿ ⋅ Ωstar) * (Ωᵒᵘᵗ ⋅ Ωstar)
-    #@show (Ωⁱⁿ ⋅ Ωstar), (Ωᵒᵘᵗ ⋅ Ωstar) 
-    #return (Ωᵒᵘᵗ ⋅ Ωstar)
+    #a = (Ωⁱⁿ ⋅ Ωstar) * (Ωᵒᵘᵗ ⋅ Ωstar)
+    return FT(1/8) * pdf(LD.LD,2θstar/π) * LD.scaling * K(κ, αstar) * Fᵣ(n,αstar)
+    
 end
 
 function compute_specular_reflection(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, n, κ, LD) where FT
