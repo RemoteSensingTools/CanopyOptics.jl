@@ -2,21 +2,22 @@ name: Documentation
 on:
   push:
     branches:
-      - master
-      - develop
+      - main
     tags: '*'
   pull_request:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@latest
+      - uses: actions/checkout@v1
+      - name: Set up Julia
+        uses: julia-actions/setup-julia@v1
         with:
-          version: '1.6'
-      - name: Install dependencies
-        run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+          version: '1.7'
+      - name: Install Dependencies
+        run: julia --project=docs/ -e 'using Pkg; Pkg.instantiate();'
       - name: Build and deploy
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: julia --project=docs/ docs/make.jl
