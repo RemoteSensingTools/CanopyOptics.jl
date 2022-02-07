@@ -1,7 +1,7 @@
 # CanopyOptics.jl
 <p align="center">
   
-  <a href="https://RemoteSensingTools.github.io/CanopyOptics.jl/dev/">
+  <a href="https://RemoteSensingTools.github.io/CanopyOptics.jl/">
     <img src="https://img.shields.io/badge/docs-latest-blue.svg"
          alt="Docs">
   </a>
