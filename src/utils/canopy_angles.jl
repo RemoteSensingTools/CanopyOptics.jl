@@ -46,22 +46,8 @@ function scattering_model_lambertian(Ωⁱⁿ::dirVector, Ωᵒᵘᵗ::dirVector
     end
 end
 
-function getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where FT
-    #@show Ωⁱⁿ,  Ωᵒᵘᵗ, Ωⁱⁿ ⋅ Ωᵒᵘᵗ
-    sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
-    sa > 1 ? sa = FT(1) : nothing
-    γ = acos(sa)/2 
-    ϕ = Ωᵒᵘᵗ.ϕ - Ωⁱⁿ.ϕ 
-  
-    θₗ = acos((cos(Ωⁱⁿ.θ) + cos(Ωᵒᵘᵗ.θ))/2cos(γ));
-    ϕₗ = acos(max(-1,min((sin(Ωⁱⁿ.θ) + sin(Ωᵒᵘᵗ.θ) * cos(ϕ))/(2cos(γ)*sin(θₗ)),FT(1))));
-    #@show Ωⁱⁿ.ϕ
-    #ϕₗ+Ωⁱⁿ.ϕ > 2π ? dirVector(θₗ,ϕₗ+Ωⁱⁿ.ϕ-2π) : dirVector(θₗ,ϕₗ+Ωⁱⁿ.ϕ)
-    return dirVector(θₗ,ϕₗ+Ωⁱⁿ.ϕ) # +Ωⁱⁿ.ϕ 
-end
-
 #See Eq 18, Canopy RT book
-function getSpecularΩ2(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where FT
+function getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where FT
     sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
     sa > 1 ? sa = FT(1) : nothing
     
@@ -89,17 +75,18 @@ function getSpecularΩ2(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) whe
 
 end
 
-function getSpecularΩ2(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
+function getSpecularΩ(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
     sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
     #@show sa
     sa > 1 ? sa = FT(1) : nothing
-    α = acos(sa)/2
-    #@show α
+    # Scattering angle
+    α = acos(sa)/FT(2)
+    
     # Relative azimuth angle:
     ϕ = (Ωᵒᵘᵗ.ϕ - Ωⁱⁿ.ϕ) 
     # Leaf polar angle:
     μₗ = ((Ωⁱⁿ.μ + Ωᵒᵘᵗ.μ)/2cos(α));
-    #@show μₗ
+    
     t = (sqrt(1-Ωⁱⁿ.μ^2) + sqrt(1-Ωᵒᵘᵗ.μ^2) * cos(ϕ))/(2cos(α)*sqrt(1-μₗ^2))
     #@show t, sqrt(1-Ωⁱⁿ.μ^2) + sqrt(1-Ωᵒᵘᵗ.μ)
     if isnan(t)
@@ -108,10 +95,7 @@ function getSpecularΩ2(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT
     # Leaf azimuth angle:
     ϕₗ = acos(max(FT(-1),min(t,FT(1))))
     ϕ > π   ? ϕₗ = 2π-ϕₗ-Ωⁱⁿ.ϕ : ϕₗ = ϕₗ+Ωⁱⁿ.ϕ
-    #θₗ > π/2 ? θₗ = θₗ - π/2  : nothing 
     out = dirVector_μ(μₗ,ϕₗ)
-    #@show out
-    #@show Ωⁱⁿ ⋅ out ,  Ωᵒᵘᵗ ⋅ out
-    @assert Ωⁱⁿ ⋅ out ≈  Ωᵒᵘᵗ ⋅ out "Leaf angle wrong, $Ωⁱⁿ, $Ωᵒᵘᵗ, $out"
+    @assert Ωⁱⁿ ⋅ out ≈  Ωᵒᵘᵗ ⋅ out "Leaf angle wrong in specular reflection, $Ωⁱⁿ, $Ωᵒᵘᵗ, $out"
     return out, α
 end

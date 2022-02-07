@@ -108,7 +108,7 @@ end
 # dirs = [dirVector(a,b) for a in θ, b in ϕ];
 # R = CanopyOptics.compute_specular_reflection.([dirs[10,1]],dirs, [1.5], [0.3], [LD])
 function compute_specular_reflection(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}, n, κ, LD) where FT
-    Ωstar = getSpecularΩ2(Ωⁱⁿ, Ωᵒᵘᵗ)
+    Ωstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
     #θstar = min(abs(Ωstar.θ), (π-abs(Ωstar.θ))) # min(abs(Ωstar.θ), abs(π+Ωstar.θ))
     θstar = Ωstar.θ;
     #if Ωⁱⁿ.θ ≈ Ωᵒᵘᵗ.θ && Ωⁱⁿ.ϕ ≈ Ωᵒᵘᵗ.ϕ
@@ -138,19 +138,11 @@ function compute_specular_reflection(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVe
 end
 
 function compute_specular_reflection(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, n, κ, LD) where FT
-    Ωstar, αstar = getSpecularΩ2(Ωⁱⁿ, Ωᵒᵘᵗ)
-    #θstar = min(abs(Ωstar.θ), (π-abs(Ωstar.θ))) # min(abs(Ωstar.θ), abs(π+Ωstar.θ))
+    Ωstar, αstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
+    # Can change this later as well do have the pdf in μ, not theta!
     θstar = acos(abs(Ωstar.μ));
-    
-    #@show a
-    #if a<0
-        return FT(1/8) * pdf(LD.LD,2θstar/π) * LD.scaling * K(κ, αstar) * Fᵣ(n,αstar)
-    #else
-        return FT(0)
-    #end
-    #α = (Ωⁱⁿ ⋅ Ωstar) * (Ωᵒᵘᵗ ⋅ Ωstar)
-    #@show (Ωⁱⁿ ⋅ Ωstar), (Ωᵒᵘᵗ ⋅ Ωstar) 
-    #return (Ωᵒᵘᵗ ⋅ Ωstar)
+    # Eq. 2.39 in "Discrete Ordinates Method for Photon Transport in Leaf Canopies", page 59
+    return FT(1/8) * pdf(LD.LD,2θstar/π) * LD.scaling * K(κ, αstar) * Fᵣ(n,αstar)
 end
 
 function compScatteringMatricesΓ(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
