@@ -30,6 +30,8 @@ include("initialization/loadProspect.jl")
 include("initialization/default_constructors.jl")
 
 export prospect
-export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties, dirVector
+export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties, dirVector, dirVector_μ
+export AbstractCanopyScatteringType, BiLambertianCanopyScattering, SpecularCanopyScattering
+export 
 
 end # module

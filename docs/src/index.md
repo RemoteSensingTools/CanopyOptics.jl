@@ -12,11 +12,20 @@ The latest release of CanopyOptics can be installed from the Julia REPL prompt w
 ```julia
 julia> ]add https://github.com/RemoteSensingTools/CanopyOptics.jl
 ```
-## Function Documentation
-```@meta
-Author = "Christian Frankenberg"
-```
+
+## Code docs:
+
+### Types 
 
 ```@autodocs
 Modules = [CanopyOptics]
+Order = [:type]
 ```
+### Functions 
+
+```@autodocs
+Modules = [CanopyOptics]
+Private = false
+Order = [:function]
+```
+

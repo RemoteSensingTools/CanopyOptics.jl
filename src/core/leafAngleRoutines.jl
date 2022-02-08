@@ -93,7 +93,7 @@ Returns 𝐙⁺⁺, 𝐙⁻⁺
 
 # Arguments
 - `mod` : A bilambertian canopy scattering model [`BiLambertianCanopyScattering`](@ref), uses R,T,nQuad from that model.
-- `μꜛ::Array{FT,1}`: Quadrature points ∈ [0,1]
+- `μ::Array{FT,1}`: Quadrature points ∈ [0,1]
 - `LD` a [`AbstractLeafDistribution`](@ref) struct that describes the leaf angular distribution function.
 - `m`: Fourier moment (for azimuthally uniform leave distributions such as here, only m=0 returns non-zero matrices)
 """
@@ -182,7 +182,7 @@ function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::
     return 𝐙⁺⁺, 𝐙⁻⁺
 end
 
-"The reduction factor proposed by Nilson and Kuusk, κ ≈ 0.1-0.3"
+"The reduction factor proposed by Nilson and Kuusk, κ ≈ 0.1-0.3, returns exp(-κ * tan(abs(α))"
 function K(κ::FT, α::FT) where FT 
     exp(-κ * tan(abs(α)));
 end
