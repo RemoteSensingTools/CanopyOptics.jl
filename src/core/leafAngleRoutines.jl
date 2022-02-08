@@ -16,12 +16,13 @@ end
 """
     $(FUNCTIONNAME)(μ::Array{FT}, LD::AbstractLeafDistribution; nLeg=20)
 
-    Computes the integrated projection of leaf area in the direction of μ, assumes azimuthally uniform distribution and a LD distribution for θ"
+    Returns the integrated projection of leaf area in the direction of μ, assumes azimuthally uniform distribution and a LD distribution for leaf polar angle θ. This function is often referred to as the
+    function O(B) (Goudriaan 1977) or G(Ζ) (Ross 1975,1981), see Bonan modeling book, eqs. 14.21-14.26. 
 
 # Arguments
-    - `μ` an array of cos(θ) (directions [0,1]) 
-    - `LD` an [`AbstractLeafDistribution`](@ref) type struct, includes a leaf distribution function
-    - `nLeg` an optional parameter for the number of legendre polynomials to integrate over the leaf distribution (default=20)
+- `μ` an array of cos(θ) (directions [0,1]) 
+- `LD` an [`AbstractLeafDistribution`](@ref) type struct, includes a leaf distribution function
+- `nLeg` an optional parameter for the number of legendre polynomials to integrate over the leaf distribution (default=20)
 
 # Examples
 ```julia-repl
@@ -55,9 +56,9 @@ end
 
 
 """
-    $(FUNCTIONNAME)(μ, r,t, LD; nLeg = 20)
+    $(FUNCTIONNAME)(μ::Array{FT,1},μꜛ::Array{FT,1}, r,t, LD::AbstractLeafDistribution; nLeg = 20)
 
-Computes the azimuthally-averaged area scattering transfer function following Shultis and Myneni (https://doi.org/10.1016/0022-4073(88)90079-9), Eq 43::
+Computes the azimuthally-averaged area scattering transfer function following Shultis and Myneni (https://doi.org/10.1016/0022-4073(88)90079-9), Eq 43:
 
 ``Γ(μ' -> μ) = \\int_0^1 dμ_L g_L(μ_L)[t_L Ψ⁺(μ, μ', μ_L) + r_L Ψ⁻(μ, μ', μ_L)]``
 
@@ -80,7 +81,23 @@ function compute_lambertian_Γ(μ::Array{FT,1},μꜛ::Array{FT,1}, r,t, LD::Abst
     return Γ
 end
 
-function compScatteringMatricesΓ(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
+"""
+    $(FUNCTIONNAME)(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int)
+
+Computes the single scattering Z matrices (𝐙⁺⁺ for same incoming and outgoing sign of μ, 𝐙⁻⁺ for a change in direction). Internally computes the azimuthally-averaged area scattering transfer function following Shultis and Myneni (https://doi.org/10.1016/0022-4073(88)90079-9), Eq 43::
+
+``Γ(μ' -> μ) = \\int_0^1 dμ_L g_L(μ_L)[t_L Ψ⁺(μ, μ', μ_L) + r_L Ψ⁻(μ, μ', μ_L)]``
+
+assuming an azimuthally uniform leaf angle distribution. Normalized Γ as 𝐙 = 4Γ/(ϖ⋅G(μ)).
+Returns 𝐙⁺⁺, 𝐙⁻⁺ 
+
+# Arguments
+- `mod` : A bilambertian canopy scattering model [`BiLambertianCanopyScattering`](@ref), uses R,T,nQuad from that model.
+- `μꜛ::Array{FT,1}`: Quadrature points ∈ [0,1]
+- `LD` a [`AbstractLeafDistribution`](@ref) struct that describes the leaf angular distribution function.
+- `m`: Fourier moment (for azimuthally uniform leave distributions such as here, only m=0 returns non-zero matrices)
+"""
+function compute_Z_matrices(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
     @unpack R,T,nQuad = mod
     # Transmission (same direction)
     𝐙⁺⁺ = zeros(length(μ), length(μ))
@@ -138,7 +155,7 @@ function compute_specular_reflection(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::di
     return FT(1/8) * pdf(LD.LD,2θstar/π) * LD.scaling * K(κ, αstar) * Fᵣ(n,αstar)
 end
 
-function compScatteringMatricesΓ(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
+function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
     @unpack nᵣ, κ,nQuad = mod
     # Transmission (same direction)
     𝐙⁺⁺ = zeros(length(μ), length(μ))
@@ -151,15 +168,15 @@ function compScatteringMatricesΓ(mod::SpecularCanopyScattering, μ::Array{FT,1}
     f_weights = cos.(m*ϕ)
     for i in eachindex(μ)
         # Incoming beam at ϕ = 0
-        Ωⁱⁿ = dirVector(acos(μ[i]), FT(0));
+        Ωⁱⁿ = dirVector_μ(μ[i], FT(0));
         # Create outgoing vectors in θ and ϕ
-        dirOutꜛ = [dirVector(a,b) for a in acos.(μ), b in ϕ];
-        dirOutꜜ = [dirVector(a,b) for a in acos.(-μ), b in ϕ];
+        dirOutꜛ = [dirVector_μ(a,b) for a in μ, b in ϕ];
+        dirOutꜜ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
         # Compute over μ and μ_azi:
         Zup   = compute_specular_reflection.([Ωⁱⁿ],dirOutꜛ, [nᵣ], [κ], [LD]);
         Zdown = compute_specular_reflection.([Ωⁱⁿ],dirOutꜜ, [nᵣ], [κ], [LD]);
         # integrate over the azimuth:
-        𝐙⁻⁺[i,:] = Zup * (w_azi .* f_weights)
+        𝐙⁻⁺[i,:] = Zup   * (w_azi .* f_weights)
         𝐙⁺⁺[i,:] = Zdown * (w_azi .* f_weights)
     end
     return 𝐙⁺⁺, 𝐙⁻⁺
