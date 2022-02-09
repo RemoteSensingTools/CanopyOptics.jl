@@ -33,5 +33,7 @@ export prospect
 export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties, dirVector, dirVector_μ
 export AbstractCanopyScatteringType, BiLambertianCanopyScattering, SpecularCanopyScattering
 export LeafProspectProProperties, LeafOpticalProperties
+# Functions:
+export compute_Z_matrices, prospect, compute_specular_reflection, G
 
 end # module
