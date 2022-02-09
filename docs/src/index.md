@@ -19,6 +19,7 @@ julia> ]add https://github.com/RemoteSensingTools/CanopyOptics.jl
 
 ```@autodocs
 Modules = [CanopyOptics]
+Private = false
 Order = [:type]
 ```
 ### Functions 
