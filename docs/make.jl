@@ -1,7 +1,8 @@
 push!(LOAD_PATH,"src/")
 
 using Documenter, CanopyOptics
-using Literate, UnitfulEquivalences, Distributions
+using Literate, UnitfulEquivalences, Distributions, Plots
+pyplot()
 ENV["PYTHON"]=""
 
 function build()
