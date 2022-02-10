@@ -1,10 +1,20 @@
-"Struct for spherical coordinate directions in θ (elevation angle) and ϕ (azimuth angle)"
+"""
+    dirVector{FT}
+Struct for spherical coordinate directions in θ (elevation angle) and ϕ (azimuth angle)
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
 struct dirVector{FT}
     θ::FT
     ϕ::FT
 end
 
-"Struct for spherical coordinate directions in θ (elevation angle) and ϕ (azimuth angle)"
+"""
+    dirVector_μ{FT}
+Struct for spherical coordinate directions in θ (elevation angle) and ϕ (azimuth angle)"
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
 struct dirVector_μ{FT}
     μ::FT
     ϕ::FT
