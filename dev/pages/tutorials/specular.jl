@@ -24,10 +24,10 @@ dirs = [CanopyOptics.dirVector_μ(a,b) for a in μ, b in ϕ];
 R = CanopyOptics.compute_reflection.([specularMod], [dirs[50,1]], dirs, [LD]);
 
 # Polar plot of reflectance
-contourf(ϕ, acos.(μ), R,proj=:polar, ylim=(0,π/2))
+contourf(ϕ, acos.(μ), R,proj=:polar, ylim=(0,π/2), alpha=0.8)
 
 # ### Animation over different Beta leaf distributions
-steps = 0.5:0.1:5 
+steps = 0.1:0.1:5 
 α = [collect(steps); 5*ones(length(steps))] 
 β = [ 5*ones(length(steps)); reverse(collect(steps));] 
 x = 0:0.01:1

@@ -27,7 +27,7 @@ plot(p1, p2,  layout = l, margin=5Plots.mm)
 plot!(size=(900,350))
 
 # ### Animation over different Beta leaf distributions
-steps = 0.5:0.1:5 
+steps = 0.1:0.1:5 
 α = [collect(steps); 5*ones(length(steps))] 
 β = [ 5*ones(length(steps)); reverse(collect(steps));] 
 x = 0:0.01:1
