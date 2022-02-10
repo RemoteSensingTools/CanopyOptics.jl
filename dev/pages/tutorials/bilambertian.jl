@@ -1,3 +1,4 @@
+push!(LOAD_PATH,"../../../../src/");
 # # Bilambertian Canopy Scattering
 
 # Using packages:
