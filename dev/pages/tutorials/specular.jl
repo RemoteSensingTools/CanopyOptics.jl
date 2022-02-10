@@ -37,7 +37,7 @@ anim = @animate for i ∈ eachindex(α)
     R = CanopyOptics.compute_reflection.([specularMod], [dirs[120,1]], dirs, [LD])
     l = @layout [a  b ]
     p0 = plot(rad2deg.(π * x/2), pdf.(LD.LD,x), legend=false, ylim=(0,3), title="Leaf angle distribution", xlabel="Θ (degrees)")
-    p1 = contourf(ϕ, acos.(μ), R,proj=:polar, ylim=(0,π/2), label=nothing, clims=(0,0.04))
+    p1 = contourf(ϕ, acos.(μ), R,proj=:polar, ylim=(0,π/2), label=nothing, clims=(0,0.02), alpha=0.8)
     plot(p0, p1,  layout = l, margin=5Plots.mm)
     plot!(size=(700,300))
 end
