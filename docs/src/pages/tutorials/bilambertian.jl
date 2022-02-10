@@ -3,7 +3,7 @@ push!(LOAD_PATH,"../../../../src/");
 
 # Using packages:
 using Plots, Distributions
-using ...CanopyOptics
+using CanopyOptics
 theme(:ggplot2)
 
 # Compute quadrature points:
