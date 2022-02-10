@@ -2,6 +2,7 @@ push!(LOAD_PATH,"src/")
 
 using Documenter, CanopyOptics
 using Literate, UnitfulEquivalences, Distributions
+ENV["PYTHON"]=""
 
 function build()
     tutorials = ["bilambertian.jl", "specular.jl"] # , 
