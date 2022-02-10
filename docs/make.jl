@@ -4,7 +4,7 @@ using Documenter, CanopyOptics
 using Literate, UnitfulEquivalences, Distributions
 
 function build()
-    tutorials = ["bilambertian.jl"] # , 
+    tutorials = ["bilambertian.jl", "specular.jl"] # , 
     tutorials_paths = [joinpath(@__DIR__, "src", "pages", "tutorials", tutorial) for tutorial in tutorials]
 
     for tutorial in tutorials_paths

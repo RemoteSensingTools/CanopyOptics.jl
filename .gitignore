@@ -23,3 +23,5 @@ docs/site/
 # environment.
 Manifest.toml
 *.gif
+docs/src/pages/tutorials/specular.md
+docs/src/pages/tutorials/bilambertian.md
