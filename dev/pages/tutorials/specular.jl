@@ -31,15 +31,20 @@ steps = 0.1:0.1:5
 α = [collect(steps); 5*ones(length(steps))] 
 β = [ 5*ones(length(steps)); reverse(collect(steps));] 
 x = 0:0.01:1
+l = @layout [a  b; c d; e f]
 
 anim = @animate for i ∈ eachindex(α)
     LD = CanopyOptics.LeafDistribution(Beta(α[i],β[i]), 2/π)
     R = CanopyOptics.compute_reflection.([specularMod], [dirs[120,1]], dirs, [LD])
-    l = @layout [a  b ]
+    pZ = []
+    for m=0:3
+        Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(specularMod, μ, LD, m)
+        push!(pZ, contourf(μ, μ, Z⁻⁺, title="Z⁻⁺ Fourier moment $m", xlabel="μꜜ", ylabel="μꜛ"))
+    end
     p0 = plot(rad2deg.(π * x/2), pdf.(LD.LD,x), legend=false, ylim=(0,3), title="Leaf angle distribution", xlabel="Θ (degrees)")
-    p1 = contourf(ϕ, acos.(μ), R,proj=:polar, ylim=(0,π/2), label=nothing, clims=(0,0.02), alpha=0.8)
-    plot(p0, p1,  layout = l, margin=5Plots.mm)
-    plot!(size=(700,300))
+    p1 = contourf(ϕ, acos.(μ), R, proj=:polar, ylim=(0,π/2), clims=(0,0.02), alpha=0.8,legend = :none, title="Polar plot R")
+    plot(p0, p1, pZ..., layout = l, margin=5Plots.mm)
+    plot!(size=(700,700))
 end
 
 gif(anim, "anim_fps10.gif", fps = 10)
