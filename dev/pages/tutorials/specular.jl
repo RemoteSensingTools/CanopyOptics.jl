@@ -39,7 +39,7 @@ anim = @animate for i ∈ eachindex(α)
     pZ = []
     for m=0:3
         Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(specularMod, μ, LD, m)
-        push!(pZ, contourf(μ, μ, Z⁻⁺, title="Z⁻⁺ Fourier moment $m", xlabel="μꜜ", ylabel="μꜛ"))
+        push!(pZ, contourf(μ, μ, Z⁻⁺, title="Z⁻⁺ Fourier moment $m", xlabel="μꜜ", aspect_ratio = :equal, ylabel="μꜛ"))
     end
     p0 = plot(rad2deg.(π * x/2), pdf.(LD.LD,x), legend=false, ylim=(0,3), title="Leaf angle distribution", xlabel="Θ (degrees)")
     p1 = contourf(ϕ, acos.(μ), R, proj=:polar, ylim=(0,π/2), clims=(0,0.02), alpha=0.8,legend = :none, title="Polar plot R")
