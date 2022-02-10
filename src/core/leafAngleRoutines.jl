@@ -175,8 +175,8 @@ function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::
         dirOutꜛ = [dirVector_μ(a,b) for a in μ, b in ϕ];
         dirOutꜜ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
         # Compute over μ and μ_azi:
-        Zup   = compute_specular_reflection.([Ωⁱⁿ],dirOutꜛ, [nᵣ], [κ], [LD]);
-        Zdown = compute_specular_reflection.([Ωⁱⁿ],dirOutꜜ, [nᵣ], [κ], [LD]);
+        Zup   = compute_reflection.([mod],[Ωⁱⁿ],dirOutꜛ, [LD]);
+        Zdown = compute_reflection.([mod],[Ωⁱⁿ],dirOutꜜ, [LD]);
         # integrate over the azimuth:
         𝐙⁻⁺[i,:] = Zup   * (w_azi .* f_weights)
         𝐙⁺⁺[i,:] = Zdown * (w_azi .* f_weights)
