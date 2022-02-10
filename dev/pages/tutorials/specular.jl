@@ -1,9 +1,10 @@
-push!(LOAD_PATH,"../../../../src/");
+push!(LOAD_PATH,"src/");
+@show pwd()
 # # Specular Canopy Scattering
 
 # Using packages:
-using Plots, Distributions, PyPlot
-using ...CanopyOptics
+using Plots, Distributions#, PyPlot
+using CanopyOptics
 pyplot()
 theme(:ggplot2)
 
@@ -22,8 +23,9 @@ LD = CanopyOptics.planophile_leaves2()
 dirs = [CanopyOptics.dirVector_μ(a,b) for a in μ, b in ϕ];
 
 # Compute specular reflectance:
-R = CanopyOptics.compute_reflection.([specularMod], [dirs[50,1]], dirs, [LD])
+R = CanopyOptics.compute_reflection.([specularMod], [dirs[50,1]], dirs, [LD]);
 
+# Polar plot of reflectance
 contourf(ϕ, acos.(μ), R,proj=:polar, ylim=(0,π/2), alpha=0.7)
 
 # ### Animation over different Beta leaf distributions
@@ -34,12 +36,12 @@ x = 0:0.01:1
 
 anim = @animate for i ∈ eachindex(α)
     LD = CanopyOptics.LeafDistribution(Beta(α[i],β[i]), 2/π)
-    R = CanopyOptics.compute_reflection.([specularMod], [dirs[50,1]], dirs, [LD])
+    R = CanopyOptics.compute_reflection.([specularMod], [dirs[120,1]], dirs, [LD])
     l = @layout [a  b ]
     p0 = plot(rad2deg.(π * x/2), pdf.(LD.LD,x), legend=false, ylim=(0,3), title="Leaf angle distribution", xlabel="Θ (degrees)")
-    p1 = contourf(ϕ, acos.(μ), R,proj=:polar, ylim=(0,π/2), alpha=0.7)
+    p1 = contourf(ϕ, acos.(μ), R,proj=:polar, ylim=(0,π/2), alpha=0.85, label=nothing)
     plot(p0, p1,  layout = l, margin=5Plots.mm)
-    plot!(size=(900,300))
+    plot!(size=(700,300))
 end
 
 gif(anim, "anim_fps10.gif", fps = 10)
