@@ -10,14 +10,22 @@ using DelimitedFiles           # File IO (Prospect csv File)
 using DocStringExtensions      # Documentation
 using UnPack                   # @unpack and stuff
 using LazyArtifacts            # Artifacts
-using LinearAlgebra
-
+using LinearAlgebra            # Well, guess...
+using Polynomials              # Polynomials for some empirical functions
 # Filename for ProspectPro optical properties
 const OPTI_2021 = artifact"Prospect" * "/dataSpec_PRO.csv";
 
+# Needs to be more modular later:
+FT = Float64 
 ###### Own files to include #################
+include("initialization/constants.jl")
+
+
+
 include("types/canopy_types.jl")
 include("types/angle_types.jl")
+include("types/material_types.jl")
+
 include("utils/quadrature.jl")
 include("utils/canopy_angles.jl")
 include("utils/fresnel.jl")
@@ -28,6 +36,9 @@ include("core/leafAngleRoutines.jl")
 
 include("initialization/loadProspect.jl")
 include("initialization/default_constructors.jl")
+
+include("utils/dielectric.jl")
+
 
 export prospect
 export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties, dirVector, dirVector_μ
