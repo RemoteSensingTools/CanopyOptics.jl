@@ -12,7 +12,7 @@ Computes the complex dieletric of liquid salty walter (Ulaby & Long book)
 # Examples
 ```julia-repl
 julia> w = CanopyOptics.LiquidSaltWater()     # Create struct for salty seawater
-julia> CanopyOptics.dielectric(w,10.0,10.0,10.0)
+julia> CanopyOptics.dielectric(w,283.0,10.0,10.0)
 51.79254073931596 + 38.32304044382495im
 ```
 """
@@ -21,7 +21,7 @@ function dielectric(mod::LiquidSaltWater, T::FT,f::FT,S::FT) where FT<:Real
     @assert 0 ≤ S ≤ 45 "Salinity should be ∈ [0,45] PSU"
     @assert 265 ≤ T ≤ 310 "Temperature should be ∈ [265,310] K"
     # Equations were tuned for ⁰C but want K input!
-    T = T - FT(273.15)        
+    T = T - FT(273)        
     # Compute σ (Eqs 4.21 - 4.21 in Ulaby and Long)
     σ₃₅ = TempPoly(T)
     P   = S * SalPoly1(S) / SalPoly2(S)
@@ -51,7 +51,7 @@ Computes the complex dieletric of liquid pure walter (Ulaby & Long book)
 # Examples
 ```julia-repl
 julia> w = CanopyOptics.LiquidPureWater()     # Create struct for salty seawater
-julia> CanopyOptics.dielectric(w,10.0,10.0)
+julia> CanopyOptics.dielectric(w,283.0,10.0)
 53.45306674215052 + 38.068642430090044im
 ```
 """
@@ -59,7 +59,7 @@ function dielectric(mod::LiquidPureWater, T::FT,f::FT,S::FT=FT(0)) where FT<:Rea
     @assert 0 ≤ S ≤ 45 "Salinity should be ∈ [0,45] PSU"
     @assert 265 ≤ T ≤ 310 "Temperature should be ∈ [265,310] K"
     # Equations were tuned for ⁰C but want K input!
-    T = T - FT(273.15)
+    T = T - FT(273)
 
     ϵS   = FT(87.85306) * exp(FT(-0.00456992)*T);
     ϵOne =  aU[4]  * exp(-aU[5]*T);
@@ -82,7 +82,7 @@ Computes the complex dieletric of liquid pure walter (Ulaby & Long book)
 # Examples
 ```julia-repl
 julia> w = CanopyOptics.PureIce()     # Create struct for salty seawater
-julia> CanopyOptics.dielectric(w,10.0,10.0)
+julia> CanopyOptics.dielectric(w,283.0,10.0)
 53.45306674215052 + 38.068642430090044im
 ```
 """
