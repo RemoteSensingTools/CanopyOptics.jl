@@ -12,6 +12,7 @@ using UnPack                   # @unpack and stuff
 using LazyArtifacts            # Artifacts
 using LinearAlgebra            # Well, guess...
 using Polynomials              # Polynomials for some empirical functions
+
 # Filename for ProspectPro optical properties
 const OPTI_2021 = artifact"Prospect" * "/dataSpec_PRO.csv";
 
@@ -43,7 +44,8 @@ include("utils/dielectric.jl")
 export prospect
 export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties, dirVector, dirVector_μ
 export AbstractCanopyScatteringType, BiLambertianCanopyScattering, SpecularCanopyScattering
-export LeafProspectProProperties, LeafOpticalProperties
+export PureIce, LiquidPureWater, LiquidSaltWater
+export LeafProspectProProperties, LeafOpticalProperties, dielectric
 # Functions:
 export compute_Z_matrices, prospect, compute_specular_reflection, G
 
