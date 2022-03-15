@@ -2,7 +2,9 @@
 frequency: 0.4400
 
 leaf_parameters:
+  # cm
   major_axis: 0.2000E+02
+  # cm
   minor_axis: 0.1000E+02
   # mm
   thickness: 0.1000E+00

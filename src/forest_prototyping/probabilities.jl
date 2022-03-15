@@ -29,23 +29,24 @@ function prob(θ, ntype::Integer, param=0.0)
     elseif ntype == 9
         return param * exp(-param * θ)
     elseif ntype == 10
-        if (0 < θ <= 10.0)
+        thd = θ*180.0/pi
+        if (0 <=thd <= 10.0)
             return 0.015
-        elseif (10.0 < θ <= 20.0)
+        elseif (10.0 < thd <= 20.0)
             return 0.020 
-        elseif (20.0 < θ <= 30.0)
+        elseif (20.0 < thd <= 30.0)
             return 0.015
-        elseif (30.0 < θ <= 40.0)
+        elseif (30.0 < thd <= 40.0)
             return 0.03
-        elseif (40.0 < θ <= 50.0)
+        elseif (40.0 < thd <= 50.0)
             return 0.14
-        elseif (50.0 < θ <= 60.0)
+        elseif (50.0 < thd <= 60.0)
             return 0.25
-        elseif (60.0 < θ <= 70.0)
+        elseif (60.0 < thd <= 70.0)
             return 0.22
-        elseif (70.0 < θ <= 80.0)
+        elseif (70.0 < thd <= 80.0)
             return 0.14
-        elseif (80.0 < θ <= 90.0)
+        elseif (80.0 < thd <= 90.0)
             return 0.17
         end
     elseif ntype == 11
