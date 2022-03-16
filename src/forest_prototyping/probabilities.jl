@@ -1,7 +1,7 @@
 # θ:      input value
 # ntype:  distribution type
 # param:  distribution parameter
-function prob(θ, ntype::Integer, param=0.0)
+function prob(θ, ntype::Integer, param=0.0, nth=37)
     @assert 0 <= θ <= π "θ must be between 0 and π"
     θ_d = θ*180.0/pi
     if ntype == 1
@@ -10,7 +10,6 @@ function prob(θ, ntype::Integer, param=0.0)
         return (0 < θ < π/2 ? 8/(3π) * sin(θ)^4 : 0.0)
     # Unfinished (3)
     elseif ntype == 3
-        global nth
         th0r = param*pi/180.
         dth = π/nth
         return (θ <= th0r < θ + dth ? 1.0/dth : 0.0)

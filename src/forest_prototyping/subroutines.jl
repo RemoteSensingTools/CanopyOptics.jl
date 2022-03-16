@@ -233,7 +233,8 @@ function woodf(index, theti, phii, ntype, parm, dat_c::data, i_c::integ, p1_c::p
             p2_c.phyi=acos(cphi)
             p2_c.phys=p2_c.phyi
 
-            fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
+
+            fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c, i=i)
 
             # SCATTERING OUTPUTS MATCH # 
 
@@ -242,7 +243,6 @@ function woodf(index, theti, phii, ntype, parm, dat_c::data, i_c::integ, p1_c::p
             fvh = tvs*fpvv*thi+tvs*fpvh*tvi-ths*fphv*thi-ths*fphh*tvi
             fhv = ths*fpvv*tvi+tvs*fphv*tvi-ths*fpvh*thi-tvs*fphh*thi
             fhh = ths*fpvv*thi+tvs*fphv*thi+ths*fpvh*tvi+tvs*fphh*tvi
-
 
             fsumvv=cnt*fvv/dsi + fsumvv
             fsumvh=cnt*fvh/dsi + fsumvh
@@ -435,7 +435,7 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
             p2_c.phyi=acos(cphi)
             p2_c.phys=p2_c.phyi+pi
 
-            fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c, i = i)
+            fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
 
             dsi=ti*ts 
             fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
@@ -494,6 +494,8 @@ function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2; i=-1)
     argum=dat_c.ak0*p1_c.h*(cthi+cths)
 
     q = (argum == 0.0) ? 1.0 : sin(argum)/argum
+
+    
     
     z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, dat_c, p1_c, p2_c)
 
@@ -510,20 +512,21 @@ function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2; i=-1)
 
         zn,an,bn,enh,env,etanh,etanv = cylinder(n, dat_c, p1_c, p2_c)
 
-        if (p2_c.phyi == p2_c.phys)
-            cphn = 1.0
-        end 
         sphn=0.0
         π_δ = 0.0001
         if (π - π_δ < p2_c.phys-p2_c.phyi < π + π_δ) 
             cphn=(-1.0)^n
+        else
+            cphn = 1.0
         end
+
+        
 
         shh=shh+2.0*(etanh*bn+p1_c.ej*enh*an*cthi)*cphn	
         shv=shv+(etanv*bn+p1_c.ej*env*an*cthi)*sphn
         svh=svh+((enh*bn*cthi-p1_c.ej*etanh*an)*cths-sths*enh*zn)*sphn
         svv=svv+2.0*((env*cthi*bn-p1_c.ej*etanv*an)*cths-sths*env*zn)*cphn
-
+        
     end
 
     fhh=(shh0+shh)*k02*q*p1_c.h*(p1_c.epsi-1.0)
@@ -639,5 +642,96 @@ function dbessy(n, x)
         dbessy=-n/x*bessely(n,x)+bessely(n-1,x)
     end
     return dbessy
+
+end
+
+function funcm(x, y, d)
+
+    dag = x+y
+    dagd = dag * d
+    z = abs(dagd)
+
+    if z < 1.0e-03
+        return d
+    end
+
+    if z > 1.6e02
+        return 1.0/dag
+    end
+
+    return (1.0  - exp(-(dagd)))/dag
+
+end
+
+function funcp(x, y, d)
+
+    dag=x+y
+    dagd=dag*d
+    z=abs(dagd)
+
+    if z < 1.0e-03
+        return d
+    end
+
+    if z > 1.6e02
+        return 1.0/dag
+    end
+
+    return (exp(dagd)-1.0)/dag
+
+end
+
+function cfun(a, e, d)
+
+    dag=a+e
+    dagd=dag*d
+    a3=abs(dagd)
+
+    if a3 < 1.0e-03 
+        return d
+    end
+
+    if a3 > 1.6e02
+        return 1.0/dag
+    end
+
+    return (1.0 - exp(-(dagd)))/dag
+
+end
+
+function grdoh(ksig, theti, a_c::a, b_c::b)
+
+    ak0=b_c.zk
+    thetir=theti*pi/180.0
+    si=sin(thetir)
+    ci=cos(thetir)
+    ci3=ci^3	
+    si2=si^2
+
+    er=sqrt(a_c.epsg)
+    r0 = abs((1.0-er)/(1.0+er))^2
+    g=0.7*(1.0-exp(-0.65*ksig^1.8))
+    q=0.23*(1.0-exp(-ksig))*sqrt(r0)
+    sp1=(2.0*thetir/pi)^(1.0/(3.0*r0))
+    sp=1.0-sp1*exp(-ksig)
+
+    rgh  = (ci-sqrt(a_c.epsg-si2))/(ci+sqrt(a_c.epsg-si2))
+    rgv  = (a_c.epsg*ci-sqrt(a_c.epsg-si2))/(a_c.epsg*ci+sqrt(a_c.epsg-si2))
+
+    rh0=abs(rgh)^2
+    rv0=abs(rgv)^2
+
+    sighh=g*sp*ci3*(rh0+rv0)
+    sigvv=g*ci3*(rh0+rv0)/sp
+    sigvh=q*sigvv	
+    shhg=sighh*exp(-4.0*(a_c.khim1*d1+a_c.khim2*d2))
+    svvg=sigvv*exp(-4.0*(a_c.kvim1*d1+a_c.kvim2*d2))
+    svhg=sigvh*exp(-2.0*((a_c.khim1+a_c.kvim1)*d1+(a_c.khim2+a_c.kvim2)*d2))
+
+    ghhd=10*log10(sighh)
+    gvvd=10*log10(sigvv)
+    gvhd=10*log10(sigvh)
+
+    return shhg, svvg, svhg, ghhd, gvvd, gvhd
 
 end
