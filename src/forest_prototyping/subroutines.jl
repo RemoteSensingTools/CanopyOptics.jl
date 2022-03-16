@@ -233,8 +233,6 @@ function woodf(index, theti, phii, ntype, parm, dat_c::data, i_c::integ, p1_c::p
             p2_c.phyi=acos(cphi)
             p2_c.phys=p2_c.phyi
 
-            # @show p1_c.epsi
-
             fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
 
             # SCATTERING OUTPUTS MATCH # 
@@ -245,24 +243,15 @@ function woodf(index, theti, phii, ntype, parm, dat_c::data, i_c::integ, p1_c::p
             fhv = ths*fpvv*tvi+tvs*fphv*tvi-ths*fpvh*thi-tvs*fphh*thi
             fhh = ths*fpvv*thi+tvs*fphv*thi+ths*fpvh*tvi+tvs*fphh*tvi
 
-            # if (i == 2)
-            #     @show cnt, fvh, dsi
-            # end
 
             fsumvv=cnt*fvv/dsi + fsumvv
             fsumvh=cnt*fvh/dsi + fsumvh
             fsumhv=cnt*fhv/dsi + fsumhv
             fsumhh=cnt*fhh/dsi + fsumhh
 
-            # if (i == 2)
-            #     @show fsumvh
-            # end
-
             cntj=1.0
 
         end
-
-        # @show fsumvh
 
         fsmhh = fsumhh*pdf + fsmhh
         fsmvh = fsumvh*pdf + fsmvh
@@ -375,13 +364,8 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
             p2_c.phyi=acos(cphi)
             p2_c.phys=p2_c.phyi+pi
 
+
             fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
-
-            if (i == 2)
-
-                @show fphh
-
-            end
 
             dsi=ti*ts  
             fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
@@ -410,10 +394,10 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
             cthi = max(min(cthi, 1.0), -1.0)
             cphi = max(min(cphi, 1.0), -1.0)            
 
-            thetai=acos(cthi)
-            thetas=pi-thetai
-            phyi=acos(cphi)
-            phys=phyi+pi
+            p2_c.thetai=acos(cthi)
+            p2_c.thetas=pi-p2_c.thetai
+            p2_c.phyi=acos(cphi)
+            p2_c.phys=p2_c.phyi+pi
             
             fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
             
@@ -446,11 +430,12 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
             cthi = max(min(cthi, 1.0), -1.0)
             cphi = max(min(cphi, 1.0), -1.0)    
 
-            thetai=acos(cthi)
-            thetas=pi-thetai
-            phyi=acos(cphi)
-            phys=phyi+pi
-            fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
+            p2_c.thetai=acos(cthi)
+            p2_c.thetas=pi-p2_c.thetai
+            p2_c.phyi=acos(cphi)
+            p2_c.phys=p2_c.phyi+pi
+
+            fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c, i = i)
 
             dsi=ti*ts 
             fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
@@ -487,11 +472,11 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
     sbvh1 = 4.0*pi*smvh1*delph*delth
     sbvh3 = 4.0*pi*smvh3*delph*delth
 
-    return sbhhd, sbvhd, sbvvd, sbhhdr, sbvvdr, sbhhdr2, sbvvdr2, sbvh1, sbvh3
+    return sbhhd, sbvhd, sbvvd, sbhhdr, sbvvdr, sbvh1, sbvh3
 
 end
 
-function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2)
+function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2; i=-1)
 
     k02=dat_c.ak0^2
     cthi=cos(p2_c.thetai)
@@ -529,7 +514,8 @@ function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2)
             cphn = 1.0
         end 
         sphn=0.0
-        if (p2_c.phys-p2_c.phyi ≈ pi) 
+        π_δ = 0.0001
+        if (π - π_δ < p2_c.phys-p2_c.phyi < π + π_δ) 
             cphn=(-1.0)^n
         end
 
