@@ -3,58 +3,28 @@
 using YAML
 using SpecialFunctions
 using QuadGK
+using Parameters
 
 include("types.jl")
+include("parameters_from_yaml.jl")
 include("probabilities.jl")
 include("subroutines.jl")
+include("output_check.jl")
 
 ## 
 ## Load input parameters
 ## 
 
 INPUT_FILE = "deccheckin.yaml"
-input_params = YAML.load_file(INPUT_FILE)
+input_params = parameters_from_yaml(INPUT_FILE)
 
-# Frequency
-bfrghz  = input_params["frequency"]
+@unpack bfrghz, amajcm, bmincm, tmm, rhol, epsl_temp, 
+ntypel, parml, radb1, lb1, rhob1, epsb1, ntypeb1, 
+parmb1, radb2, lb2, rhob2, epsb2, ntypeb2, parmb2, 
+radt, lt_temp, rhot, epst_temp, ntypet, parmt, 
+d1, d2, epsg, l, sig = input_params
 
-# Leaf Parameters 
-amajcm  = input_params["leaf_parameters"]["major_axis"]
-bmincm  = input_params["leaf_parameters"]["minor_axis"]
-tmm     = input_params["leaf_parameters"]["thickness"]
-rhol    = input_params["leaf_parameters"]["density"]
-epsl_temp    = input_params["leaf_parameters"]["dielectric_constant"]
-ntypel  = input_params["leaf_parameters"]["leaf_inclination_pdf_type"]
-parml   = input_params["leaf_parameters"]["pdf_parameter"]
-
-# Primary Branch Parameters
-radb1   = input_params["primary_branch_parameters"]["diameter"]
-lb1     = input_params["primary_branch_parameters"]["length"]
-rhob1   = input_params["primary_branch_parameters"]["density"]
-epsb1   = input_params["primary_branch_parameters"]["dielectric_constant"]
-ntypeb1 = input_params["primary_branch_parameters"]["branch_inclination_pdf_type"]
-parmb1  = input_params["primary_branch_parameters"]["pdf_parameter"]
-
-# Secondary Branch Parameters
-radb2   = input_params["secondary_branch_parameters"]["diameter"]
-lb2     = input_params["secondary_branch_parameters"]["length"]
-rhob2   = input_params["secondary_branch_parameters"]["density"]
-epsb2   = input_params["secondary_branch_parameters"]["dielectric_constant"]
-ntypeb2 = input_params["secondary_branch_parameters"]["branch_inclination_pdf_type"]
-parmb2  = input_params["secondary_branch_parameters"]["pdf_parameter"]
-
-# Trunk Parameters
-radt    = input_params["trunk_parameters"]["diameter"]
-lt_temp      = input_params["trunk_parameters"]["length"]
-rhot    = input_params["trunk_parameters"]["density"]
-epst_temp    = input_params["trunk_parameters"]["dielectric_constant"]
-ntypet  = input_params["trunk_parameters"]["branch_inclination_pdf_type"]
-parmt   = input_params["trunk_parameters"]["pdf_parameter"]
-d1      = input_params["trunk_parameters"]["crown_height"]
-d2      = input_params["trunk_parameters"]["trunk_height"]
-epsg    = input_params["trunk_parameters"]["soil_dielectric"] 
-l       = input_params["trunk_parameters"]["corr_length"]
-sig     = input_params["trunk_parameters"]["rms_height"]
+println(input_params)
 
 # Convert complex numbers 
 epsl_temp = complex(epsl_temp[1], epsl_temp[2])
@@ -552,69 +522,90 @@ svhti=sgvhi+svhg
 # @show svvt/svvti
 # @show svht/svhti
 
-println("--------------------------------------------------------------------------------")
+# println("--------------------------------------------------------------------------------")
 
-println("\nbackscat. cross section of forest in db     hh polarization coherent\n")
-println("theti \t sighhd1 \t\t sighhd2 \t\t sighhd3")
-println("$theti \t $shhdd1 \t $shhdd2 \t $shhdd3 \n")
-println("theti \t sighhdr1 \t\t sighhdr2 \t\t sighhdr3")
-println("$theti \t $shhdrd1 \t $shhdrd2 \t $shhdrd3 \n")
-println("theti \t sighht \t\t sighhd \t\t sighhdr")
-println("$theti \t $(10.0*log10(shht)) \t $shhdd \t $shhdrd \n")
+# println("\nbackscat. cross section of forest in db     hh polarization coherent\n")
+# println("theti \t sighhd1 \t\t sighhd2 \t\t sighhd3")
+# println("$theti \t $shhdd1 \t $shhdd2 \t $shhdd3 \n")
+# println("theti \t sighhdr1 \t\t sighhdr2 \t\t sighhdr3")
+# println("$theti \t $shhdrd1 \t $shhdrd2 \t $shhdrd3 \n")
+# println("theti \t sighht \t\t sighhd \t\t sighhdr")
+# println("$theti \t $(10.0*log10(shht)) \t $shhdd \t $shhdrd \n")
 
-println("--------------------------------------------------------------------------------")
+# println("--------------------------------------------------------------------------------")
 
-println("\nbackscat. cross section of forest in db     vv polarization coherent\n")
-println("theti \t sigvvd1 \t\t sigvvd2 \t\t sigvvd3")
-println("$theti \t $svvdd1 \t $svvdd2 \t $svvdd3 \n")
-println("theti \t sigvvdr1 \t\t sigvvdr2 \t\t sigvvdr3")
-println("$theti \t $svvdrd1 \t $svvdrd2 \t $svvdrd3 \n")
-println("theti \t sigvvt \t\t sigvvd \t\t sigvvdr")
-println("$theti \t $(10.0*log10(svvt)) \t $svvdd \t $svvdrd \n")
+# println("\nbackscat. cross section of forest in db     vv polarization coherent\n")
+# println("theti \t sigvvd1 \t\t sigvvd2 \t\t sigvvd3")
+# println("$theti \t $svvdd1 \t $svvdd2 \t $svvdd3 \n")
+# println("theti \t sigvvdr1 \t\t sigvvdr2 \t\t sigvvdr3")
+# println("$theti \t $svvdrd1 \t $svvdrd2 \t $svvdrd3 \n")
+# println("theti \t sigvvt \t\t sigvvd \t\t sigvvdr")
+# println("$theti \t $(10.0*log10(svvt)) \t $svvdd \t $svvdrd \n")
 
-println("--------------------------------------------------------------------------------")
+# println("--------------------------------------------------------------------------------")
 
-println("\nbackscat. cross section of forest in db     vh polarization coherent\n")
-println("theti \t sigvhd1 \t\t sigvhd2 \t\t sigvhd3")
-println("$theti \t $svhdd1 \t $svhdd2 \t $svhdd3 \n")
-println("theti \t sigvhdr1 \t\t sigvhdr2 \t\t sigvhdr3")
-println("$theti \t $svhdrd1 \t $svhdrd2 \t $svhdrd3 \n")
-println("theti \t sigvht \t\t sigvhd \t\t sigvhdr")
-println("$theti \t $(10.0*log10(svht)) \t $svhdd \t $svhdrd \n")
+# println("\nbackscat. cross section of forest in db     vh polarization coherent\n")
+# println("theti \t sigvhd1 \t\t sigvhd2 \t\t sigvhd3")
+# println("$theti \t $svhdd1 \t $svhdd2 \t $svhdd3 \n")
+# println("theti \t sigvhdr1 \t\t sigvhdr2 \t\t sigvhdr3")
+# println("$theti \t $svhdrd1 \t $svhdrd2 \t $svhdrd3 \n")
+# println("theti \t sigvht \t\t sigvhd \t\t sigvhdr")
+# println("$theti \t $(10.0*log10(svht)) \t $svhdd \t $svhdrd \n")
 
-println("--------------------------------------------------------------------------------")
+# println("--------------------------------------------------------------------------------")
 
-println("\nbackscat. cross section of forest in db     total coherent\n")
-println("theti \t sighht \t\t sigvht \t\t sigvvt")
-println("$theti \t $(10.0*log10(shht)) \t $(10.0*log10(svht)) \t $(10.0*log10(svvt)) \n")
-println("theti \t ghhd \t\t\t gvhd \t\t\t gvvd")
-println("$theti \t $(10.0*log10(shhg)) \t $(10.0*log10(svhg)) \t $(10.0*log10(svvg)) \n")
+# println("\nbackscat. cross section of forest in db     total coherent\n")
+# println("theti \t sighht \t\t sigvht \t\t sigvvt")
+# println("$theti \t $(10.0*log10(shht)) \t $(10.0*log10(svht)) \t $(10.0*log10(svvt)) \n")
+# println("theti \t ghhd \t\t\t gvhd \t\t\t gvvd")
+# println("$theti \t $(10.0*log10(shhg)) \t $(10.0*log10(svhg)) \t $(10.0*log10(svvg)) \n")
 
-println("--------------------------------------------------------------------------------")
+# println("--------------------------------------------------------------------------------")
 
-println("\nbackscat. cross section of forest in db     total incoherent\n")
-println("theti \t sighhi \t\t sigvhi \t\t sigvvi")
-println("$theti \t $sghhoi \t $sgvhoi \t $sgvvoi \n")
+# println("\nbackscat. cross section of forest in db     total incoherent\n")
+# println("theti \t sighhi \t\t sigvhi \t\t sigvvi")
+# println("$theti \t $sghhoi \t $sgvhoi \t $sgvvoi \n")
 
-println("--------------------------------------------------------------------------------")
+# println("--------------------------------------------------------------------------------")
 
-println("\nVH incoherent terms due to double bounce from     both layers in dB\n")
-println("theti \t sigvhi1 \t\t sigvhi2 \t\t sigvhi3")
-println("$theti \t $(10.0*log10(sgvhidr1)) \t $(10.0*log10(sgvhidr2)) \t $(10.0*log10(sgvhidr3)) \n")
+# println("\nVH incoherent terms due to double bounce from     both layers in dB\n")
+# println("theti \t sigvhi1 \t\t sigvhi2 \t\t sigvhi3")
+# println("$theti \t $(10.0*log10(sgvhidr1)) \t $(10.0*log10(sgvhidr2)) \t $(10.0*log10(sgvhidr3)) \n")
 
-println("--------------------------------------------------------------------------------")
+# println("--------------------------------------------------------------------------------")
 
-println("\nEnhancement factors for total canopy backscatter\n")
-println("theti \t cofhh \t\t cofvh \t\t cofvv")
-println("$theti \t $(shht/shhti) \t $(svht/svhti) \t $(svvt/svvti) \n")
+# println("\nEnhancement factors for total canopy backscatter\n")
+# println("theti \t cofhh \t\t cofvh \t\t cofvv")
+# println("$theti \t $(shht/shhti) \t $(svht/svhti) \t $(svvt/svvti) \n")
 
-println("theti \t athc \t\t atvc \t\t atht \t\t atvt")
-println("$theti \t $ath1 \t $atv1 \t $temp0h \t $temp0v \n")
+# println("theti \t athc \t\t atvc \t\t atht \t\t atvt")
+# println("$theti \t $ath1 \t $atv1 \t $temp0h \t $temp0v \n")
+
+###############################
+
+output = Forest_Scattering_Output(theti, shhdd1, shhdd2, shhdd3, 
+                                  shhdrd1, shhdrd2, shhdrd3,
+                                  10.0*log10(shht), shhdd, shhdrd,
+                                  
+                                  svvdd1, svvdd2, svvdd3, 
+                                  svvdrd1, svvdrd2, svvdrd3,
+                                  10.0*log10(svvt), svvdd, svvdrd,
+                                  
+                                  svhdd1, svhdd2, svhdd3, 
+                                  svhdrd1, svhdrd2, svhdrd3,
+                                  10.0*log10(svht), svhdd, svhdrd,
+                                  
+                                  10.0*log10(shhg), 10.0*log10(svhg), 10.0*log10(svvg),
+                                  
+                                  sghhoi, sgvhoi, sgvvoi,
+                                  
+                                  10.0*log10(sgvhidr1), 10.0*log10(sgvhidr2), 10.0*log10(sgvhidr3),
+                                  
+                                  shht/shhti, svht/svhti, svvt/svvti, 
+                                  ath1, atv1, temp0h, temp0v)
 
 
-
-
-
+check_output_matches_fortran(output)
 
 # ak0  - free space wave number.
 # d - slab thickness
