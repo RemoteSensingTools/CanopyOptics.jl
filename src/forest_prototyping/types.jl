@@ -1,3 +1,19 @@
+abstract type Geometry end
+
+struct IncidentGeometry <: Geometry
+
+    θ_i::Real   # inclination angle 
+    ϕ_i::Real   # azimuth angle 
+
+end
+
+struct ScatteringGeometry <: Geometry
+
+    θ_s::Real   # inclination angle 
+    ϕ_s::Real   # azimuth angle 
+
+end
+
 mutable struct Forest_Scattering_Parameters 
 
     # Frequency

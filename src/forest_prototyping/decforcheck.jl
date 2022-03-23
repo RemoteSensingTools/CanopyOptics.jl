@@ -4,6 +4,7 @@ using YAML
 using SpecialFunctions
 using QuadGK
 using Parameters
+using Test
 
 include("types.jl")
 include("parameters_from_yaml.jl")
@@ -65,15 +66,18 @@ ail = sum(x -> prob(x, ntypel, parml) * sin(x)^2 * π/nth_temp, collect(1:nth_te
 ip = 0
 phiir=0.0
 ip=ip+1
-theti  = 40
-theti = (theti < 0.001 ? theti=0.1 : theti) 
-thetir  = theti*π/180.0
+θ_i  = 40
+θ_i = (θ_i < 0.001 ? θ_i=0.1 : θ_i) 
+thetir  = deg2rad(θ_i)
 si = sin(thetir)
 ci = cos(thetir)
 si2 = si^2 
-grough = exp(-4.0*(ak0_temp*sigm*ci)^2)
 
-# print(epsl)
+# Incidence geometry in radians
+geom_i = IncidentGeometry(thetir, phiir)
+
+# Roughness factor for ground scattering in direct-reflected term
+grough = exp(-4.0*(ak0_temp*sigm*ci)^2)
 
 athc = zeros(20)
 atvc = zeros(20)
@@ -82,18 +86,11 @@ atvt = zeros(20)
 
 ## Common Block functionality 
 
-# data_struct = data(0, 0, 0, 0, 0, 0, 0)
-
 index=1
 epsb_temp=epsb1
 lb_temp=lb1
 radbm_temp=radb1m
 
-## 
-
-# a_common = a()
-# b_common = b()
-# ds_common = ds(nph_temp, nth_temp)
 data_common = data(ak0_temp, epsb_temp, epst_temp, radbm_temp, radtm_temp, lb_temp, lt_temp)
 integ_common = integ(nph_temp, nth_temp)
 leaf_common = leaf(epsl_temp, amaj_temp, bmin_temp, t_temp)
@@ -102,54 +99,22 @@ parm2_common = parm2(0.0, 0.0, 0.0, 0.0)
 a_common = a(0.0, 0.0, 0.0, 0.0, bfr, epsg)
 b_common = b(zk, sig, 0.0, 0.0)
 
+# Calculation of skin depth skdh skdv and the bistatic cross sections sghh,sghv,sgvv
 
 afhhl, afvvl = afsal(thetir, ail, leaf_common, data_common)
 
-# println("afsal")
-# println(afhhl)
-# println(afvvl)
-
 sbhhdl, sbvhdl, sbvvdl, sbhdrl, sbvdrl, sbvh1l, sbvh3l = asal(thetir, ntypel, parml, leaf_common, data_common, integ_common)
 
-# println("asal")
-# println(sbvhdl)
-# println(sbvvdl)
-# println(sbhdrl)
-# println(sbvdrl)
-# println(sbvh1l)
-# println(sbhhdl)
-# println(sbvh3l)
-
-
-# println(data_common)
+# Compute scattering amplitudes from primary branches
 
 ntypeb1 = 11
 
-afhhb1, afvhb1, afhvb1, afvvb1 = woodf(index,thetir,phiir,ntypeb1,parmb1, data_common, integ_common, parm1_common, parm2_common)
+afb1 = woodf(index,geom_i,ntypeb1,parmb1, data_common, integ_common, parm1_common, parm2_common)
 
-# println("woodf")
-# println(afhhb1)
-# println(afvhb1)
-# println(afhvb1)
-# println(afvvb1)
+afhhb1 = complex(abs(real(afb1[2,2])),abs(imag(afb1[2,2])))
+afvvb1 = complex(abs(real(afb1[1,1])),abs(imag(afb1[1,1])))
 
-afhhb1 = complex(abs(real(afhhb1)),abs(imag(afhhb1)))
-afvvb1 = complex(abs(real(afvvb1)),abs(imag(afvvb1)))
-
-# println("two complex statements")
-# println(afhhb1)
-# println(afvvb1)
-
-sbhhdb1,sbvhdb1,sbvvdb1,sbhdrb1,sbvdrb1,sbvh1b1,sbvh3b1 = woodb(index,thetir,phiir,ntypeb1,parmb1, data_common, integ_common, parm1_common, parm2_common)
-
-# println("woodb")
-# println(sbhhdb1)
-# println(sbvhdb1)
-# println(sbvvdb1)
-# println(sbhdrb1)
-# println(sbvdrb1)
-# println(sbvh1b1)
-# println(sbvh3b1)
+sbvvdb1,sbvhdb1,sbhhdb1,sbhdrb1,sbvdrb1,sbvh1b1,sbvh3b1 = woodb(index,geom_i,ntypeb1,parmb1, data_common, integ_common, parm1_common, parm2_common)
 
 # compute scattering amplitudes from secondary branches
 
@@ -158,48 +123,22 @@ data_common.epsb=epsb2
 data_common.lb=lb2
 data_common.radbm=radb2m
 
-afhhb2,afvhb2,afhvb2,afvvb2 = woodf(index,thetir,phiir,ntypeb2,parmb2, data_common, integ_common, parm1_common, parm2_common)
+afb2 = woodf(index,geom_i,ntypeb2,parmb2, data_common, integ_common, parm1_common, parm2_common)
 
-# println("woodf2")
-# println(afhhb2)
-# println(afvhb2)
-# println(afhvb2)
-# println(afvvb2)
+afhhb2 = complex(abs(real(afb2[2,2])),abs(imag(afb2[2,2])))
+afvvb2 = complex(abs(real(afb2[1,1])),abs(imag(afb2[1,1])))
 
-afhhb2 = complex(abs(real(afhhb2)),abs(imag(afhhb2)))
-afvvb2 = complex(abs(real(afvvb2)),abs(imag(afvvb2)))
+sbvvdb2,sbvhdb2,sbhhdb2,sbhdrb2,sbvdrb2,sbvh1b2,sbvh3b2 = woodb(index,geom_i,ntypeb2,parmb2, data_common, integ_common, parm1_common, parm2_common)
 
-sbhhdb2,sbvhdb2,sbvvdb2,sbhdrb2,sbvdrb2,sbvh1b2,sbvh3b2 = woodb(index,thetir,phiir,ntypeb2,parmb2, data_common, integ_common, parm1_common, parm2_common)
-
-# println("woodb2")
-# println(sbhhdb2)
-# println(sbvhdb2)
-# println(sbvvdb2)
-# println(sbhdrb2)
-# println(sbvdrb2)
-# println(sbvh1b2)
-# println(sbvh3b2)
+# Compute scattering amplitudes from trunks
 
 index = 2
 
-afhht,afvht,afhvt,afvvt = woodf(index,thetir,phiir,ntypet,parmt, data_common, integ_common, parm1_common, parm2_common)
+aft = woodf(index,geom_i,ntypet,parmt, data_common, integ_common, parm1_common, parm2_common)
 
-# println("woodf3")
-# println(afhht)
-# println(afvht)
-# println(afhvt)
-# println(afvvt)
+sbvvdt,sbvhdt,sbhhdt,sbhdrt,sbvdrt,sbvh1t,sbvh3t = woodb(index,geom_i,ntypet,parmt, data_common, integ_common, parm1_common, parm2_common)
 
-sbhhdt,sbvhdt,sbvvdt,sbhdrt,sbvdrt,sbvh1t,sbvh3t = woodb(index,thetir,phiir,ntypet,parmt, data_common, integ_common, parm1_common, parm2_common)
-
-# println("woodt")
-# println(sbhhdt)
-# println(sbvhdt)
-# println(sbvvdt)
-# println(sbhdrt)
-# println(sbvdrt)
-# println(sbvh1t)
-# println(sbvh3t)
+# Using reciprocity and scatterer symmetry to calculate rho*sigma
 
 bsghhd1 = rhob1*sbhhdb1 + rhob2*sbhhdb2 +rhol*sbhhdl
 bsghhd2 = rhot*sbhhdt
@@ -229,26 +168,15 @@ bsgvh31 = rhob1*sbvh3b1 + rhob2*sbvh3b2 +rhol*sbvh3l
 bsgvh32 = rhot*sbvh3t
 bsgvh33 = rhol*sbvh3l 
 
-bsghhr1=bsghhd1
-bsgvvr1=bsgvvd1
-bsgvhr1=bsgvhd1
 bsgvh21=bsgvh11
-
-bsghhr2=bsghhd2
-bsgvvr2=bsgvvd2
-bsgvhr2=bsgvhd2
 bsgvh22=bsgvh12
-
-bsghhr3=bsghhd3
-bsgvvr3=bsgvvd3
-bsgvhr3=bsgvhd3
 bsgvh23=bsgvh13
 
 afhh1 = rhol*afhhl + rhob1*afhhb1 + rhob2*afhhb2
-afhh2 = rhot*afhht
+afhh2 = rhot*aft[2,2]
 
 afvv1 = rhol*afvvl + rhob1*afvvb1 + rhob2*afvvb2
-afvv2 = rhot*afvvt
+afvv2 = rhot*aft[1,1]
 
 ############################
 
@@ -322,9 +250,9 @@ factvh1 = exp(-2.0*(x1-y1)*d1)
 factvh2 = exp(-2.0*(y1-x1)*d1)
 factvh3 = exp((-a1-e1)*d1)
 
-sghhd3 = bsghhd3*funcm(2.0*x1,2.0*x1,d1)
 sghhd1 = bsghhd1*funcm(2.0*x1,2.0*x1,d1)
 sghhd2 = bsghhd2*dattenh1*funcm(2.0*x2,2.0*x2,d2)
+sghhd3 = bsghhd3*funcm(2.0*x1,2.0*x1,d1)
 
 sghhdr1=4.0*d1*bsghdr1*reflha^2*grough
 sghhdr2=4.0*d2*bsghdr2*reflha^2*grough
@@ -428,9 +356,9 @@ svhi3 = zeros(20)
 sgvhr = 0
 
 svhi[ip]  = 10.0*log10(sgvhidr)
-svhi3[ip] = 10.0*log10(sgvhidr3)
 svhi1[ip] = 10.0*log10(sgvhidr1)
 svhi2[ip] = 10.0*log10(sgvhidr2)
+svhi3[ip] = 10.0*log10(sgvhidr3)
 
 sghho  = 10.0*log10(sghh)
 sghhoi = 10.0*log10(sghhi)
@@ -479,29 +407,11 @@ svvrd	= 10.0*log10(sgvvr)
 
 ################################
 
-# @show theti
-
-# @show sghho, sgvho, sgvvo
-
-# @show shhdd, shhdrd, shhdd1, shhdrd1, shhdd2, shhdd3, shhdrd2, shhdrd3, shhrd
-
-# @show svhdd, svhdrd, svhdd1, svhdrd1, svhdd2, svhdd3, svhdrd2, svhdrd3, svhrd
-
-# @show svvdd, svvdrd, svvdd1, svvdrd1, svvdd2, svvdd3, svvdrd2, svvdrd3, svvrd
-
-# @show sgvhoi, sghhoi, sgvvoi
-
-# @show skdh1, skdv1
-
-# @show skdh2, skdh2
-
-###############################
-
 klx=data_common.ak0*lm
 kly=klx
 ksig=data_common.ak0*sigm
 
-shhg,svvg,svhg,ghhd,gvvd,gvhd = grdoh(ksig, theti, a_common, b_common)
+shhg,svvg,svhg,ghhd,gvvd,gvhd = grdoh(ksig, θ_i, a_common, b_common)
 
 shht = sghh + shhg
 svvt = sgvv + svvg
@@ -510,80 +420,9 @@ shhti=sghhi+shhg
 svvti=sgvvi+svvg
 svhti=sgvhi+svhg
 
-# @show 10.0*log10(shhg)
-# @show 10.0*log10(svvg)
-# @show 10.0*log10(svhg)
-
-# @show 10.0*log10(shht)
-# @show 10.0*log10(svvt)
-# @show 10.0*log10(svht)
-
-# @show shht/shhti
-# @show svvt/svvti
-# @show svht/svhti
-
-# println("--------------------------------------------------------------------------------")
-
-# println("\nbackscat. cross section of forest in db     hh polarization coherent\n")
-# println("theti \t sighhd1 \t\t sighhd2 \t\t sighhd3")
-# println("$theti \t $shhdd1 \t $shhdd2 \t $shhdd3 \n")
-# println("theti \t sighhdr1 \t\t sighhdr2 \t\t sighhdr3")
-# println("$theti \t $shhdrd1 \t $shhdrd2 \t $shhdrd3 \n")
-# println("theti \t sighht \t\t sighhd \t\t sighhdr")
-# println("$theti \t $(10.0*log10(shht)) \t $shhdd \t $shhdrd \n")
-
-# println("--------------------------------------------------------------------------------")
-
-# println("\nbackscat. cross section of forest in db     vv polarization coherent\n")
-# println("theti \t sigvvd1 \t\t sigvvd2 \t\t sigvvd3")
-# println("$theti \t $svvdd1 \t $svvdd2 \t $svvdd3 \n")
-# println("theti \t sigvvdr1 \t\t sigvvdr2 \t\t sigvvdr3")
-# println("$theti \t $svvdrd1 \t $svvdrd2 \t $svvdrd3 \n")
-# println("theti \t sigvvt \t\t sigvvd \t\t sigvvdr")
-# println("$theti \t $(10.0*log10(svvt)) \t $svvdd \t $svvdrd \n")
-
-# println("--------------------------------------------------------------------------------")
-
-# println("\nbackscat. cross section of forest in db     vh polarization coherent\n")
-# println("theti \t sigvhd1 \t\t sigvhd2 \t\t sigvhd3")
-# println("$theti \t $svhdd1 \t $svhdd2 \t $svhdd3 \n")
-# println("theti \t sigvhdr1 \t\t sigvhdr2 \t\t sigvhdr3")
-# println("$theti \t $svhdrd1 \t $svhdrd2 \t $svhdrd3 \n")
-# println("theti \t sigvht \t\t sigvhd \t\t sigvhdr")
-# println("$theti \t $(10.0*log10(svht)) \t $svhdd \t $svhdrd \n")
-
-# println("--------------------------------------------------------------------------------")
-
-# println("\nbackscat. cross section of forest in db     total coherent\n")
-# println("theti \t sighht \t\t sigvht \t\t sigvvt")
-# println("$theti \t $(10.0*log10(shht)) \t $(10.0*log10(svht)) \t $(10.0*log10(svvt)) \n")
-# println("theti \t ghhd \t\t\t gvhd \t\t\t gvvd")
-# println("$theti \t $(10.0*log10(shhg)) \t $(10.0*log10(svhg)) \t $(10.0*log10(svvg)) \n")
-
-# println("--------------------------------------------------------------------------------")
-
-# println("\nbackscat. cross section of forest in db     total incoherent\n")
-# println("theti \t sighhi \t\t sigvhi \t\t sigvvi")
-# println("$theti \t $sghhoi \t $sgvhoi \t $sgvvoi \n")
-
-# println("--------------------------------------------------------------------------------")
-
-# println("\nVH incoherent terms due to double bounce from     both layers in dB\n")
-# println("theti \t sigvhi1 \t\t sigvhi2 \t\t sigvhi3")
-# println("$theti \t $(10.0*log10(sgvhidr1)) \t $(10.0*log10(sgvhidr2)) \t $(10.0*log10(sgvhidr3)) \n")
-
-# println("--------------------------------------------------------------------------------")
-
-# println("\nEnhancement factors for total canopy backscatter\n")
-# println("theti \t cofhh \t\t cofvh \t\t cofvv")
-# println("$theti \t $(shht/shhti) \t $(svht/svhti) \t $(svvt/svvti) \n")
-
-# println("theti \t athc \t\t atvc \t\t atht \t\t atvt")
-# println("$theti \t $ath1 \t $atv1 \t $temp0h \t $temp0v \n")
-
 ###############################
 
-output = Forest_Scattering_Output(theti, shhdd1, shhdd2, shhdd3, 
+output = Forest_Scattering_Output(θ_i, shhdd1, shhdd2, shhdd3, 
                                   shhdrd1, shhdrd2, shhdrd3,
                                   10.0*log10(shht), shhdd, shhdrd,
                                   

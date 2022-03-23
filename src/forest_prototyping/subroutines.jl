@@ -142,33 +142,33 @@ function asal(thetir, ntype, parm, l_c::leaf, dat_c::data, i_c::integ)
     return (sgbhhd, sgbvhd, sgbvvd, sgbhdr, sgbvdr, sgbvh1, sgbvh3)
 end
 
-function woodf(index, theti, phii, ntype, parm, dat_c::data, i_c::integ, p1_c::parm1, p2_c::parm2)
+function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_c::integ, p1_c::parm1, p2_c::parm2)
 
-    shh = 0.0
-    svh = 0.0
-    shv = 0.0
-    svv = 0.0
+    @unpack θ_i, ϕ_i = geom_i_rad
+
+    s = [0.0 0.0 ; 0.0 0.0]
 
     p1_c.ej = 0.0 + 1.0im
 
     if (index == 1) 
         p1_c.r0 = dat_c.radbm
-        p1_c.h=0.5*dat_c.lb
-        p1_c.epsi=dat_c.epsb
+        p1_c.h = 0.5 * dat_c.lb
+        p1_c.epsi = dat_c.epsb
     end
+
     if (index == 2)
-        p1_c.r0=dat_c.radtm
-        p1_c.h=0.5*dat_c.lt
-        p1_c.epsi=dat_c.epst
+        p1_c.r0 = dat_c.radtm
+        p1_c.h = 0.5 * dat_c.lt
+        p1_c.epsi = dat_c.epst
     end
 
     nmax= Integer(floor(dat_c.ak0*p1_c.r0+4.0*(dat_c.ak0*p1_c.r0)^0.33333+2.000001))
 
     nmax = (nmax > 20) ? 20 : nmax
-    ci=cos(theti)
-	si=sin(theti)
+    ci=cos(θ_i)
+	si=sin(θ_i)
 
-    thets = π - theti
+    thets = π - θ_i
     phi = 0.0
     phs = π
     cs = cos(thets)
@@ -180,14 +180,14 @@ function woodf(index, theti, phii, ntype, parm, dat_c::data, i_c::integ, p1_c::p
     delph = dph/(2.0*π)
     delth = dth/π
     th    = 0.0
-    fsmhh  = 0.0
-    fsmvh  = 0.0
-    fsmvv = 0.0
-    fsmhv = 0.0
+
+    fsm = [0.0 0.0 ; 0.0 0.0]
+
     cnti=1.0
 	cntj=1.0
 
     for i = 1:nth1
+
         th = (i-1)*dth
 
         if (i == 1 || i == nth1)
@@ -201,10 +201,8 @@ function woodf(index, theti, phii, ntype, parm, dat_c::data, i_c::integ, p1_c::p
         cth=cos(th)
         sth=sin(th)
         ph=0.0
-        fsumhh=0.0
-        fsumvh=0.0
-        fsumvv=0.0
-        fsumhv=0.0
+
+        fsum = [0.0 0.0 ; 0.0 0.0]
 
         for j = 1:nph1
             ph=(j-1)*dph
@@ -215,8 +213,8 @@ function woodf(index, theti, phii, ntype, parm, dat_c::data, i_c::integ, p1_c::p
             cph=cos(ph-phi)
             cnt=cnti*cntj
 
-            cthi=+sth*si*cph-cth*ci
-            tvi=-sth*ci*cph-cth*si
+            cthi = +sth * si * cph - cth * ci
+            tvi  = -sth * ci * cph - cth * si
             thi=sth*sph
             ti=sqrt(tvi^2+thi^2)
             cphi=(+si*cth*cph+sth*ci)/sqrt(1.0-cthi^2)
@@ -244,35 +242,29 @@ function woodf(index, theti, phii, ntype, parm, dat_c::data, i_c::integ, p1_c::p
             fhv = ths*fpvv*tvi+tvs*fphv*tvi-ths*fpvh*thi-tvs*fphh*thi
             fhh = ths*fpvv*thi+tvs*fphv*thi+ths*fpvh*tvi+tvs*fphh*tvi
 
-            fsumvv=cnt*fvv/dsi + fsumvv
-            fsumvh=cnt*fvh/dsi + fsumvh
-            fsumhv=cnt*fhv/dsi + fsumhv
-            fsumhh=cnt*fhh/dsi + fsumhh
+            fsum = cnt*[fvv fvh ; fhv fhh]/dsi + fsum
 
             cntj=1.0
 
         end
 
-        fsmhh = fsumhh*pdf + fsmhh
-        fsmvh = fsumvh*pdf + fsmvh
-        fsmhv = fsumhv*pdf + fsmhv
-        fsmvv = fsumvv*pdf + fsmvv
+        fsm += fsum * pdf
+
         cnti=1.0		
     end
 
-    shh= fsmhh*delph*delth
-    svh= fsmvh*delph*delth
-    shv= fsmhv*delph*delth
-    svv= fsmvv*delph*delth
+    s = fsm * delph * delth
 
-    return (shh, svh, shv, svv)
+    return s 
 
 end
 
-function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1, p2_c::parm2)
+function woodb(index,geom_i::IncidentGeometry,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1, p2_c::parm2)
 
-    ci=cos(theti)
-    si=sin(theti)
+    @unpack θ_i, ϕ_i = geom_i
+
+    ci=cos(θ_i)
+    si=sin(θ_i)
     p1_c.ej=complex(0.0,1.0)
 
     if (index == 1)
@@ -295,13 +287,15 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
     delph=dph/(2.0*pi)
     delth=dth/pi
     th    = 0.0
-    smhhd = 0.0
-    smvhd = 0.0
-    smvvd=0.0
+
+    smd = [0.0, 0.0, 0.0]
+
     smhhdr=0.0
     smvvdr=0.0
+
     smhhdr2=0.0
     smvvdr2=0.0
+
     smvh1=0.0
     smvh3=0.0
 
@@ -324,9 +318,8 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
         sth=sin(th)
         ph=0.0
 
-        sumhhd = 0.0
-        sumvhd = 0.0
-        sumvvd=0.0
+        sumd = [0.0, 0.0, 0.0]
+
         sumhhdr=0.0
         sumvvdr=0.0
         sumhhdr2=0.0
@@ -373,9 +366,7 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
             fhv = ths*fpvv*tvi+tvs*fphv*tvi-ths*fpvh*thi-tvs*fphh*thi
             fhh = ths*fpvv*thi+tvs*fphv*thi+ths*fpvh*tvi+tvs*fphh*tvi
 
-            sumhhd=abs(fhh/(dsi))^2*cnt + sumhhd
-            sumvvd=abs(fvv/(dsi))^2*cnt + sumvvd
-            sumvhd=abs(fvh/(dsi))^2*cnt + sumvhd
+            sumd += abs.([fvv ; fvh ; fhh] / dsi).^2*cnt
 
             ############### 
 
@@ -409,7 +400,7 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
 
             sumhhdr= abs(fhh/(dsi))^2*cnt + sumhhdr
             sumvvdr= abs(fvv/(dsi))^2*cnt + sumvvdr
-            sumvh1= abs(fvh/(dsi))^2*cnt + sumvh1
+            sumvh1 = abs(fvh/(dsi))^2*cnt + sumvh1
             fvhc=conj(fvh)
 
             
@@ -449,9 +440,8 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
             cntj=1.0
         end
 
-        smhhd = sumhhd*pdf + smhhd
-        smvhd = sumvhd*pdf + smvhd
-        smvvd = sumvvd*pdf + smvvd
+        smd += sumd * pdf
+
         smhhdr= sumhhdr*pdf+ smhhdr
         smvvdr= sumvvdr*pdf+ smvvdr
         smhhdr2= sumhhdr2*pdf+ smhhdr2
@@ -462,9 +452,8 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
 
     end
 
-    sbhhd = 4.0*pi*smhhd*delph*delth
-    sbvhd = 4.0*pi*smvhd*delph*delth
-    sbvvd = 4.0*pi*smvvd*delph*delth
+    sbd = 4.0 * pi * smd * delph * delth
+
     sbhhdr= 4.0*pi*smhhdr*delph*delth
     sbvvdr= 4.0*pi*smvvdr*delph*delth
     sbhhdr2= 4.0*pi*smhhdr2*delph*delth
@@ -472,7 +461,7 @@ function woodb(index,theti,phii,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1
     sbvh1 = 4.0*pi*smvh1*delph*delth
     sbvh3 = 4.0*pi*smvh3*delph*delth
 
-    return sbhhd, sbvhd, sbvvd, sbhhdr, sbvvdr, sbvh1, sbvh3
+    return sbd[1], sbd[2], sbd[3], sbhhdr, sbvvdr, sbvh1, sbvh3
 
 end
 
