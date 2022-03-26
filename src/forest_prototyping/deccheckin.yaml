@@ -10,7 +10,7 @@ leaf_parameters:
   thickness: 0.1000E+00
   # m3
   density: 0.5000E+02
-  dielectric_constant: [0.2760E+02, 0.9470E+01]
+  dielectric_constant: 0.2760E+02+0.9470E+01im
   leaf_inclination_pdf_type: 11
   pdf_parameter: 0.0000E+00
 
@@ -19,7 +19,7 @@ primary_branch_parameters:
   length: 0.5000E+00
   # m3
   density: 0.5000E+00
-  dielectric_constant: [0.3590E+02, 0.1210E+02]
+  dielectric_constant: 0.3590E+02+0.1210E+02im
   branch_inclination_pdf_type: 11
   pdf_parameter: 0.1000E+01
 
@@ -28,7 +28,7 @@ secondary_branch_parameters:
   length: 0.8000E+00
   # m3
   density: 0.2500E+01
-  dielectric_constant: [0.3590E+02, 0.1210E+02]
+  dielectric_constant: 0.3590E+02+0.1210E+02im
   branch_inclination_pdf_type: 11
   pdf_parameter: 0.1000E+01
 
@@ -37,7 +37,7 @@ trunk_parameters:
   length: 0.2000E+02
   # m3
   density: 0.2000E-02
-  dielectric_constant: [0.3590E+02, 0.1210E+02]
+  dielectric_constant: 0.3590E+02+0.1210E+02im
   branch_inclination_pdf_type: 3
   pdf_parameter: 0.1000E+01
 
@@ -45,7 +45,7 @@ trunk_parameters:
   crown_height: 10.000
   # m
   trunk_height: 20.000
-  soil_dielectric: [0.1780E+02, -0.3006E+01]
+  soil_dielectric: 0.1780E+02-0.3006E+01im
 
   # cm
   corr_length: 15.00

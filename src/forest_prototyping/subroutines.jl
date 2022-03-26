@@ -1,16 +1,22 @@
-function afsal(thetir, ai1, l_c::leaf, dat_c::data)
+"""
+Calculate forward scattering amplitudes
+"""
+function afsal(θ_i_rad, ai1, l_c::leaf, dat_c::data)
     vol = π * (l_c.amaj * l_c.bmin) * l_c.t / 4.0
     beta = dat_c.ak0^2 * vol / (4.0 * π)
     xi = l_c.epsl-1.0
     xii = xi/(2.0 * (1.0 + xi))
     afhhl = beta * xi * (1.0 - xii * ai1)
-    si1 = sin(thetir) ^ 2
-    ci2 = cos(thetir) ^ 2
-    afvvl = beta * xi * (1.0 - xii * (2.0 * si2 + (ci2 - 2.0 * si2) * ai1))
+    afvvl = beta * xi * (1.0 - xii * (2.0 * sin(θ_i_rad)^2 + (cos(θ_i_rad) ^ 2 - 2.0 * sin(θ_i_rad)^2) * ai1))
     return (afhhl, afvvl)
 end
 
+"""
+Calculate scattering coefficients for a thin disk
+"""
 function asal(thetir, ntype, parm, l_c::leaf, dat_c::data, i_c::integ)
+
+    # Needed constants
     exi = l_c.epsl - 1.0
     ea = dat_c.ak0^2 * exi / (sqrt(4.0 * π))
     a2 = abs(ea)^2
@@ -21,61 +27,53 @@ function asal(thetir, ntype, parm, l_c::leaf, dat_c::data, i_c::integ)
     sthi  = sin(thetir)
     cthi2 = cthi^2
     sthi2 = sthi^2
-    nth1 = i_c.nth+1
-    nph1 = i_c.nph+1
-    dth   = pi/i_c.nth
-    dph   = 2.0*pi/i_c.nph
-    th    = 0.0
-    smhh  = 0.0
-    smvh  = 0.0
-    smvv  = 0.0
-    sihhd = 0.0
-    sivhd = 0.0
-    sivvd = 0.0
-    sihhdr= 0.0
-    sivvdr= 0.0
+
+    δθ      = π/i_c.nth
+    δϕ      = 2.0*π/i_c.nph
+    θ_curr  = 0.0
+
+    sm = [0.0, 0.0, 0.0]
+    sidr = [0.0, 0.0]
+
     sivh1= 0.0
     sivh3 = 0.0
-    cnst1 = dat_c.ak0/pi
-    cnst2 = 2.0*pi
+    cnst1 = dat_c.ak0/π
+    cnst2 = 2.0*π
     cnst3 = cnst2*l_c.amaj*l_c.bmin/4.0
 
     cnti=1.0
 	cntj=1.0
 
-    for i = 1:nth1
-        th = (i - 1) * dth
-        if (i == 1 || i == nth1) 
-            cnti = .5
-        end
-        pdf = prob(th,ntype,parm)
-        if (pdf < 1.0e-03) 
-            break
-        end 
-        cth=cos(th)
-        sth=sin(th)
+    # Loop over θ
+    for i = 1:i_c.nth+1
+
+        θ_curr = (i - 1) * δθ
+        
+        cnti = (i == 1 || i == i_c.nth+1) ? 0.5 : cnti
+
+        pdf = prob(θ_curr,ntype,parm)
+        pdf < 1.0e-03 && break
+
+        cth = cos(θ_curr)
+        sth = sin(θ_curr)
         cs=cth*sthi
         sc=sth*cthi
         cs2=cs^2
         sc2=sc^2
         ph=0.0
-        sumhh=0.0
-        sumvh=0.0
-        sumvv=0.0
-        sjhhd=0.0
-        sjvhd=0.0
-        sjvvd=0.0
-        sjhhdr=0.0
-        sjvvdr=0.0
+
+        sumx = [0.0, 0.0, 0.0]
+        sjdr = [0.0, 0.0]
+
         sjvh1=0.0
         sjvh3=0.0
 
-        for j = 1:nph1
+        for j = 1:i_c.nph+1
 
-            ph=(j-1)*dph
-            if (j == 1 || j == nph1) 
-                cntj=.5
-            end
+            ph=(j-1)*δϕ
+
+            cntj = (j == 1 || j == i_c.nph+1) ? 0.5 : cntj
+
             sph=sin(ph)
             cph=cos(ph)
             sph2=sph^2
@@ -97,6 +95,7 @@ function asal(thetir, ntype, parm, l_c::leaf, dat_c::data, i_c::integ)
             swigb=cnst3* (besselj1(zetab) / zetab)
             swigd2=swigd^2
             swigb2=swigb^2
+            
             # calculate integrands
             sthcp2=(sth*cph)^2
             ss2=(sc*sph-cs)^2
@@ -106,47 +105,46 @@ function asal(thetir, ntype, parm, l_c::leaf, dat_c::data, i_c::integ)
             sscci = cthi2-sthi2
             sccs=cs2-scsph2
             cnt=cnti*cntj
-            sumhh=(abs(1.0-eb*sthcp2))^2*cnt*swigd2+sumhh
-            sumvh=sthcp2*ss2*cnt*swigd2+sumvh
-            sumvv=(abs(1.0-eb*ss2))^2*cnt*swigd2+sumvv
-            sjhhdr=(abs(1.0-eb*sthcp2))^2*cnt*swigb2+sjhhdr
-            sjvvdr=(abs(sscci+eb*sccs))^2*cnt*swigb2+sjvvdr
+
+            sumx[3] += (abs(1.0-eb*sthcp2))^2*cnt*swigd2
+            sumx[2] += sthcp2*ss2*cnt*swigd2
+            sumx[1] += (abs(1.0-eb*ss2))^2*cnt*swigd2
+
+            sjdr[1] +=  (abs(sscci+eb*sccs))^2*cnt*swigb2 # vv
+            sjdr[2] +=  (abs(1.0-eb*sthcp2))^2*cnt*swigb2 # hh
+
             sjvh1=sthcp2*scs1*cnt*swigb2+sjvh1
             sjvh3=sthcp2*scs2*cnt*swigb2+sjvh3
 
             cntj=1.0
         end
 
-        smhh=sumhh*pdf+smhh
-		smvh=sumvh*pdf+smvh
-		smvv=sumvv*pdf+smvv
-		sihhdr=sjhhdr*pdf+sihhdr
-		sivvdr=sjvvdr*pdf+sivvdr
+        sm += sumx .* pdf
+        sidr += sjdr * pdf 
+
 		sivh1=sjvh1*pdf+sivh1
 		sivh3=sjvh3*pdf+sivh3
 		cnti=1.0
     end
 
     t2=l_c.t^2
-    delph=dph/(2*pi)
-    delth=dth/(pi)
 
-    sgbhhd=a2*t2*smhh*delth*delph    
-    sgbvhd=a2*b2*t2*smvh*delth*delph
-    sgbvvd=a2*t2*smvv*delth*delph
-    sgbhdr=a2*t2*sihhdr*delth*delph
-    sgbvdr=a2*t2*sivvdr*delth*delph
+    delph=δϕ/(2*π)
+    delth=δθ/π
+
+    sgbd = a2*t2 * sm * delth * delph
+    sgbd[2] *= b2
+
+    sgbdr = a2*t2*sidr *delth*delph
     sgbvh1=a2*t2*b2*abs(sivh1)*delth*delph
     sgbvh3=a2*t2*b2*abs(sivh3)*delth*delph
 
-    return (sgbhhd, sgbvhd, sgbvvd, sgbhdr, sgbvdr, sgbvh1, sgbvh3)
+    return (sgbd, sgbdr, sgbvh1, sgbvh3)
 end
 
 function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_c::integ, p1_c::parm1, p2_c::parm2)
 
     @unpack θ_i, ϕ_i = geom_i_rad
-
-    s = [0.0 0.0 ; 0.0 0.0]
 
     p1_c.ej = 0.0 + 1.0im
 
@@ -162,23 +160,16 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
         p1_c.epsi = dat_c.epst
     end
 
-    nmax= Integer(floor(dat_c.ak0*p1_c.r0+4.0*(dat_c.ak0*p1_c.r0)^0.33333+2.000001))
+    nmax= Integer(floor(dat_c.ak0*p1_c.r0+4.0*(dat_c.ak0*p1_c.r0)^(1/3)+2.0))
 
     nmax = (nmax > 20) ? 20 : nmax
     ci=cos(θ_i)
 	si=sin(θ_i)
-
-    thets = π - θ_i
     phi = 0.0
-    phs = π
-    cs = cos(thets)
-    ss = sin(thets)
-    nth1 = i_c.nth+1
-    nph1 = i_c.nph+1
-    dth = π/i_c.nth
-    dph = 2.0*π/i_c.nph
-    delph = dph/(2.0*π)
-    delth = dth/π
+    δθ = π/i_c.nth
+    δϕ = 2.0*π/i_c.nph
+    delph = δϕ/(2.0*π)
+    delth = δθ/π
     th    = 0.0
 
     fsm = [0.0 0.0 ; 0.0 0.0]
@@ -186,17 +177,15 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
     cnti=1.0
 	cntj=1.0
 
-    for i = 1:nth1
+    for i = 1:i_c.nth+1
 
-        th = (i-1)*dth
+        th = (i-1)*δθ
 
-        if (i == 1 || i == nth1)
-            cnti = 0.5
-        end
+        cnti = (i == 1 || i == i_c.nth+1) ? 0.5 : cnti
+
         pdf = prob(th,ntype,parm)
-        if (pdf < 1.0e-03) 
-            break
-        end 
+
+        (pdf < 1.0e-03) && break
 
         cth=cos(th)
         sth=sin(th)
@@ -204,11 +193,9 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
 
         fsum = [0.0 0.0 ; 0.0 0.0]
 
-        for j = 1:nph1
-            ph=(j-1)*dph
-            if (j == 1 || j == nph1) 
-                cntj=.5
-            end
+        for j = 1:i_c.nph+1
+            ph=(j-1)*δϕ
+            cntj = (j == 1 || j == i_c.nph+1) ? 0.5 : cntj
             sph=sin(ph-phi)
             cph=cos(ph-phi)
             cnt=cnti*cntj
@@ -227,10 +214,9 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
             cphi = max(min(cphi, 1.0), -1.0)
             
             p2_c.thetai=acos(cthi)
-            p2_c.thetas=pi-p2_c.thetai
+            p2_c.thetas=π-p2_c.thetai
             p2_c.phyi=acos(cphi)
             p2_c.phys=p2_c.phyi
-
 
             fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c, i=i)
 
@@ -249,13 +235,46 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
         end
 
         fsm += fsum * pdf
+        cnti=1.0
 
-        cnti=1.0		
     end
 
-    s = fsm * delph * delth
+    return fsm * delph * delth
 
-    return s 
+end
+
+function backscattering(ph, sth, cth, nmax, sign_i, new_tvs, new_thetas, dat_c::data, p1_c::parm1, p2_c::parm2)
+
+    phi=0.0
+    sph=sin(ph-phi)
+    cph=cos(ph-phi)
+    cthi=sth*si*cph-sign_i*cth*ci
+    tvi=-sth*ci*cph-sign_i*cth*si
+    thi=sign_i*sth*sph
+    ti=sqrt(tvi^2+thi^2)
+    cphi=(si*cth*cph+sign_i*sth*ci)/sqrt(1.0-cthi^2)
+
+    ths=-thi
+    tvs= new_tvs(tvi)
+    ts=sqrt(ths^2+tvs^2)
+
+    cthi = max(min(cthi, 1.0), -1.0)
+    cphi = max(min(cphi, 1.0), -1.0)
+
+    p2_c.thetai=acos(cthi)
+    p2_c.thetas=new_thetas(p2_c.thetai)
+    p2_c.phyi=acos(cphi)
+    p2_c.phys=p2_c.phyi+π
+
+    fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
+
+    dsi=ti*ts  
+    fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
+    fvh = tvs*fpvv*thi+tvs*fpvh*tvi-ths*fphv*thi-ths*fphh*tvi
+    fhv = ths*fpvv*tvi+tvs*fphv*tvi-ths*fpvh*thi-tvs*fphh*thi
+    fhh = ths*fpvv*thi+tvs*fphv*thi+ths*fpvh*tvi+tvs*fphh*tvi
+
+    return dsi, fvv, fvh, fhv, fhh
 
 end
 
@@ -263,8 +282,6 @@ function woodb(index,geom_i::IncidentGeometry,ntype,parm, dat_c::data, i_c::inte
 
     @unpack θ_i, ϕ_i = geom_i
 
-    ci=cos(θ_i)
-    si=sin(θ_i)
     p1_c.ej=complex(0.0,1.0)
 
     if (index == 1)
@@ -278,23 +295,16 @@ function woodb(index,geom_i::IncidentGeometry,ntype,parm, dat_c::data, i_c::inte
 
     k02 = dat_c.ak0^2
 
-    nmax=min(20, Integer(floor(dat_c.ak0*p1_c.r0+4.0*(dat_c.ak0*p1_c.r0)^0.33333+2.000001)))
+    nmax=min(20, Integer(floor(dat_c.ak0*p1_c.r0+4.0*(dat_c.ak0*p1_c.r0)^(1/3)+2.0)))
 
-    nth1=i_c.nth+1
-    nph1=i_c.nph+1
-    dth   = pi/i_c.nth
-    dph   = 2.0*pi/i_c.nph
-    delph=dph/(2.0*pi)
-    delth=dth/pi
+    δθ    = π/i_c.nth
+    δϕ   = 2.0*π/i_c.nph
+    delph = δϕ/(2.0*π)
+    delth = δθ/π
     th    = 0.0
 
     smd = [0.0, 0.0, 0.0]
-
-    smhhdr=0.0
-    smvvdr=0.0
-
-    smhhdr2=0.0
-    smvvdr2=0.0
+    smdr = [0.0, 0.0]
 
     smvh1=0.0
     smvh3=0.0
@@ -302,166 +312,67 @@ function woodb(index,geom_i::IncidentGeometry,ntype,parm, dat_c::data, i_c::inte
     cnti=1.0
 	cntj=1.0
 
-    for i = 1:nth1
+    for i = 1:i_c.nth+1
 
-        th = (i-1)*dth
+        θ_curr = (i-1) * δθ
 
-        if (i == 1 || i == nth1)
-            cnti = 0.5
-        end
-        pdf = prob(th,ntype,parm)
-        if (pdf < 1.0e-03) 
-            break
-        end 
+        cnti = (i == 1 || i == i_c.nth+1) ? 0.5 : cnti
 
-        cth=cos(th)
-        sth=sin(th)
+        pdf = prob(θ_curr,ntype,parm)
+
+        (pdf < 1.0e-03) && break
+
+        cth=cos(θ_curr)
+        sth=sin(θ_curr)
         ph=0.0
 
         sumd = [0.0, 0.0, 0.0]
+        sumdr = [0.0, 0.0]
 
-        sumhhdr=0.0
-        sumvvdr=0.0
-        sumhhdr2=0.0
-        sumvvdr2=0.0
         sumvh1=0.0
         sumvh3=0.0
 
-        for j = 1:nph1
+        for j = 1:i_c.nph+1
 
-            ph=(j-1)*dph
-            if (j == 1 || j == nph1) 
-                cntj=.5
-            end
+            ph=(j-1)*δϕ
 
+            cntj = (j == 1 || j == i_c.nph+1) ? 0.5 : cntj
             cnt = cnti*cntj
 
-            phi=0.0
-            sph=sin(ph-phi)
-            cph=cos(ph-phi)
-            cthi=sth*si*cph-cth*ci
-            tvi=-sth*ci*cph-cth*si
-            thi=sth*sph
-            ti=sqrt(tvi^2+thi^2)
-            cphi=(si*cth*cph+sth*ci)/sqrt(1.0-cthi^2)
-
-            ths=-thi
-            tvs=-tvi
-            ts=sqrt(ths^2+tvs^2)
-
-            cthi = max(min(cthi, 1.0), -1.0)
-            cphi = max(min(cphi, 1.0), -1.0)
-
-            p2_c.thetai=acos(cthi)
-            p2_c.thetas=p2_c.thetai
-            p2_c.phyi=acos(cphi)
-            p2_c.phys=p2_c.phyi+pi
-
-
-            fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
-
-            dsi=ti*ts  
-            fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
-            fvh = tvs*fpvv*thi+tvs*fpvh*tvi-ths*fphv*thi-ths*fphh*tvi
-            fhv = ths*fpvv*tvi+tvs*fphv*tvi-ths*fpvh*thi-tvs*fphh*thi
-            fhh = ths*fpvv*thi+tvs*fphv*thi+ths*fpvh*tvi+tvs*fphh*tvi
+            dsi, fvv, fvh, fhv, fhh = backscattering(ph, sth, cth, nmax, 1, x -> -x, x -> x, dat_c, p1_c, p2_c)
 
             sumd += abs.([fvv ; fvh ; fhh] / dsi).^2*cnt
 
             ############### 
 
-            phi=0.0
-            sph=sin(ph-phi)
-            cph=cos(ph-phi)		
-            cthi=sth*si*cph-cth*ci
-            tvi=-sth*ci*cph-cth*si
-            thi=sth*sph
-            ti=sqrt(tvi^2+thi^2)
-            cphi=(si*cth*cph+sth*ci)/sqrt(1.0-cthi^2)
-            tvs=tvi
-            ths=-thi
-            ts=sqrt(tvs^2+ths^2)
-            
-            cthi = max(min(cthi, 1.0), -1.0)
-            cphi = max(min(cphi, 1.0), -1.0)            
+            dsi, fvv, fvh, fhv, fhh = backscattering(ph, sth, cth, nmax, 1, x -> x, x -> π-x, dat_c, p1_c, p2_c)
 
-            p2_c.thetai=acos(cthi)
-            p2_c.thetas=pi-p2_c.thetai
-            p2_c.phyi=acos(cphi)
-            p2_c.phys=p2_c.phyi+pi
-            
-            fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
-            
-            dsi=ti*ts  
-            fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
-            fvh = tvs*fpvv*thi+tvs*fpvh*tvi-ths*fphv*thi-ths*fphh*tvi
-            fhv = ths*fpvv*tvi+tvs*fphv*tvi-ths*fpvh*thi-tvs*fphh*thi
-            fhh = ths*fpvv*thi+tvs*fphv*thi+ths*fpvh*tvi+tvs*fphh*tvi
-
-            sumhhdr= abs(fhh/(dsi))^2*cnt + sumhhdr
-            sumvvdr= abs(fvv/(dsi))^2*cnt + sumvvdr
+            sumdr += abs.([fvv ; fhh] / dsi).^2*cnt
             sumvh1 = abs(fvh/(dsi))^2*cnt + sumvh1
             fvhc=conj(fvh)
-
             
             ################## 
 
-            phi=0.0
-            sph=sin(ph-phi)
-            cph=cos(ph-phi)
-            cthi=sth*si*cph+cth*ci
-            tvi=-sth*ci*cph+cth*si
-            thi=-sth*sph
-            ti=sqrt(tvi^2+thi^2)
-            cphi=(si*cth*cph-sth*ci)/sqrt(1.0-cthi^2)
-            tvs=-tvi
-            ths=-thi
-            ts=sqrt(tvs^2+ths^2)
-
-            cthi = max(min(cthi, 1.0), -1.0)
-            cphi = max(min(cphi, 1.0), -1.0)    
-
-            p2_c.thetai=acos(cthi)
-            p2_c.thetas=pi-p2_c.thetai
-            p2_c.phyi=acos(cphi)
-            p2_c.phys=p2_c.phyi+pi
-
-            fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
-
-            dsi=ti*ts 
-            fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
-            fvh = tvs*fpvv*thi+tvs*fpvh*tvi-ths*fphv*thi-ths*fphh*tvi
-            fhv = ths*fpvv*tvi+tvs*fphv*tvi-ths*fpvh*thi-tvs*fphh*thi
-            fhh = ths*fpvv*thi+tvs*fphv*thi+ths*fpvh*tvi+tvs*fphh*tvi
+            dsi, fvv, fvh, fhv, fhh = backscattering(ph, sth, cth, nmax, -1, x -> -x, x -> π-x, dat_c, p1_c, p2_c)
 
             sumvh3 = abs(fvh*fvhc/(dsi*dsi))*cnt + sumvh3
-            sumvvdr2 = abs(fvv/(dsi))^2*cnt + sumvvdr2
-            sumhhdr2 = abs(fhh/(dsi))^2*cnt + sumhhdr2
             cntj=1.0
         end
 
         smd += sumd * pdf
-
-        smhhdr= sumhhdr*pdf+ smhhdr
-        smvvdr= sumvvdr*pdf+ smvvdr
-        smhhdr2= sumhhdr2*pdf+ smhhdr2
-        smvvdr2= sumvvdr2*pdf+ smvvdr2
+        smdr += sumdr * pdf
         smvh1 = sumvh1*pdf + smvh1
         smvh3 = sumvh3*pdf + smvh3
         cnti=1.0
 
     end
 
-    sbd = 4.0 * pi * smd * delph * delth
+    sbd   = 4 * π * smd * delph * delth
+    sbdr  = 4 * π * smdr * delph * delth
+    sbvh1 = 4 * π * smvh1 * delph * delth
+    sbvh3 = 4 * π * smvh3 * delph * delth
 
-    sbhhdr= 4.0*pi*smhhdr*delph*delth
-    sbvvdr= 4.0*pi*smvvdr*delph*delth
-    sbhhdr2= 4.0*pi*smhhdr2*delph*delth
-    sbvvdr2= 4.0*pi*smvvdr2*delph*delth
-    sbvh1 = 4.0*pi*smvh1*delph*delth
-    sbvh3 = 4.0*pi*smvh3*delph*delth
-
-    return sbd[1], sbd[2], sbd[3], sbhhdr, sbvvdr, sbvh1, sbvh3
+    return sbd, sbdr, sbvh1, sbvh3
 
 end
 
@@ -469,23 +380,14 @@ function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2; i=-1)
 
     k02=dat_c.ak0^2
     cthi=cos(p2_c.thetai)
-    cphi=cos(p2_c.phyi)
     cths=cos(p2_c.thetas)
-    cphs=cos(p2_c.phys)
-    cthi2=cthi^2
     cths2=cths^2
 
-    sthi=sqrt(1.0-cthi2)
     sths=sqrt(1.0-cths2)
-
-    u = dat_c.ak0*p1_c.r0*sqrt(p1_c.epsi-cthi2)
-    vi = dat_c.ak0*p1_c.r0*sqrt(1.0-cthi2)
     argum=dat_c.ak0*p1_c.h*(cthi+cths)
 
     q = (argum == 0.0) ? 1.0 : sin(argum)/argum
 
-    
-    
     z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, dat_c, p1_c, p2_c)
 
     shh0=b0*eta0h
@@ -503,13 +405,7 @@ function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2; i=-1)
 
         sphn=0.0
         π_δ = 0.0001
-        if (π - π_δ < p2_c.phys-p2_c.phyi < π + π_δ) 
-            cphn=(-1.0)^n
-        else
-            cphn = 1.0
-        end
-
-        
+        cphn = (π - π_δ < p2_c.phys-p2_c.phyi < π + π_δ) ? (-1.0)^n : 1.0
 
         shh=shh+2.0*(etanh*bn+p1_c.ej*enh*an*cthi)*cphn	
         shv=shv+(etanv*bn+p1_c.ej*env*an*cthi)*sphn
@@ -530,9 +426,7 @@ end
 function cylinder(n, dat_c::data, p1_c::parm1, p2_c::parm2)
 
     cthi=cos(p2_c.thetai)
-    cphi=cos(p2_c.phyi)
     cths=cos(p2_c.thetas)
-    cphs=cos(p2_c.phys)
 
     cthi2=cthi^2
     coef1= sqrt(p1_c.epsi-cthi2)	
@@ -543,10 +437,6 @@ function cylinder(n, dat_c::data, p1_c::parm1, p2_c::parm2)
 
     bjnu=besselj(n,u)
     dbjnu=dbessj(n,u)
-    bjnp1u=besselj(n+1,u)
-    bjnv=besselj(n,vi)
-    dbjnv=dbessj(n,vi)
-    bjnp1v=besselj(n+1,vi)
     hnv=besselj(n,vi)-p1_c.ej*bessely(n,vi)
     dhnv=dbessj(n,vi)-p1_c.ej*dbessy(n,vi)
 
@@ -558,7 +448,7 @@ function cylinder(n, dat_c::data, p1_c::parm1, p2_c::parm2)
     an = (znm1-znp1)/(2.0*coef1)
     bn = (znm1+znp1)/(2.0*coef1)
 
-    rn1=0.5*pi*(vi^2)*hnv
+    rn1=0.5*π*(vi^2)*hnv
     coefenv=(dhnv/(vi*hnv)-dbjnu/(u*bjnu))
     coefetanh = (dhnv/(vi*hnv)-p1_c.epsi*dbjnu/(u*bjnu))
     coefenh=(1.0/(vi^2)-1.0/(u^2))*n*cthi
@@ -577,62 +467,26 @@ end
 function zeta(n, u, vs)
 
     bjnu=besselj(n,u)
-    bjnp1u=besselj(n+1,u)
     bjnv=besselj(n,vs)
+
+    bjnp1u=besselj(n+1,u)
     bjnp1v=besselj(n+1,vs)
 
     bjnp2v=besselj(n+2,vs)
     bjnp2u=besselj(n+2,u)
 
-    if n == 0
-        zn=(u*bjnv*bjnp1u-vs*bjnu*bjnp1v)/(u^2-vs^2)
-		znp1=(u*bjnp1v*bjnp2u-vs*bjnp1u*bjnp2v)/(u^2-vs^2)
-		znm1= znp1
-        return zn, znp1, znm1
-    elseif n == 1
-        bj = besselj0(u)
-        by = bessely0(u)
-        bjnm1u = bj
+    bjnm1u=besselj(n-1,u)
+	bjnm1v=besselj(n-1,vs)
 
-        by = bessely0(vs)
-        bj = besselj0(vs)
-        bjnm1v = bj
-    else 
-        bjnm1u=besselj(n-1,u)
-		bjnm1v=besselj(n-1,vs)
-    end
-
-    zn=(u*bjnv*bjnp1u-vs*bjnu*bjnp1v)/(u^2-vs^2)
-    znp1=(u*bjnp1v*bjnp2u-vs*bjnp1u*bjnp2v)/(u^2-vs^2)
-    znm1=(u*bjnm1v*bjnu-vs*bjnm1u*bjnv)/(u^2-vs^2)
+    zn   = (u * bjnv   * bjnp1u - vs * bjnu   * bjnp1v) / (u^2-vs^2)
+    znp1 = (u * bjnp1v * bjnp2u - vs * bjnp1u * bjnp2v) / (u^2-vs^2)
+    znm1 = (u * bjnm1v * bjnu   - vs * bjnm1u * bjnv)   / (u^2-vs^2)
 
     return zn, znp1, znm1
 end
 
-function dbessj(n, x)
-
-    if n == 0 
-        dbessj=-besselj(1,x)
-    elseif n == 1
-        dbessj = besselj(0,x)-besselj(1,x)/x
-    else 
-        dbessj=-n/x*besselj(n,x)+besselj(n-1,x)
-    end
-    return dbessj
-end
-
-function dbessy(n, x)
-
-    if n == 0 
-        dbessy=-bessely(1,x)
-    elseif n == 1
-        dbessy = bessely(0,x)-bessely(1,x)/x
-    else 
-        dbessy=-n/x*bessely(n,x)+bessely(n-1,x)
-    end
-    return dbessy
-
-end
+dbessj(n, x) = -n/x*besselj(n,x)+besselj(n-1,x)
+dbessy(n, x) = -n/x*bessely(n,x)+bessely(n-1,x)
 
 function funcm(x, y, d)
 
@@ -640,13 +494,9 @@ function funcm(x, y, d)
     dagd = dag * d
     z = abs(dagd)
 
-    if z < 1.0e-03
-        return d
-    end
-
-    if z > 1.6e02
-        return 1.0/dag
-    end
+    # Edge cases 
+    z < 1.0e-03 && return d
+    z > 1.6e02 && return 1.0/dag
 
     return (1.0  - exp(-(dagd)))/dag
 
@@ -658,13 +508,9 @@ function funcp(x, y, d)
     dagd=dag*d
     z=abs(dagd)
 
-    if z < 1.0e-03
-        return d
-    end
-
-    if z > 1.6e02
-        return 1.0/dag
-    end
+    # Edge cases 
+    z < 1.0e-03 && return d
+    z > 1.6e02 && return 1.0/dag
 
     return (exp(dagd)-1.0)/dag
 
@@ -676,42 +522,33 @@ function cfun(a, e, d)
     dagd=dag*d
     a3=abs(dagd)
 
-    if a3 < 1.0e-03 
-        return d
-    end
-
-    if a3 > 1.6e02
-        return 1.0/dag
-    end
+    # Edge cases 
+    a3 < 1.0e-03  && return d
+    a3 > 1.6e02 && return 1.0/dag
 
     return (1.0 - exp(-(dagd)))/dag
 
 end
 
-function grdoh(ksig, theti, a_c::a, b_c::b)
+function grdoh(ksig, θ_i, a_c::a, b_c::b)
 
-    ak0=b_c.zk
-    thetir=theti*pi/180.0
-    si=sin(thetir)
-    ci=cos(thetir)
-    ci3=ci^3	
-    si2=si^2
+    θ_i_rad= deg2rad(θ_i)
 
     er=sqrt(a_c.epsg)
     r0 = abs((1.0-er)/(1.0+er))^2
     g=0.7*(1.0-exp(-0.65*ksig^1.8))
     q=0.23*(1.0-exp(-ksig))*sqrt(r0)
-    sp1=(2.0*thetir/pi)^(1.0/(3.0*r0))
+    sp1=(2.0*θ_i_rad/π)^(1.0/(3.0*r0))
     sp=1.0-sp1*exp(-ksig)
 
-    rgh  = (ci-sqrt(a_c.epsg-si2))/(ci+sqrt(a_c.epsg-si2))
-    rgv  = (a_c.epsg*ci-sqrt(a_c.epsg-si2))/(a_c.epsg*ci+sqrt(a_c.epsg-si2))
+    rgh  = (cos(θ_i_rad)-sqrt(a_c.epsg-sin(θ_i_rad)^2))/(cos(θ_i_rad)+sqrt(a_c.epsg-sin(θ_i_rad)^2))
+    rgv  = (a_c.epsg*ci-sqrt(a_c.epsg-sin(θ_i_rad)^2))/(a_c.epsg*ci+sqrt(a_c.epsg-sin(θ_i_rad)^2))
 
     rh0=abs(rgh)^2
     rv0=abs(rgv)^2
 
-    sighh=g*sp*ci3*(rh0+rv0)
-    sigvv=g*ci3*(rh0+rv0)/sp
+    sighh=g*sp*ci^3*(rh0+rv0)
+    sigvv=g*ci^3*(rh0+rv0)/sp
     sigvh=q*sigvv	
     shhg=sighh*exp(-4.0*(a_c.khim1*d1+a_c.khim2*d2))
     svvg=sigvv*exp(-4.0*(a_c.kvim1*d1+a_c.kvim2*d2))

@@ -44,6 +44,13 @@ function parameters_from_yaml(filepath)
     l       = input_params["trunk_parameters"]["corr_length"]
     sig     = input_params["trunk_parameters"]["rms_height"]
 
+    # Convert complex numbers 
+    epsl_temp = eval(Meta.parse(epsl_temp))
+    epsb1     = eval(Meta.parse(epsb1))
+    epsb2     = eval(Meta.parse(epsb2))
+    epst_temp = eval(Meta.parse(epst_temp))
+    epsg      = eval(Meta.parse(epsg))
+
     return Forest_Scattering_Parameters(bfrghz, amajcm, bmincm, tmm, rhol, epsl_temp, 
                                         ntypel, parml, radb1, lb1, rhob1, epsb1, ntypeb1, 
                                         parmb1, radb2, lb2, rhob2, epsb2, ntypeb2, parmb2, 

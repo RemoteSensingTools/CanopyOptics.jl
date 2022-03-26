@@ -27,13 +27,6 @@ d1, d2, epsg, l, sig = input_params
 
 println(input_params)
 
-# Convert complex numbers 
-epsl_temp = complex(epsl_temp[1], epsl_temp[2])
-epsb1 = complex(epsb1[1], epsb1[2])
-epsb2 = complex(epsb2[1], epsb2[2])
-epst_temp = complex(epst_temp[1], epst_temp[2])
-epsg = complex(epsg[1], epsg[2])
-
 # Conversion to standard metric
 
 c      = 3.0e+08            # Speed of light 
@@ -58,23 +51,25 @@ nth_temp    = 37                 #
 ## Calculation of Parameters
 ## 
 
-# Calculate integral of p(th)*sin(th)^2 from 0 to pi
+# Calculate integral of p(θ)*sin(θ)^2 from 0 to pi
 # That is, the average integral over inclinations
 ail = sum(x -> prob(x, ntypel, parml) * sin(x)^2 * π/nth_temp, collect(1:nth_temp) * π/nth_temp)
 
-# Loop over angle of incidence-theti 
+# Loop over angle of incidence-θ_i 
 ip = 0
-phiir=0.0
+
 ip=ip+1
 θ_i  = 40
 θ_i = (θ_i < 0.001 ? θ_i=0.1 : θ_i) 
-thetir  = deg2rad(θ_i)
-si = sin(thetir)
-ci = cos(thetir)
+θ_i_rad  = deg2rad(θ_i)
+ϕ_i = 0.0 
+ϕ_i_rad = deg2rad(0.0)
+si = sin(θ_i_rad)
+ci = cos(θ_i_rad)
 si2 = si^2 
 
 # Incidence geometry in radians
-geom_i = IncidentGeometry(thetir, phiir)
+geom_i = IncidentGeometry(θ_i_rad, ϕ_i_rad)
 
 # Roughness factor for ground scattering in direct-reflected term
 grough = exp(-4.0*(ak0_temp*sigm*ci)^2)
@@ -101,9 +96,9 @@ b_common = b(zk, sig, 0.0, 0.0)
 
 # Calculation of skin depth skdh skdv and the bistatic cross sections sghh,sghv,sgvv
 
-afhhl, afvvl = afsal(thetir, ail, leaf_common, data_common)
+afhhl, afvvl = afsal(θ_i_rad, ail, leaf_common, data_common)
 
-sbhhdl, sbvhdl, sbvvdl, sbhdrl, sbvdrl, sbvh1l, sbvh3l = asal(thetir, ntypel, parml, leaf_common, data_common, integ_common)
+sbdl, sbdrl, sbvh1l, sbvh3l = asal(θ_i_rad, ntypel, parml, leaf_common, data_common, integ_common)
 
 # Compute scattering amplitudes from primary branches
 
@@ -114,7 +109,7 @@ afb1 = woodf(index,geom_i,ntypeb1,parmb1, data_common, integ_common, parm1_commo
 afhhb1 = complex(abs(real(afb1[2,2])),abs(imag(afb1[2,2])))
 afvvb1 = complex(abs(real(afb1[1,1])),abs(imag(afb1[1,1])))
 
-sbvvdb1,sbvhdb1,sbhhdb1,sbhdrb1,sbvdrb1,sbvh1b1,sbvh3b1 = woodb(index,geom_i,ntypeb1,parmb1, data_common, integ_common, parm1_common, parm2_common)
+sbd_b1, sbdr_b1, sbvh1b1,sbvh3b1 = woodb(index,geom_i,ntypeb1,parmb1, data_common, integ_common, parm1_common, parm2_common)
 
 # compute scattering amplitudes from secondary branches
 
@@ -128,7 +123,7 @@ afb2 = woodf(index,geom_i,ntypeb2,parmb2, data_common, integ_common, parm1_commo
 afhhb2 = complex(abs(real(afb2[2,2])),abs(imag(afb2[2,2])))
 afvvb2 = complex(abs(real(afb2[1,1])),abs(imag(afb2[1,1])))
 
-sbvvdb2,sbvhdb2,sbhhdb2,sbhdrb2,sbvdrb2,sbvh1b2,sbvh3b2 = woodb(index,geom_i,ntypeb2,parmb2, data_common, integ_common, parm1_common, parm2_common)
+sbd_b2, sbdr_b2, sbvh1b2,sbvh3b2 = woodb(index,geom_i,ntypeb2,parmb2, data_common, integ_common, parm1_common, parm2_common)
 
 # Compute scattering amplitudes from trunks
 
@@ -136,29 +131,17 @@ index = 2
 
 aft = woodf(index,geom_i,ntypet,parmt, data_common, integ_common, parm1_common, parm2_common)
 
-sbvvdt,sbvhdt,sbhhdt,sbhdrt,sbvdrt,sbvh1t,sbvh3t = woodb(index,geom_i,ntypet,parmt, data_common, integ_common, parm1_common, parm2_common)
+sbd_t, sbdr_t, sbvh1t,sbvh3t = woodb(index,geom_i,ntypet,parmt, data_common, integ_common, parm1_common, parm2_common)
 
 # Using reciprocity and scatterer symmetry to calculate rho*sigma
 
-bsghhd1 = rhob1*sbhhdb1 + rhob2*sbhhdb2 +rhol*sbhhdl
-bsghhd2 = rhot*sbhhdt
-bsghhd3 = rhol*sbhhdl
+bsgd1 = rhob1*sbd_b1 + rhob2*sbd_b2 + rhol*sbdl
+bsgd2 = rhot*sbd_t
+bsgd3 = rhol*sbdl
 
-bsgvhd1 = rhob1*sbvhdb1 +rhob2*sbvhdb2 + rhol*sbvhdl
-bsgvhd2 = rhot*sbvhdt
-bsgvhd3 = rhol*sbvhdl
-
-bsgvvd1 = rhob1*sbvvdb1 + rhob2*sbvvdb2 + rhol*sbvvdl
-bsgvvd2 = rhot*sbvvdt
-bsgvvd3 = rhol*sbvvdl
-
-bsghdr1 = rhob1*sbhdrb1 + rhob2*sbhdrb2 + rhol*sbhdrl
-bsghdr2 = rhot*sbhdrt
-bsghdr3 = rhol*sbhdrl
-
-bsgvdr1 = rhob1*sbvdrb1 + rhob2*sbvdrb2 + rhol*sbvdrl
-bsgvdr2 = rhot*sbvdrt
-bsgvdr3 = rhol*sbvdrl
+bsgdr1 = rhob1*sbdr_b1 + rhob2*sbdr_b2 + rhol*sbdrl
+bsgdr2 = rhot*sbdr_t
+bsgdr3 = rhol*sbdrl
 
 bsgvh11 = rhob1*sbvh1b1 + rhob2*sbvh1b2 +rhol*sbvh1l
 bsgvh12 = rhot*sbvh1t
@@ -250,13 +233,13 @@ factvh1 = exp(-2.0*(x1-y1)*d1)
 factvh2 = exp(-2.0*(y1-x1)*d1)
 factvh3 = exp((-a1-e1)*d1)
 
-sghhd1 = bsghhd1*funcm(2.0*x1,2.0*x1,d1)
-sghhd2 = bsghhd2*dattenh1*funcm(2.0*x2,2.0*x2,d2)
-sghhd3 = bsghhd3*funcm(2.0*x1,2.0*x1,d1)
+sghhd1 = bsgd1[3]*funcm(2.0*x1,2.0*x1,d1)
+sghhd2 = bsgd2[3]*dattenh1*funcm(2.0*x2,2.0*x2,d2)
+sghhd3 = bsgd3[3]*funcm(2.0*x1,2.0*x1,d1)
 
-sghhdr1=4.0*d1*bsghdr1*reflha^2*grough
-sghhdr2=4.0*d2*bsghdr2*reflha^2*grough
-sghhdr3=4.0*d1*bsghdr3*reflha^2*grough
+sghhdr1=4.0*d1*bsgdr1[2]*reflha^2*grough
+sghhdr2=4.0*d2*bsgdr2[2]*reflha^2*grough
+sghhdr3=4.0*d1*bsgdr3[2]*reflha^2*grough
 sghdri1=sghhdr1/2.0
 sghdri2=sghhdr2/2.0
 sghdri3=sghhdr3/2.0
@@ -273,13 +256,13 @@ sghhi=sghhd+sghhr+sghdri
 
 ############################
 
-sgvvd1 = bsgvvd1*funcm(2.0*y1,2.0*y1,d1)
-sgvvd2 = bsgvvd2*dattenv1*funcm(2.0*y2,2.0*y2,d2)
-sgvvd3 = bsgvvd3*funcm(2.0*y1,2.0*y1,d1)
+sgvvd1 = bsgd1[1]*funcm(2.0*y1,2.0*y1,d1)
+sgvvd2 = bsgd2[1]*dattenv1*funcm(2.0*y2,2.0*y2,d2)
+sgvvd3 = bsgd3[1]*funcm(2.0*y1,2.0*y1,d1)
 
-sgvvdr1=4.0*d1*bsgvdr1*reflva^2*grough
-sgvvdr2=4.0*d2*bsgvdr2*reflva^2*grough
-sgvvdr3=4.0*d1*bsgvdr3*reflva^2*grough
+sgvvdr1=4.0*d1*bsgdr1[1]*reflva^2*grough
+sgvvdr2=4.0*d2*bsgdr2[1]*reflva^2*grough
+sgvvdr3=4.0*d1*bsgdr3[1]*reflva^2*grough
 sgvdri1=sgvvdr1/2.0
 sgvdri2=sgvvdr2/2.0
 sgvdri3=sgvvdr3/2.0
@@ -294,9 +277,9 @@ sgvdri = sgvdri1+sgvdri2
 sgvv  = sgvvd+sgvvr+sgvvdr
 sgvvi=sgvvd+sgvvr+sgvdri
 
-sgvhd1 = bsgvhd1*funcm(2.0*y1,2.0*x1,d1)
-sgvhd3 = bsgvhd3*funcm(2.0*y1,2.0*x1,d1)
-sgvhd2 = bsgvhd2*dattenvh1*funcm(2.0*y2,2.0*x2,d2)
+sgvhd1 = bsgd1[2]*funcm(2.0*y1,2.0*x1,d1)
+sgvhd3 = bsgd3[2]*funcm(2.0*y1,2.0*x1,d1)
+sgvhd2 = bsgd2[2]*dattenvh1*funcm(2.0*y2,2.0*x2,d2)
 sgvhd = sgvhd1+sgvhd2
 
 sgvh11 = bsgvh11*(reflha)^2*funcm(2.0*y1,-2.0*x1,d1)*grough
@@ -445,19 +428,3 @@ output = Forest_Scattering_Output(θ_i, shhdd1, shhdd2, shhdd3,
 
 
 check_output_matches_fortran(output)
-
-# ak0  - free space wave number.
-# d - slab thickness
-# bfr - frequency in hz
-# eps1-relative dielctric constant of scatterer.sth
-# eps2-relative dielectric constant of water droplets
-# epsg- relative dielectic constant of ground
-# rho- density of scatterers- no./m^3.
-# kh - horizontal propagation constant
-# kmv - vertical propagation constant
-# theti- angle of incidence-degrees.
-# atmh - attenuation of mean horizontal wave
-# atmv - attenuation of mean vertical   wave
-# skdh,skdv     - horizontal and vertical skin depth in m.
-# sghh ,sgvh ,sgvv - average backscattering coefficients.
-# sghho ,sghvo ,sgvvo - average backscattering in lb.
