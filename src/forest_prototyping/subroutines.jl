@@ -4,7 +4,7 @@ Calculate forward scattering amplitudes
 function afsal(θ_iʳ, ai1, l_c::leaf, dat_c::data)
     vol = π * l_c.amaj * l_c.bmin * l_c.t / 4      # Volume of leaf 
     β = dat_c.ak0^2 * vol / (4π)                   # ν² * vol / 4π
-    xi = l_c.epsl-1
+    xi = l_c.ϵ_l-1
     xii = xi/(2 * (1 + xi))
     afhhl = β * xi * (1 - xii * ai1)
     afvvl = β * xi * (1 - xii * (2 * sin(θ_iʳ)^2 + (cos(θ_iʳ)^2 - 2 * sin(θ_iʳ)^2) * ai1))
@@ -17,7 +17,7 @@ Calculate scattering coefficients for a thin disk
 function asal(θ_iʳ, ntype, parm, l_c::leaf, dat_c::data, i_c::integ)
 
     # Needed constants
-    exi = l_c.epsl - 1.0
+    exi = l_c.ϵ_l - 1.0
     ea = dat_c.ak0^2 * exi / sqrt(4π)
     a2 = abs(ea)^2
     eb = exi / (1.0 + exi)
@@ -126,21 +126,23 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
     if (index == 1) 
         p1_c.r0 = dat_c.radbm
         p1_c.h = 0.5 * dat_c.lb
-        p1_c.epsi = dat_c.epsb
+        p1_c.ϵ_i = dat_c.ϵ_b
     end
 
     if (index == 2)
         p1_c.r0 = dat_c.radtm
         p1_c.h = 0.5 * dat_c.lt
-        p1_c.epsi = dat_c.epst
+        p1_c.ϵ_i = dat_c.ϵ_t
     end
 
     nmax= Integer(floor(dat_c.ak0*p1_c.r0+4.0*(dat_c.ak0*p1_c.r0)^(1/3)+2.0))
 
     nmax = min(nmax, 20)
+
     ci=cos(θ_iᵈ)
 	si=sin(θ_iᵈ)
-    phi = 0.0
+    
+    ϕ_i = 0.0
     δθ = π/i_c.n_θ
     δϕ = 2.0*π/i_c.n_ϕ
     Δϕ = δϕ/(2π)
@@ -163,15 +165,15 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
 
         cth=cos(θ_curr)
         sth=sin(θ_curr)
-        ph=0.0
 
         fsum = [0.0 0.0 ; 0.0 0.0]
 
         for j = 1:i_c.n_ϕ+1
-            ph=(j-1)*δϕ
+
+            ϕ_curr = (j-1)*δϕ
             cntj = (j == 1 || j == i_c.n_ϕ+1) ? 0.5 : cntj
-            sph=sin(ph-phi)
-            cph=cos(ph-phi)
+            sph=sin(ϕ_curr-ϕ_i)
+            cph=cos(ϕ_curr-ϕ_i)
             cnt=cnti*cntj
 
             cthi = +sth * si * cph - cth * ci
@@ -269,10 +271,10 @@ function woodb(index,geom_i::IncidentGeometry,ntype,parm, dat_c::data, i_c::inte
     if (index == 1)
         p1_c.r0 = dat_c.radbm
         p1_c.h=0.5*dat_c.lb
-        p1_c.epsi=dat_c.epsb
+        p1_c.ϵ_i=dat_c.ϵ_b
     elseif index == 2
         p1_c.r0 = dat_c.radtm
-        p1_c.epsi = dat_c.epst
+        p1_c.ϵ_i = dat_c.ϵ_t
     end
 
     k02 = dat_c.ak0^2
@@ -393,10 +395,10 @@ function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2; i=-1)
         
     end
 
-    fhh=(shh0+shh)*k02*q*p1_c.h*(p1_c.epsi-1.0)
-    fhv=2.0*(shv0+shv)*k02*p1_c.h*q*p1_c.ej*(p1_c.epsi-1.0)
-    fvh=2.0*(svh0+svh)*k02*p1_c.h*q*p1_c.ej*(p1_c.epsi-1.0)
-    fvv=(svv0+svv)*k02*p1_c.h*q*(p1_c.epsi-1.0)
+    fhh=(shh0+shh)*k02*q*p1_c.h*(p1_c.ϵ_i-1.0)
+    fhv=2.0*(shv0+shv)*k02*p1_c.h*q*p1_c.ej*(p1_c.ϵ_i-1.0)
+    fvh=2.0*(svh0+svh)*k02*p1_c.h*q*p1_c.ej*(p1_c.ϵ_i-1.0)
+    fvv=(svv0+svv)*k02*p1_c.h*q*(p1_c.ϵ_i-1.0)
 
     return fvv,fvh,fhv,fhh
 
@@ -408,7 +410,7 @@ function cylinder(n, dat_c::data, p1_c::parm1, p2_c::parm2)
     cths=cos(p2_c.thetas)
 
     cthi2=cthi^2
-    coef1= sqrt(p1_c.epsi-cthi2)	
+    coef1= sqrt(p1_c.ϵ_i-cthi2)	
     u = dat_c.ak0*p1_c.r0*coef1
     vi = dat_c.ak0*p1_c.r0*sqrt(1.0-cthi2)
     vs = dat_c.ak0*p1_c.r0*sqrt(1.0-(cths^2))
@@ -429,7 +431,7 @@ function cylinder(n, dat_c::data, p1_c::parm1, p2_c::parm2)
 
     rn1=0.5*π*(vi^2)*hnv
     coefenv=(dhnv/(vi*hnv)-dbjnu/(u*bjnu))
-    coefetanh = (dhnv/(vi*hnv)-p1_c.epsi*dbjnu/(u*bjnu))
+    coefetanh = (dhnv/(vi*hnv)-p1_c.ϵ_i*dbjnu/(u*bjnu))
     coefenh=(1.0/(vi^2)-1.0/(u^2))*n*cthi
 
     rn=rn1*(coefenv*coefetanh-coefenh^2)
@@ -519,15 +521,15 @@ function grdoh(ksig, θ_iᵈ::Real, a_c::a, ::b)
 
     θ_iʳ= deg2rad(θ_iᵈ)
 
-    er=sqrt(a_c.epsg)
+    er=sqrt(a_c.ϵ_g)
     r0 = abs((1.0-er)/(1.0+er))^2
     g=0.7*(1.0-exp(-0.65*ksig^1.8))
     q=0.23*(1.0-exp(-ksig))*sqrt(r0)
     sp1=(2.0*θ_iʳ/π)^(1.0/(3.0*r0))
     sp=1.0-sp1*exp(-ksig)
 
-    rgh  = (cos(θ_iʳ)-sqrt(a_c.epsg-sin(θ_iʳ)^2))/(cos(θ_iʳ)+sqrt(a_c.epsg-sin(θ_iʳ)^2))
-    rgv  = (a_c.epsg*cos(θ_iʳ)-sqrt(a_c.epsg-sin(θ_iʳ)^2))/(a_c.epsg*cos(θ_iʳ)+sqrt(a_c.epsg-sin(θ_iʳ)^2))
+    rgh  = (cos(θ_iʳ)-sqrt(a_c.ϵ_g-sin(θ_iʳ)^2))/(cos(θ_iʳ)+sqrt(a_c.ϵ_g-sin(θ_iʳ)^2))
+    rgv  = (a_c.ϵ_g*cos(θ_iʳ)-sqrt(a_c.ϵ_g-sin(θ_iʳ)^2))/(a_c.ϵ_g*cos(θ_iʳ)+sqrt(a_c.ϵ_g-sin(θ_iʳ)^2))
 
     rh0=abs(rgh)^2
     rv0=abs(rgv)^2

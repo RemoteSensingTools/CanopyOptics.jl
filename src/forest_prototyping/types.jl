@@ -23,37 +23,38 @@ mutable struct Forest_Scattering_Parameters
     amajcm
     bmincm
     tmm
-    rhol
-    epsl_temp
+    ρ_l
+    ϵ_l
     ntypel
     parml
 
     # Primary Branch Parameters
     radb1   
     lb1     
-    rhob1   
-    epsb1   
+    ρ_b1
+    ϵ_b1   
     ntypeb1 
     parmb1  
 
     # Secondary Branch Parameters
     radb2   
     lb2     
-    rhob2   
-    epsb2   
+    ρ_b2   
+    ϵ_b2   
     ntypeb2 
     parmb2  
 
     # Trunk Parameters
     radt    
     lt_temp 
-    rhot    
-    epst_temp
+    ρ_t    
+    ϵ_t
     ntypet  
     parmt   
+
     d_c
     d_t  
-    epsg    
+    ϵ_g    
     l       
     sig     
 
@@ -66,7 +67,7 @@ mutable struct a
     kvim2
     
     bfr
-    epsg
+    ϵ_g
 
 end
 
@@ -89,8 +90,8 @@ end
 mutable struct data
 
     ak0
-    epsb
-    epst
+    ϵ_b
+    ϵ_t
     radbm
     radtm
     lb
@@ -107,7 +108,7 @@ end
 
 mutable struct leaf 
 
-    epsl
+    ϵ_l
     amaj
     bmin
     t
@@ -120,7 +121,7 @@ mutable struct parm1
     r0
     h
     ej
-    epsi
+    ϵ_i
 
 end
 
