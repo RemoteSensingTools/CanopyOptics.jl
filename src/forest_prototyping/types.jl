@@ -1,19 +1,3 @@
-abstract type Geometry end
-
-struct IncidentGeometry <: Geometry
-
-    θ_iᵈ::Real   # inclination angle 
-    ϕ_iᵈ::Real   # azimuth angle 
-
-end
-
-struct ScatteringGeometry <: Geometry
-
-    θ_sᵈ::Real   # inclination angle 
-    ϕ_sᵈ::Real   # azimuth angle 
-
-end
-
 mutable struct Forest_Scattering_Parameters 
 
     # Frequency
@@ -30,7 +14,7 @@ mutable struct Forest_Scattering_Parameters
 
     # Primary Branch Parameters
     radb1   
-    lb1     
+    l_b1     
     ρ_b1
     ϵ_b1   
     ntypeb1 
@@ -38,7 +22,7 @@ mutable struct Forest_Scattering_Parameters
 
     # Secondary Branch Parameters
     radb2   
-    lb2     
+    l_b2     
     ρ_b2   
     ϵ_b2   
     ntypeb2 
@@ -46,7 +30,7 @@ mutable struct Forest_Scattering_Parameters
 
     # Trunk Parameters
     radt    
-    lt_temp 
+    l_t
     ρ_t    
     ϵ_t
     ntypet  
@@ -87,25 +71,6 @@ mutable struct ds
 
 end
 
-mutable struct data
-
-    ak0
-    ϵ_b
-    ϵ_t
-    radbm
-    radtm
-    lb
-    lt
-
-end
-
-mutable struct integ 
-
-    n_ϕ
-    n_θ
-
-end
-
 mutable struct leaf 
 
     ϵ_l
@@ -115,6 +80,21 @@ mutable struct leaf
 
 end
 
+mutable struct branch 
+
+    ϵ_b
+    radbm
+    l_b
+
+end
+
+mutable struct trunk 
+
+    ϵ_t
+    radtm
+    l_t
+
+end
 
 mutable struct parm1
 

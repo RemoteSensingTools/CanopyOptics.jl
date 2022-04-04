@@ -1,9 +1,9 @@
 """
 Calculate forward scattering amplitudes
 """
-function afsal(θ_iʳ, ai1, l_c::leaf, dat_c::data)
+function afsal(θ_iʳ, ai1, l_c::leaf)
     vol = π * l_c.amaj * l_c.bmin * l_c.t / 4      # Volume of leaf 
-    β = dat_c.ak0^2 * vol / (4π)                   # ν² * vol / 4π
+    β = k₀^2 * vol / (4π)                   # ν² * vol / 4π
     xi = l_c.ϵ_l-1
     xii = xi/(2 * (1 + xi))
     afhhl = β * xi * (1 - xii * ai1)
@@ -14,24 +14,24 @@ end
 """
 Calculate scattering coefficients for a thin disk
 """
-function asal(θ_iʳ, ntype, parm, l_c::leaf, dat_c::data, i_c::integ)
+function asal(θ_iʳ, ntype, parm, l_c::leaf)
 
     # Needed constants
     exi = l_c.ϵ_l - 1.0
-    ea = dat_c.ak0^2 * exi / sqrt(4π)
+    ea = k₀^2 * exi / sqrt(4π)
     a2 = abs(ea)^2
-    eb = exi / (1.0 + exi)
+    eb = exi / (1 + exi)
     b2 = abs(eb)^2
 
-    δθ =  π/i_c.n_θ
-    δϕ = 2π/i_c.n_ϕ
+    δθ =  π/n_θ
+    δϕ = 2π/n_ϕ
 
     sm = [0.0, 0.0, 0.0]
     sidr = [0.0, 0.0]
 
     sivh1 = 0.0
     sivh3 = 0.0
-    cnst1 = dat_c.ak0/π
+    cnst1 = k₀/π
     cnst2 = 2π
     cnst3 = cnst2*l_c.amaj*l_c.bmin/4.0
 
@@ -39,11 +39,11 @@ function asal(θ_iʳ, ntype, parm, l_c::leaf, dat_c::data, i_c::integ)
 	cntj=1.0
 
     # Loop over θ
-    for i = 1:i_c.n_θ+1
+    for i = 1:n_θ+1
 
         θ_curr = (i - 1) * δθ
         
-        cnti = (i == 1 || i == i_c.n_θ+1) ? 0.5 : cnti
+        cnti = (i == 1 || i == n_θ+1) ? 0.5 : cnti
 
         pdf = prob(θ_curr,ntype,parm)
         pdf < 1.0e-03 && break
@@ -54,11 +54,11 @@ function asal(θ_iʳ, ntype, parm, l_c::leaf, dat_c::data, i_c::integ)
         sjvh1=0.0
         sjvh3=0.0
 
-        for j = 1:i_c.n_ϕ+1
+        for j = 1:n_ϕ+1
 
             ϕ_curr=(j-1)*δϕ
 
-            cntj = (j == 1 || j == i_c.n_ϕ+1) ? 0.5 : cntj
+            cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
 
             # calculate swig--beam pattern
             alphb=(cos(θ_curr)*sin(θ_iʳ))*sin(ϕ_curr)
@@ -117,34 +117,32 @@ function asal(θ_iʳ, ntype, parm, l_c::leaf, dat_c::data, i_c::integ)
     return (sgbd, sgbdr, sgbvh1, sgbvh3)
 end
 
-function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_c::integ, p1_c::parm1, p2_c::parm2)
-
-    @unpack θ_iᵈ, ϕ_iᵈ = geom_i_rad
+function woodf(index, ntype, parm, branch_c::branch, trunk_c::trunk, p1_c::parm1, p2_c::parm2)
 
     p1_c.ej = 0.0 + 1.0im
 
     if (index == 1) 
-        p1_c.r0 = dat_c.radbm
-        p1_c.h = 0.5 * dat_c.lb
-        p1_c.ϵ_i = dat_c.ϵ_b
+        p1_c.r0 = branch_c.radbm
+        p1_c.h = 0.5 * branch_c.l_b
+        p1_c.ϵ_i = branch_c.ϵ_b
     end
 
     if (index == 2)
-        p1_c.r0 = dat_c.radtm
-        p1_c.h = 0.5 * dat_c.lt
-        p1_c.ϵ_i = dat_c.ϵ_t
+        p1_c.r0 = trunk_c.radtm
+        p1_c.h = 0.5 * trunk_c.l_t
+        p1_c.ϵ_i = trunk_c.ϵ_t
     end
 
-    nmax= Integer(floor(dat_c.ak0*p1_c.r0+4.0*(dat_c.ak0*p1_c.r0)^(1/3)+2.0))
+    nmax= Integer(floor(k₀*p1_c.r0+4.0*(k₀*p1_c.r0)^(1/3)+2.0))
 
     nmax = min(nmax, 20)
 
-    ci=cos(θ_iᵈ)
-	si=sin(θ_iᵈ)
+    ci=cos(θ_iʳ)
+	si=sin(θ_iʳ)
     
     ϕ_i = 0.0
-    δθ = π/i_c.n_θ
-    δϕ = 2.0*π/i_c.n_ϕ
+    δθ = π/n_θ
+    δϕ = 2.0*π/n_ϕ
     Δϕ = δϕ/(2π)
     Δθ = δθ/π
 
@@ -153,11 +151,11 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
     cnti=1.0
 	cntj=1.0
 
-    for i = 1:i_c.n_θ+1
+    for i = 1:n_θ+1
 
         θ_curr = (i-1)*δθ
 
-        cnti = (i == 1 || i == i_c.n_θ+1) ? 0.5 : cnti
+        cnti = (i == 1 || i == n_θ+1) ? 0.5 : cnti
 
         pdf = prob(θ_curr,ntype,parm)
 
@@ -168,10 +166,10 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
 
         fsum = [0.0 0.0 ; 0.0 0.0]
 
-        for j = 1:i_c.n_ϕ+1
+        for j = 1:n_ϕ+1
 
             ϕ_curr = (j-1)*δϕ
-            cntj = (j == 1 || j == i_c.n_ϕ+1) ? 0.5 : cntj
+            cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
             sph=sin(ϕ_curr-ϕ_i)
             cph=cos(ϕ_curr-ϕ_i)
             cnt=cnti*cntj
@@ -194,7 +192,7 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
             p2_c.phyi=acos(cphi)
             p2_c.phys=p2_c.phyi
 
-            fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c, i=i)
+            fpvv,fpvh,fphv,fphh = scat(nmax, p1_c, p2_c, i=i)
 
             # SCATTERING OUTPUTS MATCH # 
 
@@ -219,7 +217,7 @@ function woodf(index, geom_i_rad::IncidentGeometry, ntype, parm, dat_c::data, i_
 
 end
 
-function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, dat_c::data, p1_c::parm1, p2_c::parm2)
+function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, p1_c::parm1, p2_c::parm2)
 
     si = sin(θ_iʳ)
     ci = cos(θ_iʳ)
@@ -246,7 +244,7 @@ function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, da
     p2_c.phyi=acos(cphi)
     p2_c.phys=p2_c.phyi+π
 
-    fpvv,fpvh,fphv,fphh = scat(nmax, dat_c, p1_c, p2_c)
+    fpvv,fpvh,fphv,fphh = scat(nmax, p1_c, p2_c)
 
     dsi=ti*ts  
     fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
@@ -262,29 +260,25 @@ end
 Calculation of average backscatter cross-section of a finite length cylinder, exact series solution
 (KARAM, FUNG, AND ANTAR, 1988)
 """
-function woodb(index,geom_i::IncidentGeometry,ntype,parm, dat_c::data, i_c::integ, p1_c::parm1, p2_c::parm2)
-
-    @unpack θ_iᵈ, ϕ_iᵈ = geom_i
+function woodb(index,ntype,parm, branch_c, trunk_c, p1_c::parm1, p2_c::parm2)
 
     p1_c.ej=complex(0.0,1.0)
 
     if (index == 1)
-        p1_c.r0 = dat_c.radbm
-        p1_c.h=0.5*dat_c.lb
-        p1_c.ϵ_i=dat_c.ϵ_b
+        p1_c.r0 = branch_c.radbm
+        p1_c.h=0.5*branch_c.l_b
+        p1_c.ϵ_i=branch_c.ϵ_b
     elseif index == 2
-        p1_c.r0 = dat_c.radtm
-        p1_c.ϵ_i = dat_c.ϵ_t
+        p1_c.r0 = trunk_c.radtm
+        p1_c.ϵ_i = trunk_c.ϵ_t
     end
 
-    k02 = dat_c.ak0^2
+    nmax=min(20, Integer(floor(k₀*p1_c.r0+4.0*(k₀*p1_c.r0)^(1/3)+2.0)))
 
-    nmax=min(20, Integer(floor(dat_c.ak0*p1_c.r0+4.0*(dat_c.ak0*p1_c.r0)^(1/3)+2.0)))
-
-    δθ    = π/i_c.n_θ
-    δϕ   = 2.0*π/i_c.n_ϕ
-    Δϕ = δϕ/(2.0*π)
-    Δθ = δθ/π
+    δθ    = π/n_θ
+    δϕ   = 2π/n_ϕ
+    Δϕ = 1/n_ϕ # δϕ/(2π)
+    Δθ = 1/n_θ
 
     smd = [0.0, 0.0, 0.0]
     smdr = [0.0, 0.0]
@@ -295,11 +289,11 @@ function woodb(index,geom_i::IncidentGeometry,ntype,parm, dat_c::data, i_c::inte
     cnti=1.0
 	cntj=1.0
 
-    for i = 1:i_c.n_θ+1
+    for i = 1:n_θ+1
 
         θ_curr = (i-1) * δθ
 
-        cnti = (i == 1 || i == i_c.n_θ+1) ? 0.5 : cnti
+        cnti = (i == 1 || i == n_θ+1) ? 0.5 : cnti
 
         pdf = prob(θ_curr,ntype,parm)
 
@@ -314,20 +308,20 @@ function woodb(index,geom_i::IncidentGeometry,ntype,parm, dat_c::data, i_c::inte
         sumvh1=0.0
         sumvh3=0.0
 
-        for j = 1:i_c.n_ϕ+1
+        for j = 1:n_ϕ+1
 
             ϕ_curr= (j-1) * δϕ
 
-            cntj = (j == 1 || j == i_c.n_ϕ+1) ? 0.5 : cntj
+            cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
             cnt = cnti*cntj
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> -x, x -> x, dat_c, p1_c, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> -x, x -> x, p1_c, p2_c)
 
             sumd += abs.([fvv ; fvh ; fhh] / dsi).^2*cnt
 
             ############### 
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> x, x -> π-x, dat_c, p1_c, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> x, x -> π-x, p1_c, p2_c)
 
             sumdr += abs.([fvv ; fhh] / dsi).^2*cnt
             sumvh1 = abs(fvh/(dsi))^2*cnt + sumvh1
@@ -335,7 +329,7 @@ function woodb(index,geom_i::IncidentGeometry,ntype,parm, dat_c::data, i_c::inte
             
             ################## 
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, -1, x -> -x, x -> π-x, dat_c, p1_c, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, -1, x -> -x, x -> π-x, p1_c, p2_c)
 
             sumvh3 = abs(fvh*fvhc/(dsi*dsi))*cnt + sumvh3
             cntj = 1.0
@@ -358,18 +352,18 @@ function woodb(index,geom_i::IncidentGeometry,ntype,parm, dat_c::data, i_c::inte
 
 end
 
-function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2; i=-1)
+function scat(nmax, p1_c::parm1, p2_c::parm2; i=-1)
 
-    k02=dat_c.ak0^2
+    k02=k₀^2
     cthi=cos(p2_c.thetai)
     cths=cos(p2_c.thetas)
 
     sths=sqrt(1.0-cths^2)
-    argum=dat_c.ak0*p1_c.h*(cthi+cths)
+    argum=k₀*p1_c.h*(cthi+cths)
 
     q = (argum == 0.0) ? 1.0 : sin(argum)/argum
 
-    z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, dat_c, p1_c, p2_c)
+    z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, p1_c, p2_c)
 
     shh0=b0*eta0h
     shv0=0
@@ -382,7 +376,7 @@ function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2; i=-1)
 
     for n = 1:nmax
 
-        zn,an,bn,enh,env,etanh,etanv = cylinder(n, dat_c, p1_c, p2_c)
+        zn,an,bn,enh,env,etanh,etanv = cylinder(n, p1_c, p2_c)
 
         sphn=0.0
         π_δ = 0.0001
@@ -404,16 +398,16 @@ function scat(nmax, dat_c::data, p1_c::parm1, p2_c::parm2; i=-1)
 
 end
 
-function cylinder(n, dat_c::data, p1_c::parm1, p2_c::parm2)
+function cylinder(n, p1_c::parm1, p2_c::parm2)
 
     cthi=cos(p2_c.thetai)
     cths=cos(p2_c.thetas)
 
     cthi2=cthi^2
     coef1= sqrt(p1_c.ϵ_i-cthi2)	
-    u = dat_c.ak0*p1_c.r0*coef1
-    vi = dat_c.ak0*p1_c.r0*sqrt(1.0-cthi2)
-    vs = dat_c.ak0*p1_c.r0*sqrt(1.0-(cths^2))
+    u = k₀*p1_c.r0*coef1
+    vi = k₀*p1_c.r0*sqrt(1.0-cthi2)
+    vs = k₀*p1_c.r0*sqrt(1.0-(cths^2))
     sthi=sqrt(1.0-cthi2)
 
     bjnu=besselj(n,u)
@@ -517,9 +511,7 @@ Oh et al, 1992 semi-emprical model for rough surface scattering
 URL=https://www.researchgate.net/publication/3202927_Semi-empirical_model_of_the_
 ensemble-averaged_differential_Mueller_matrix_for_microwave_backscattering_from_bare_soil_surfaces
 """
-function grdoh(ksig, θ_iᵈ::Real, a_c::a, ::b)
-
-    θ_iʳ= deg2rad(θ_iᵈ)
+function grdoh(ksig, a_c::a, ::b)
 
     er=sqrt(a_c.ϵ_g)
     r0 = abs((1.0-er)/(1.0+er))^2

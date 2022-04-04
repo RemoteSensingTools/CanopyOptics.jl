@@ -17,13 +17,13 @@ include("output_check.jl")
 ## Load input parameters
 ## 
 
-INPUT_FILE = "deccheckin.yaml"
-input_params = parameters_from_yaml(INPUT_FILE)
+const INPUT_FILE = "deccheckin.yaml"
+const input_params = parameters_from_yaml(INPUT_FILE)
 
 @unpack bfrghz, amajcm, bmincm, tmm, ρ_l, ϵ_l, 
-ntypel, parml, radb1, lb1, ρ_b1, ϵ_b1, ntypeb1, 
-parmb1, radb2, lb2, ρ_b2, ϵ_b2, ntypeb2, parmb2, 
-radt, lt_temp, ρ_t, ϵ_t, ntypet, parmt, 
+ntypel, parml, radb1, l_b1, ρ_b1, ϵ_b1, ntypeb1, 
+parmb1, radb2, l_b2, ρ_b2, ϵ_b2, ntypeb2, parmb2, 
+radt, l_t, ρ_t, ϵ_t, ntypet, parmt, 
 d_c, d_t, ϵ_g, l, sig = input_params
 
 # Conversion to standard metric
@@ -37,9 +37,9 @@ const radb1m      = 0.5*radb1*1e-2  # diameter to radius, cm to m
 const radb2m      = 0.5*radb2*1e-2  # diameter to radius, cm to m
 const radtm_temp  = 0.5*radt*1e-2   # diameter to radius, cm to m
 const lm          = l*1e-2          # cm to m
-const sigm        = sig*1e-2        # cm to m
-const ak0_temp    = 2π*bfr/c        # Free space wave number (2π/λ)
-const zk          = ak0_temp        # 
+const s           = sig*1e-2        # cm to m (surface rms height)
+const k₀          = 2π*bfr/c        # Free space wave number (2π/λ)
+const zk          = k₀              # 
 const n_ϕ         = 41              # No. of ϕ
 const n_θ         = 37              # No. of θ
 
@@ -51,20 +51,17 @@ const n_θ         = 37              # No. of θ
 # That is, the average integral over inclinations
 const ail = sum(x -> prob(x, ntypel, parml) * sin(x)^2 * π/n_θ, collect(1:n_θ) * π/n_θ)
 
-# Loop over angle of incidence-θ_iᵈ 
-ip = 1
+# Loop over angle of incidence θ_i (not currently looped)
+const ip = 1
 
-θ_iᵈ  = 40
-θ_iᵈ  = (θ_iᵈ < 0.001 ? θ_iᵈ=0.1 : θ_iᵈ) 
-θ_iʳ  = deg2rad(θ_iᵈ)
-ϕ_iᵈ  = 0.0 
-ϕ_iʳ  = deg2rad(ϕ_iᵈ) 
-
-# Incidence geometry in radians
-geom_i = IncidentGeometry(θ_iʳ, ϕ_iʳ)
+const θ_iᵈ  = 40
+const θ_iʳ  = deg2rad(θ_iᵈ)
+const ϕ_iᵈ  = 0.0 
+const ϕ_iʳ  = deg2rad(ϕ_iᵈ) 
 
 # Roughness factor for ground scattering in direct-reflected term
-grough = exp(-4.0*(ak0_temp*sigm*cos(θ_iʳ))^2)
+# r_g defined right above 3.1.9
+const r_g = exp(-4*(k₀*s*cos(θ_iʳ))^2)
 
 athc = zeros(20)
 atvc = zeros(20)
@@ -74,13 +71,12 @@ atvt = zeros(20)
 ## Common Block functionality 
 
 index=1
-ϵ_b=ϵ_b1
-lb_temp=lb1
-radbm_temp=radb1m
 
-data_common = data(ak0_temp, ϵ_b, ϵ_t, radbm_temp, radtm_temp, lb_temp, lt_temp)
-integ_common = integ(n_ϕ, n_θ)
+branch1 = branch(ϵ_b1, radb1m, l_b1)
+branch2 = branch(ϵ_b2, radb2m, l_b2)
 leaf_common = leaf(ϵ_l, amaj_temp, bmin_temp, t_temp)
+trunk_common = trunk(ϵ_t, radtm_temp, l_t)
+
 parm1_common = parm1(0.0, 0.0, 0.0, 0.0)
 parm2_common = parm2(0.0, 0.0, 0.0, 0.0)
 a_common = a(0.0, 0.0, 0.0, 0.0, bfr, ϵ_g)
@@ -88,39 +84,36 @@ b_common = b(zk, sig, 0.0, 0.0)
 
 # Calculation of skin depth skdh skdv and the bistatic cross sections sghh,sghv,sgvv
 
-afhhl, afvvl = afsal(θ_iʳ, ail, leaf_common, data_common)
-sbdl, sbdrl, sbvh1l, sbvh3l = asal(θ_iʳ, ntypel, parml, leaf_common, data_common, integ_common)
+afhhl, afvvl = afsal(θ_iʳ, ail, leaf_common)
+sbdl, sbdrl, sbvh1l, sbvh3l = asal(θ_iʳ, ntypel, parml, leaf_common)
 
 # Compute scattering amplitudes from primary branches
 
 ntypeb1 = 11
-afb1 = woodf(index,geom_i,ntypeb1,parmb1, data_common, integ_common, parm1_common, parm2_common)
+afb1 = woodf(index,ntypeb1,parmb1, branch1, trunk_common, parm1_common, parm2_common)
 
 afhhb1 = complex(abs(real(afb1[2,2])),abs(imag(afb1[2,2])))
 afvvb1 = complex(abs(real(afb1[1,1])),abs(imag(afb1[1,1])))
 
-sbd_b1, sbdr_b1, sbvh1b1,sbvh3b1 = woodb(index,geom_i,ntypeb1,parmb1, data_common, integ_common, parm1_common, parm2_common)
+sbd_b1, sbdr_b1, sbvh1b1,sbvh3b1 = woodb(index,ntypeb1,parmb1, branch1, trunk_common, parm1_common, parm2_common)
 
 # compute scattering amplitudes from secondary branches
 
 index=1
-data_common.ϵ_b=ϵ_b2
-data_common.lb=lb2
-data_common.radbm=radb2m
 
-afb2 = woodf(index,geom_i,ntypeb2,parmb2, data_common, integ_common, parm1_common, parm2_common)
+afb2 = woodf(index,ntypeb2,parmb2, branch2, trunk_common, parm1_common, parm2_common)
 
 afhhb2 = complex(abs(real(afb2[2,2])),abs(imag(afb2[2,2])))
 afvvb2 = complex(abs(real(afb2[1,1])),abs(imag(afb2[1,1])))
 
-sbd_b2, sbdr_b2, sbvh1b2,sbvh3b2 = woodb(index,geom_i,ntypeb2,parmb2, data_common, integ_common, parm1_common, parm2_common)
+sbd_b2, sbdr_b2, sbvh1b2,sbvh3b2 = woodb(index,ntypeb2,parmb2, branch2, trunk_common, parm1_common, parm2_common)
 
 # Compute scattering amplitudes from trunks
 
 index = 2
-aft = woodf(index,geom_i,ntypet,parmt, data_common, integ_common, parm1_common, parm2_common)
+aft = woodf(index,ntypet,parmt, branch2, trunk_common, parm1_common, parm2_common)
 
-sbd_t, sbdr_t, sbvh1t,sbvh3t = woodb(index,geom_i,ntypet,parmt, data_common, integ_common, parm1_common, parm2_common)
+sbd_t, sbdr_t, sbvh1t,sbvh3t = woodb(index,ntypet,parmt, branch2, trunk_common, parm1_common, parm2_common)
 
 # Using reciprocity and scatterer symmetry to calculate rho*sigma
 
@@ -155,8 +148,8 @@ afvv2 = ρ_t*aft[1,1]
 # CALCULATION OF PROPAGATION CONSTANT IN LAYER 1(TOP)
 
 # 3.1.8??? 
-kv1 = data_common.ak0*cos(θ_iʳ)+(2π*afvv1)/(data_common.ak0*cos(θ_iʳ))
-kh1 = data_common.ak0*cos(θ_iʳ)+(2π*afhh1)/(data_common.ak0*cos(θ_iʳ))
+kv1 = k₀*cos(θ_iʳ)+(2π*afvv1)/(k₀*cos(θ_iʳ))
+kh1 = k₀*cos(θ_iʳ)+(2π*afhh1)/(k₀*cos(θ_iʳ))
 
 ath1= abs(imag(kh1))
 atv1= abs(imag(kv1))
@@ -173,8 +166,8 @@ atvc[ip]=atv1
 ############################
 # CALCULATION OF PROPAGATION CONSTANT IN LAYER 2 (BOTTOM) 
 
-kh2 = data_common.ak0*cos(θ_iʳ)+(2π*afhh2)/(data_common.ak0*cos(θ_iʳ))
-kv2 = data_common.ak0*cos(θ_iʳ)+(2π*afvv2)/(data_common.ak0*cos(θ_iʳ))
+kh2 = k₀*cos(θ_iʳ)+(2π*afhh2)/(k₀*cos(θ_iʳ))
+kv2 = k₀*cos(θ_iʳ)+(2π*afvv2)/(k₀*cos(θ_iʳ))
 kh2=complex(real(kh2),abs(imag(kh2)))
 kv2=complex(real(kv2),abs(imag(kv2)))
 
@@ -241,9 +234,11 @@ sghhd1 = bsgd1[3]*funcm(2*K_hcⁱ,2*K_hcⁱ,d_c)
 sghhd2 = bsgd2[3]*dattenh1*funcm(2*K_htⁱ,2*K_htⁱ,d_t)
 sghhd3 = bsgd3[3]*funcm(2*K_hcⁱ,2*K_hcⁱ,d_c)
 
-sghhdr1=4*d_c*bsgdr1[2]*reflha^2*grough
-sghhdr2=4*d_t*bsgdr2[2]*reflha^2*grough
-sghhdr3=4*d_c*bsgdr3[2]*reflha^2*grough
+
+sghhdr1=4*d_c*bsgdr1[2]*reflha^2*r_g
+sghhdr2=4*d_t*bsgdr2[2]*reflha^2*r_g
+sghhdr3=4*d_c*bsgdr3[2]*reflha^2*r_g
+
 sghdri1=sghhdr1/2
 sghdri2=sghhdr2/2
 sghdri3=sghhdr3/2
@@ -265,9 +260,9 @@ sgvvd1 = bsgd1[1]*funcm(2*K_vcⁱ, 2*K_vcⁱ, d_c)
 sgvvd2 = bsgd2[1]*dattenv1*funcm(2*K_vtⁱ, 2*K_vtⁱ,d_t)
 sgvvd3 = bsgd3[1]*funcm(2*K_vcⁱ,2*K_vcⁱ,d_c)
 
-sgvvdr1=4*d_c*bsgdr1[1]*reflva^2*grough
-sgvvdr2=4*d_t*bsgdr2[1]*reflva^2*grough
-sgvvdr3=4*d_c*bsgdr3[1]*reflva^2*grough
+sgvvdr1=4*d_c*bsgdr1[1]*reflva^2*r_g
+sgvvdr2=4*d_t*bsgdr2[1]*reflva^2*r_g
+sgvvdr3=4*d_c*bsgdr3[1]*reflva^2*r_g
 sgvdri1=sgvvdr1/2.0
 sgvdri2=sgvvdr2/2.0
 sgvdri3=sgvvdr3/2.0
@@ -290,10 +285,10 @@ sgvhd3 = bsgd3[2]*funcm(2*K_vcⁱ,2*K_hcⁱ,d_c)
 sgvhd2 = bsgd2[2]*dattenvh1*funcm(2*K_vtⁱ,2*K_htⁱ,d_t)
 sgvhd = sgvhd1+sgvhd2
 
-sgvh11 = bsgvh11*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*grough
-sgvh21 = bsgvh21*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*grough
+sgvh11 = bsgvh11*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+sgvh21 = bsgvh21*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
 
-avh31  =   bsgvh31*reflvv*reflhc*cfun(a1,e1,d_c)*grough
+avh31  =   bsgvh31*reflvv*reflhc*cfun(a1,e1,d_c)*r_g
 sgvh31 =  abs(2.0*real(avh31))
 
 sgvhr1 = 0
@@ -305,10 +300,10 @@ sgvh1  =   sgvhd1+sgvhr1+sgvh11+sgvh21+sgvh31
 sgvhi1=sgvhd1+sgvhr1+sgvh11+sgvh21
 sgvhidr1=sgvh11+sgvh21
 
-sgvh13 = bsgvh13*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*grough
-sgvh23 = bsgvh23*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*grough
+sgvh13 = bsgvh13*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+sgvh23 = bsgvh23*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
 
-avh33  =   bsgvh33*reflvv*reflhc*cfun(a1,e1,d_c)*grough
+avh33  =   bsgvh33*reflvv*reflhc*cfun(a1,e1,d_c)*r_g
 sgvh33 =  abs(2.0*real(avh33))
 
 sgvhdr3=sgvh13+sgvh23+sgvh33
@@ -318,12 +313,12 @@ sgvhi3=sgvhd3+sgvhr3+sgvh13+sgvh23
 sgvhidr3=sgvh13+sgvh23
 
 sgvh12 = factvh1*bsgvh12*(reflha)^2*funcm(2*K_vtⁱ,-2*K_htⁱ,d_t)
-sgvh12=sgvh12*grough
+sgvh12=sgvh12*r_g
 
 sgvh22 = factvh2*bsgvh22*(reflva)^2*funcp(2*K_vtⁱ,-2*K_htⁱ,d_t)
-sgvh22 = sgvh22*grough
+sgvh22 = sgvh22*r_g
 
-avh32  =   factvh3*bsgvh32*reflvv*reflhc*cfun(a2,e2,d_t)*grough
+avh32  =   factvh3*bsgvh32*reflvv*reflhc*cfun(a2,e2,d_t)*r_g
 sgvh32 =  abs(2.0*real(avh32))
 sgvhdr2=sgvh12+sgvh22+sgvh32
 
@@ -400,11 +395,11 @@ svvrd	= 10.0*log10(sgvvr)
 ################################
 # Add the effect of rough ground
 
-# klx=data_common.ak0*lm
+# klx=k₀*lm
 # kly=klx
-ksig=data_common.ak0*sigm
+ksig=k₀*s
 
-shhg,svvg,svhg,gd = grdoh(ksig, θ_iᵈ, a_common, b_common)
+shhg,svvg,svhg,gd = grdoh(ksig, a_common, b_common)
 
 shht = sghh + shhg
 svvt = sgvv + svvg #  sgvvd + sgvvr + sgvvdr + svvg(ground)
