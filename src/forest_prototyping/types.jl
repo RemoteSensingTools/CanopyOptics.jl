@@ -2,15 +2,15 @@ abstract type Geometry end
 
 struct IncidentGeometry <: Geometry
 
-    θ_i::Real   # inclination angle 
-    ϕ_i::Real   # azimuth angle 
+    θ_iᵈ::Real   # inclination angle 
+    ϕ_iᵈ::Real   # azimuth angle 
 
 end
 
 struct ScatteringGeometry <: Geometry
 
-    θ_s::Real   # inclination angle 
-    ϕ_s::Real   # azimuth angle 
+    θ_sᵈ::Real   # inclination angle 
+    ϕ_sᵈ::Real   # azimuth angle 
 
 end
 
@@ -51,8 +51,8 @@ mutable struct Forest_Scattering_Parameters
     epst_temp
     ntypet  
     parmt   
-    d1      
-    d2      
+    d_c
+    d_t  
     epsg    
     l       
     sig     
@@ -64,6 +64,7 @@ mutable struct a
     khim2
     kvim1
     kvim2
+    
     bfr
     epsg
 
@@ -80,8 +81,8 @@ end
 
 mutable struct ds
 
-    d1
-    d2
+    d_t
+    d_c
 
 end
 
@@ -99,8 +100,8 @@ end
 
 mutable struct integ 
 
-    nph
-    nth
+    n_ϕ
+    n_θ
 
 end
 

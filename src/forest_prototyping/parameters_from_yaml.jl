@@ -38,8 +38,8 @@ function parameters_from_yaml(filepath)
     epst_temp    = input_params["trunk_parameters"]["dielectric_constant"]
     ntypet  = input_params["trunk_parameters"]["branch_inclination_pdf_type"]
     parmt   = input_params["trunk_parameters"]["pdf_parameter"]
-    d1      = input_params["trunk_parameters"]["crown_height"]
-    d2      = input_params["trunk_parameters"]["trunk_height"]
+    d_c      = input_params["trunk_parameters"]["crown_height"]
+    d_t      = input_params["trunk_parameters"]["trunk_height"]
     epsg    = input_params["trunk_parameters"]["soil_dielectric"] 
     l       = input_params["trunk_parameters"]["corr_length"]
     sig     = input_params["trunk_parameters"]["rms_height"]
@@ -55,7 +55,7 @@ function parameters_from_yaml(filepath)
                                         ntypel, parml, radb1, lb1, rhob1, epsb1, ntypeb1, 
                                         parmb1, radb2, lb2, rhob2, epsb2, ntypeb2, parmb2, 
                                         radt, lt_temp, rhot, epst_temp, ntypet, parmt, 
-                                        d1, d2, epsg, l, sig)
+                                        d_c, d_t, epsg, l, sig)
 
 end
 
@@ -108,8 +108,8 @@ function Base.show(io::IO, x::Forest_Scattering_Parameters)
     println(io, "------------------------------")
     println(io, "Other")
     println(io, "------------------------------")
-    println(io, "d1: $(x.d1)")
-    println(io, "d2: $(x.d2)")
+    println(io, "d_c: $(x.d_c)")
+    println(io, "d_t: $(x.d_t)")
     println(io, "epsg: $(x.epsg)")
     println(io, "l: $(x.l)")
     println(io, "sig: $(x.sig)")
