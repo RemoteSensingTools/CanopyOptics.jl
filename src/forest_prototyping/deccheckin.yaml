@@ -16,6 +16,7 @@ leaf_parameters:
 
 primary_branch_parameters:
   diameter: 0.2000E+01
+  # m
   length: 0.5000E+00
   # m3
   density: 0.5000E+00
@@ -25,6 +26,7 @@ primary_branch_parameters:
 
 secondary_branch_parameters:
   diameter: 0.2000E+01
+  # m
   length: 0.8000E+00
   # m3
   density: 0.2500E+01
@@ -34,6 +36,7 @@ secondary_branch_parameters:
 
 trunk_parameters:
   diameter: 0.3500E+02
+  # m
   length: 0.2000E+02
   # m3
   density: 0.2000E-02

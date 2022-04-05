@@ -1,64 +1,31 @@
-mutable struct Forest_Scattering_Parameters 
+"""
+All leaf-related parameters
+"""
+mutable struct Leaf 
 
-    # Frequency
-    bfrghz
+    ϵ           # Dielectric constant
+    a_maj       # Major axis (m)
+    b_min       # Minor axis (m)
+    t           # Thickness (m)
+    ρ           # Density (m3)
 
-    # Leaf Parameters 
-    amajcm
-    bmincm
-    tmm
-    ρ_l
-    ϵ_l
-    ntypel
-    parml
-
-    # Primary Branch Parameters
-    r_b1   
-    l_b1     
-    ρ_b1
-    ϵ_b1   
-    ntypeb1 
-    parmb1  
-
-    # Secondary Branch Parameters
-    r_b2   
-    l_b2     
-    ρ_b2   
-    ϵ_b2   
-    ntypeb2 
-    parmb2  
-
-    # Trunk Parameters
-    r_t    
-    l_t
-    ρ_t    
-    ϵ_t
-    ntypet  
-    parmt   
-
-    d_c
-    d_t  
-    ϵ_g    
-    l       
-    sig     
+    pdf_num     # PDF number
+    pdf_param   # PDF parameter
 
 end
 
-mutable struct leaf 
+"""
+All wood-related parameters (branch or trunk)
+"""
+mutable struct Wood
 
-    ϵ_l
-    amaj
-    bmin
-    t
+    ϵ           # Dielectric constant
+    r           # Radius (m)
+    l           # Length (m)
+    ρ           # Density (m3)
 
-end
-
-# (branch or trunk)
-mutable struct wood
-
-    ϵ
-    r
-    l
+    pdf_num     # PDF number
+    pdf_param   # PDF parameter
 
 end
 
@@ -68,6 +35,29 @@ mutable struct parm2
     phyi
     thetas
     phys
+
+end
+
+mutable struct Forest_Scattering_Parameters 
+
+    # Frequency
+    bfrghz
+
+    # Leaf object
+    leaf::Leaf
+
+    # Two branch objects
+    branch_1::Wood
+    branch_2::Wood
+
+    # Trunk object
+    trunk::Wood
+
+    d_c
+    d_t  
+    ϵ_g    
+    l       
+    sig     
 
 end
 

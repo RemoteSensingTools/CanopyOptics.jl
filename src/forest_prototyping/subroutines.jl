@@ -1,10 +1,10 @@
 """
 Calculate forward scattering amplitudes
 """
-function afsal(θ_iʳ, ai1, l_c::leaf)
-    vol = π * l_c.amaj * l_c.bmin * l_c.t / 4      # Volume of leaf 
+function afsal(θ_iʳ, ai1, leaf::Leaf)
+    vol = π * leaf.a_maj * leaf.b_min * leaf.t / 4      # Volume of leaf 
     β = k₀^2 * vol / (4π)                   # ν² * vol / 4π
-    xi = l_c.ϵ_l-1
+    xi = leaf.ϵ - 1
     xii = xi/(2 * (1 + xi))
     afhhl = β * xi * (1 - xii * ai1)
     afvvl = β * xi * (1 - xii * (2 * sin(θ_iʳ)^2 + (cos(θ_iʳ)^2 - 2 * sin(θ_iʳ)^2) * ai1))
@@ -14,10 +14,10 @@ end
 """
 Calculate scattering coefficients for a thin disk
 """
-function asal(θ_iʳ, ntype, parm, l_c::leaf)
+function asal(θ_iʳ, leaf::Leaf)
 
     # Needed constants
-    exi = l_c.ϵ_l - 1.0
+    exi = leaf.ϵ - 1.0
     ea = k₀^2 * exi / sqrt(4π)
     a2 = abs(ea)^2
     eb = exi / (1 + exi)
@@ -30,7 +30,7 @@ function asal(θ_iʳ, ntype, parm, l_c::leaf)
     sivh3 = 0.0
     cnst1 = k₀/π
     cnst2 = 2π
-    cnst3 = cnst2*l_c.amaj*l_c.bmin/4.0
+    cnst3 = cnst2*leaf.a_maj*leaf.b_min/4.0
 
     cnti=1.0
 	cntj=1.0
@@ -42,7 +42,7 @@ function asal(θ_iʳ, ntype, parm, l_c::leaf)
         
         cnti = (i == 1 || i == n_θ+1) ? 0.5 : cnti
 
-        pdf = prob(θ_curr,ntype,parm)
+        pdf = prob(θ_curr,leaf.pdf_num,leaf.pdf_param)
         pdf < 1.0e-03 && break
 
         sumx = [0.0, 0.0, 0.0]
@@ -62,8 +62,8 @@ function asal(θ_iʳ, ntype, parm, l_c::leaf)
             alphd=alphb - (sin(θ_curr)*cos(θ_iʳ))
             betad=sin(θ_iʳ)*cos(ϕ_curr)
 
-            nud=sqrt(alphd^2*(l_c.amaj/2)^2+betad^2*(l_c.bmin/2)^2)*cnst1
-            nub=sqrt(alphb^2*(l_c.amaj/2)^2+betad^2*(l_c.bmin/2)^2)*cnst1
+            nud=sqrt(alphd^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)*cnst1
+            nub=sqrt(alphb^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)*cnst1
 
             zetad=cnst2*nud
             zetab=cnst2*nub
@@ -101,19 +101,19 @@ function asal(θ_iʳ, ntype, parm, l_c::leaf)
 		cnti=1.0
     end
 
-    sgbd = a2*l_c.t^2 * sm * Δθ * Δϕ
+    sgbd = a2*leaf.t^2 * sm * Δθ * Δϕ
     sgbd[2] *= b2
 
-    sgbdr  =  a2*l_c.t^2 * sidr*Δθ*Δϕ
-    sgbvh1 =  a2*l_c.t^2 * b2  *abs(sivh1)*Δθ*Δϕ
-    sgbvh3 =  a2*l_c.t^2 * b2  *abs(sivh3)*Δθ*Δϕ
+    sgbdr  =  a2*leaf.t^2 * sidr*Δθ*Δϕ
+    sgbvh1 =  a2*leaf.t^2 * b2  *abs(sivh1)*Δθ*Δϕ
+    sgbvh3 =  a2*leaf.t^2 * b2  *abs(sivh3)*Δθ*Δϕ
 
     return (sgbd, sgbdr, sgbvh1, sgbvh3)
 end
 
-function woodf(ntype, parm, wood_c::wood, p2_c::parm2)
+function woodf(wood::Wood, p2_c::parm2)
 
-    nmax= Integer(floor(k₀*wood_c.r+4.0*(k₀*wood_c.r)^(1/3)+2.0))
+    nmax= Integer(floor(k₀*wood.r+4.0*(k₀*wood.r)^(1/3)+2.0))
 
     nmax = min(nmax, 20)
 
@@ -131,7 +131,7 @@ function woodf(ntype, parm, wood_c::wood, p2_c::parm2)
 
         cnti = (i == 1 || i == n_θ+1) ? 0.5 : cnti
 
-        pdf = prob(θ_curr,ntype,parm)
+        pdf = prob(θ_curr,wood.pdf_num,wood.pdf_param)
 
         (pdf < 1.0e-03) && break
 
@@ -166,7 +166,7 @@ function woodf(ntype, parm, wood_c::wood, p2_c::parm2)
             p2_c.phyi=acos(cphi)
             p2_c.phys=p2_c.phyi
 
-            fpvv,fpvh,fphv,fphh = scat(nmax, wood_c, p2_c)
+            fpvv,fpvh,fphv,fphh = scat(nmax, wood, p2_c)
 
             # SCATTERING OUTPUTS MATCH # 
 
@@ -191,7 +191,7 @@ function woodf(ntype, parm, wood_c::wood, p2_c::parm2)
 
 end
 
-function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, wood_c::wood, p2_c::parm2)
+function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, wood::Wood, p2_c::parm2)
 
     si = sin(θ_iʳ)
     ci = cos(θ_iʳ)
@@ -216,7 +216,7 @@ function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, wo
     p2_c.phyi=acos(cphi)
     p2_c.phys=p2_c.phyi+π
 
-    fpvv,fpvh,fphv,fphh = scat(nmax, wood_c, p2_c)
+    fpvv,fpvh,fphv,fphh = scat(nmax, wood, p2_c)
 
     dsi=ti*ts  
     fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
@@ -232,9 +232,9 @@ end
 Calculation of average backscatter cross-section of a finite length cylinder, exact series solution
 (KARAM, FUNG, AND ANTAR, 1988)
 """
-function woodb(ntype,parm, wood_c::wood, p2_c::parm2)
+function woodb(wood::Wood, p2_c::parm2)
 
-    nmax=min(20, Integer(floor(k₀*wood_c.r+4.0*(k₀*wood_c.r)^(1/3)+2.0)))
+    nmax=min(20, Integer(floor(k₀*wood.r+4.0*(k₀*wood.r)^(1/3)+2.0)))
 
     smd = [0.0, 0.0, 0.0]
     smdr = [0.0, 0.0]
@@ -251,7 +251,7 @@ function woodb(ntype,parm, wood_c::wood, p2_c::parm2)
 
         cnti = (i == 1 || i == n_θ+1) ? 0.5 : cnti
 
-        pdf = prob(θ_curr,ntype,parm)
+        pdf = prob(θ_curr,wood.pdf_num,wood.pdf_param)
 
         (pdf < 1.0e-03) && break
 
@@ -271,13 +271,13 @@ function woodb(ntype,parm, wood_c::wood, p2_c::parm2)
             cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
             cnt = cnti*cntj
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> -x, x -> x, wood_c, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> -x, x -> x, wood, p2_c)
 
             sumd += abs.([fvv ; fvh ; fhh] / dsi).^2*cnt
 
             ############### 
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> x, x -> π-x, wood_c, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> x, x -> π-x, wood, p2_c)
 
             sumdr += abs.([fvv ; fhh] / dsi).^2*cnt
             sumvh1 = abs(fvh/(dsi))^2*cnt + sumvh1
@@ -285,7 +285,7 @@ function woodb(ntype,parm, wood_c::wood, p2_c::parm2)
             
             ################## 
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, -1, x -> -x, x -> π-x, wood_c, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, -1, x -> -x, x -> π-x, wood, p2_c)
 
             sumvh3 = abs(fvh*fvhc/(dsi*dsi))*cnt + sumvh3
             cntj = 1.0
@@ -308,7 +308,7 @@ function woodb(ntype,parm, wood_c::wood, p2_c::parm2)
 
 end
 
-function scat(nmax, wood_c::wood, p2_c::parm2)
+function scat(nmax, wood_c::Wood, p2_c::parm2)
 
     k02=k₀^2
     cthi=cos(p2_c.thetai)
@@ -354,7 +354,7 @@ function scat(nmax, wood_c::wood, p2_c::parm2)
 
 end
 
-function cylinder(n, wood_c::wood, thetai, thetas)
+function cylinder(n, wood_c::Wood, thetai, thetas)
 
     cthi=cos(thetai)
     cths=cos(thetas)

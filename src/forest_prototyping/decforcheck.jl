@@ -20,22 +20,13 @@ include("output_check.jl")
 const INPUT_FILE = "deccheckin.yaml"
 const input_params = parameters_from_yaml(INPUT_FILE)
 
-@unpack bfrghz, amajcm, bmincm, tmm, ρ_l, ϵ_l, 
-ntypel, parml, r_b1, l_b1, ρ_b1, ϵ_b1, ntypeb1, 
-parmb1, r_b2, l_b2, ρ_b2, ϵ_b2, ntypeb2, parmb2, 
-r_t, l_t, ρ_t, ϵ_t, ntypet, parmt, 
+@unpack bfrghz, leaf, branch_1, branch_2, trunk, 
 d_c, d_t, ϵ_g, l, sig = input_params
 
 # Conversion to standard metric
 
 const c           = 3e8             # Speed of light 
 const bfr         = bfrghz*1e9      # GHz to Hz
-const amaj_temp   = amajcm*1e-2     # cm to m
-const bmin_temp   = bmincm*1e-2     # cm to m
-const t_temp      = tmm*1e-3        # mm to m
-const radb1m      = 0.5*r_b1*1e-2  # diameter to radius, cm to m
-const radb2m      = 0.5*r_b2*1e-2  # diameter to radius, cm to m
-const radtm_temp  = 0.5*r_t*1e-2   # diameter to radius, cm to m
 const lm          = l*1e-2          # cm to m
 const s           = sig*1e-2        # cm to m (surface rms height)
 const k₀          = 2π*bfr/c        # Free space wave number (2π/λ)
@@ -50,7 +41,7 @@ const ej          = 0.0 + 1.0im
 
 # Calculate integral of p(θ)*sin(θ)^2 from 0 to pi
 # That is, the average integral over inclinations
-const ail = sum(x -> prob(x, ntypel, parml) * sin(x)^2 * π/n_θ, collect(1:n_θ) * π/n_θ)
+const ail = sum(x -> prob(x, leaf.pdf_num, leaf.pdf_param) * sin(x)^2 * π/n_θ, collect(1:n_θ) * π/n_θ)
 
 # Loop over angle of incidence θ_i (not currently looped)
 const ip = 1
@@ -74,68 +65,63 @@ atht = zeros(20)
 atvt = zeros(20)
 
 ## Common Block functionality 
-
-branch1 = wood(ϵ_b1, radb1m, l_b1)
-branch2 = wood(ϵ_b2, radb2m, l_b2)
-leaf_common = leaf(ϵ_l, amaj_temp, bmin_temp, t_temp)
-trunk_common = wood(ϵ_t, radtm_temp, l_t)
 parm2_common = parm2(0.0, 0.0, 0.0, 0.0)
 
 # Calculation of skin depth skdh skdv and the bistatic cross sections sghh,sghv,sgvv
 
-afhhl, afvvl = afsal(θ_iʳ, ail, leaf_common)
-sbdl, sbdrl, sbvh1l, sbvh3l = asal(θ_iʳ, ntypel, parml, leaf_common)
+afhhl, afvvl = afsal(θ_iʳ, ail, leaf)
+sbdl, sbdrl, sbvh1l, sbvh3l = asal(θ_iʳ, leaf)
 
 # Compute scattering amplitudes from primary branches
 
-afb1 = woodf(ntypeb1, parmb1, branch1, parm2_common)
+afb1 = woodf(branch_1, parm2_common)
 
 afhhb1 = complex(abs(real(afb1[2,2])),abs(imag(afb1[2,2])))
 afvvb1 = complex(abs(real(afb1[1,1])),abs(imag(afb1[1,1])))
 
-sbd_b1, sbdr_b1, sbvh1b1,sbvh3b1 = woodb(ntypeb1, parmb1, branch1, parm2_common)
+sbd_b1, sbdr_b1, sbvh1b1,sbvh3b1 = woodb(branch_1, parm2_common)
 
 # compute scattering amplitudes from secondary branches
 
-afb2 = woodf(ntypeb2,parmb2, branch2, parm2_common)
+afb2 = woodf(branch_2, parm2_common)
 
 afhhb2 = complex(abs(real(afb2[2,2])),abs(imag(afb2[2,2])))
 afvvb2 = complex(abs(real(afb2[1,1])),abs(imag(afb2[1,1])))
 
-sbd_b2, sbdr_b2, sbvh1b2,sbvh3b2 = woodb(ntypeb2, parmb2, branch2, parm2_common)
+sbd_b2, sbdr_b2, sbvh1b2,sbvh3b2 = woodb(branch_2, parm2_common)
 
 # Compute scattering amplitudes from trunks
 
-aft = woodf(ntypet,parmt, trunk_common, parm2_common)
-sbd_t, sbdr_t, sbvh1t,sbvh3t = woodb(ntypet,parmt, trunk_common, parm2_common)
+aft = woodf(trunk, parm2_common)
+sbd_t, sbdr_t, sbvh1t,sbvh3t = woodb(trunk, parm2_common)
 
 # Using reciprocity and scatterer symmetry to calculate rho*sigma
 
-bsgd1 = ρ_b1*sbd_b1 + ρ_b2*sbd_b2 + ρ_l*sbdl
-bsgd2 = ρ_t*sbd_t
-bsgd3 = ρ_l*sbdl
+bsgd1 = branch_1.ρ*sbd_b1 + branch_2.ρ*sbd_b2 + leaf.ρ*sbdl
+bsgd2 = trunk.ρ*sbd_t
+bsgd3 = leaf.ρ*sbdl
 
-bsgdr1 = ρ_b1*sbdr_b1 + ρ_b2*sbdr_b2 + ρ_l*sbdrl
-bsgdr2 = ρ_t*sbdr_t
-bsgdr3 = ρ_l*sbdrl
+bsgdr1 = branch_1.ρ*sbdr_b1 + branch_2.ρ*sbdr_b2 + leaf.ρ*sbdrl
+bsgdr2 = trunk.ρ*sbdr_t
+bsgdr3 = leaf.ρ*sbdrl
 
-bsgvh11 = ρ_b1*sbvh1b1 + ρ_b2*sbvh1b2 +ρ_l*sbvh1l
-bsgvh12 = ρ_t*sbvh1t
-bsgvh13 = ρ_l*sbvh1l
+bsgvh11 = branch_1.ρ*sbvh1b1 + branch_2.ρ*sbvh1b2 +leaf.ρ*sbvh1l
+bsgvh12 = trunk.ρ*sbvh1t
+bsgvh13 = leaf.ρ*sbvh1l
         
-bsgvh31 = ρ_b1*sbvh3b1 + ρ_b2*sbvh3b2 +ρ_l*sbvh3l
-bsgvh32 = ρ_t*sbvh3t
-bsgvh33 = ρ_l*sbvh3l 
+bsgvh31 = branch_1.ρ*sbvh3b1 + branch_2.ρ*sbvh3b2 +leaf.ρ*sbvh3l
+bsgvh32 = trunk.ρ*sbvh3t
+bsgvh33 = leaf.ρ*sbvh3l 
 
 bsgvh21=bsgvh11
 bsgvh22=bsgvh12
 bsgvh23=bsgvh13
 
-afhh1 = ρ_l*afhhl + ρ_b1*afhhb1 + ρ_b2*afhhb2
-afhh2 = ρ_t*aft[2,2]
+afhh1 = leaf.ρ*afhhl + branch_1.ρ*afhhb1 + branch_2.ρ*afhhb2
+afhh2 = trunk.ρ*aft[2,2]
 
-afvv1 = ρ_l*afvvl + ρ_b1*afvvb1 + ρ_b2*afvvb2
-afvv2 = ρ_t*aft[1,1]
+afvv1 = leaf.ρ*afvvl + branch_1.ρ*afvvb1 + branch_2.ρ*afvvb2
+afvv2 = trunk.ρ*aft[1,1]
 
 ############################
 
