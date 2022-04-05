@@ -21,9 +21,9 @@ const INPUT_FILE = "deccheckin.yaml"
 const input_params = parameters_from_yaml(INPUT_FILE)
 
 @unpack bfrghz, amajcm, bmincm, tmm, ρ_l, ϵ_l, 
-ntypel, parml, radb1, l_b1, ρ_b1, ϵ_b1, ntypeb1, 
-parmb1, radb2, l_b2, ρ_b2, ϵ_b2, ntypeb2, parmb2, 
-radt, l_t, ρ_t, ϵ_t, ntypet, parmt, 
+ntypel, parml, r_b1, l_b1, ρ_b1, ϵ_b1, ntypeb1, 
+parmb1, r_b2, l_b2, ρ_b2, ϵ_b2, ntypeb2, parmb2, 
+r_t, l_t, ρ_t, ϵ_t, ntypet, parmt, 
 d_c, d_t, ϵ_g, l, sig = input_params
 
 # Conversion to standard metric
@@ -33,15 +33,16 @@ const bfr         = bfrghz*1e9      # GHz to Hz
 const amaj_temp   = amajcm*1e-2     # cm to m
 const bmin_temp   = bmincm*1e-2     # cm to m
 const t_temp      = tmm*1e-3        # mm to m
-const radb1m      = 0.5*radb1*1e-2  # diameter to radius, cm to m
-const radb2m      = 0.5*radb2*1e-2  # diameter to radius, cm to m
-const radtm_temp  = 0.5*radt*1e-2   # diameter to radius, cm to m
+const radb1m      = 0.5*r_b1*1e-2  # diameter to radius, cm to m
+const radb2m      = 0.5*r_b2*1e-2  # diameter to radius, cm to m
+const radtm_temp  = 0.5*r_t*1e-2   # diameter to radius, cm to m
 const lm          = l*1e-2          # cm to m
 const s           = sig*1e-2        # cm to m (surface rms height)
 const k₀          = 2π*bfr/c        # Free space wave number (2π/λ)
 const zk          = k₀              # 
 const n_ϕ         = 41              # No. of ϕ
 const n_θ         = 37              # No. of θ
+const ej          = 0.0 + 1.0im 
 
 ## 
 ## Calculation of Parameters
@@ -56,8 +57,12 @@ const ip = 1
 
 const θ_iᵈ  = 40
 const θ_iʳ  = deg2rad(θ_iᵈ)
-const ϕ_iᵈ  = 0.0 
+const ϕ_iᵈ  = 0
 const ϕ_iʳ  = deg2rad(ϕ_iᵈ) 
+const δθ   = π/n_θ
+const δϕ   = 2π/n_ϕ
+const Δϕ   = 1/n_ϕ 
+const Δθ   = 1/n_θ
 
 # Roughness factor for ground scattering in direct-reflected term
 # r_g defined right above 3.1.9
@@ -70,17 +75,11 @@ atvt = zeros(20)
 
 ## Common Block functionality 
 
-index=1
-
-branch1 = branch(ϵ_b1, radb1m, l_b1)
-branch2 = branch(ϵ_b2, radb2m, l_b2)
+branch1 = wood(ϵ_b1, radb1m, l_b1)
+branch2 = wood(ϵ_b2, radb2m, l_b2)
 leaf_common = leaf(ϵ_l, amaj_temp, bmin_temp, t_temp)
-trunk_common = trunk(ϵ_t, radtm_temp, l_t)
-
-parm1_common = parm1(0.0, 0.0, 0.0, 0.0)
+trunk_common = wood(ϵ_t, radtm_temp, l_t)
 parm2_common = parm2(0.0, 0.0, 0.0, 0.0)
-a_common = a(0.0, 0.0, 0.0, 0.0, bfr, ϵ_g)
-b_common = b(zk, sig, 0.0, 0.0)
 
 # Calculation of skin depth skdh skdv and the bistatic cross sections sghh,sghv,sgvv
 
@@ -89,31 +88,26 @@ sbdl, sbdrl, sbvh1l, sbvh3l = asal(θ_iʳ, ntypel, parml, leaf_common)
 
 # Compute scattering amplitudes from primary branches
 
-ntypeb1 = 11
-afb1 = woodf(index,ntypeb1,parmb1, branch1, trunk_common, parm1_common, parm2_common)
+afb1 = woodf(ntypeb1, parmb1, branch1, parm2_common)
 
 afhhb1 = complex(abs(real(afb1[2,2])),abs(imag(afb1[2,2])))
 afvvb1 = complex(abs(real(afb1[1,1])),abs(imag(afb1[1,1])))
 
-sbd_b1, sbdr_b1, sbvh1b1,sbvh3b1 = woodb(index,ntypeb1,parmb1, branch1, trunk_common, parm1_common, parm2_common)
+sbd_b1, sbdr_b1, sbvh1b1,sbvh3b1 = woodb(ntypeb1, parmb1, branch1, parm2_common)
 
 # compute scattering amplitudes from secondary branches
 
-index=1
-
-afb2 = woodf(index,ntypeb2,parmb2, branch2, trunk_common, parm1_common, parm2_common)
+afb2 = woodf(ntypeb2,parmb2, branch2, parm2_common)
 
 afhhb2 = complex(abs(real(afb2[2,2])),abs(imag(afb2[2,2])))
 afvvb2 = complex(abs(real(afb2[1,1])),abs(imag(afb2[1,1])))
 
-sbd_b2, sbdr_b2, sbvh1b2,sbvh3b2 = woodb(index,ntypeb2,parmb2, branch2, trunk_common, parm1_common, parm2_common)
+sbd_b2, sbdr_b2, sbvh1b2,sbvh3b2 = woodb(ntypeb2, parmb2, branch2, parm2_common)
 
 # Compute scattering amplitudes from trunks
 
-index = 2
-aft = woodf(index,ntypet,parmt, branch2, trunk_common, parm1_common, parm2_common)
-
-sbd_t, sbdr_t, sbvh1t,sbvh3t = woodb(index,ntypet,parmt, branch2, trunk_common, parm1_common, parm2_common)
+aft = woodf(ntypet,parmt, trunk_common, parm2_common)
+sbd_t, sbdr_t, sbvh1t,sbvh3t = woodb(ntypet,parmt, trunk_common, parm2_common)
 
 # Using reciprocity and scatterer symmetry to calculate rho*sigma
 
@@ -148,13 +142,13 @@ afvv2 = ρ_t*aft[1,1]
 # CALCULATION OF PROPAGATION CONSTANT IN LAYER 1(TOP)
 
 # 3.1.8??? 
-kv1 = k₀*cos(θ_iʳ)+(2π*afvv1)/(k₀*cos(θ_iʳ))
-kh1 = k₀*cos(θ_iʳ)+(2π*afhh1)/(k₀*cos(θ_iʳ))
+K_vc = k₀*cos(θ_iʳ)+(2π*afvv1)/(k₀*cos(θ_iʳ))
+K_hc = k₀*cos(θ_iʳ)+(2π*afhh1)/(k₀*cos(θ_iʳ))
 
-ath1= abs(imag(kh1))
-atv1= abs(imag(kv1))
-kh1=complex(real(kh1),abs(imag(kh1)))
-kv1=complex(real(kv1),abs(imag(kv1)))
+ath1= abs(imag(K_hc))
+atv1= abs(imag(K_vc))
+K_hc=complex(real(K_hc),abs(imag(K_hc)))
+K_vc=complex(real(K_vc),abs(imag(K_vc)))
 
 atv1 = (atv1 <= 1.0E-20 ? 0.0001 : atv1)
 
@@ -166,15 +160,15 @@ atvc[ip]=atv1
 ############################
 # CALCULATION OF PROPAGATION CONSTANT IN LAYER 2 (BOTTOM) 
 
-kh2 = k₀*cos(θ_iʳ)+(2π*afhh2)/(k₀*cos(θ_iʳ))
-kv2 = k₀*cos(θ_iʳ)+(2π*afvv2)/(k₀*cos(θ_iʳ))
-kh2=complex(real(kh2),abs(imag(kh2)))
-kv2=complex(real(kv2),abs(imag(kv2)))
+K_ht = k₀*cos(θ_iʳ)+(2π*afhh2)/(k₀*cos(θ_iʳ))
+K_vt = k₀*cos(θ_iʳ)+(2π*afvv2)/(k₀*cos(θ_iʳ))
+K_ht = complex(real(K_ht),abs(imag(K_ht)))
+K_vt = complex(real(K_vt),abs(imag(K_vt)))
 
-ath2= abs(imag(kh2))
-atv2= abs(imag(kv2))
-temp0h=abs(imag(kh1+kh2))
-temp0v=abs(imag(kv1+kv2))
+ath2= abs(imag(K_ht))
+atv2= abs(imag(K_vt))
+temp0h=abs(imag(K_hc+K_ht))
+temp0v=abs(imag(K_vc+K_vt))
 skdh2= 1/ath2
 skdv2= 1/atv2
 atht[ip]=temp0h
@@ -185,32 +179,20 @@ atvt[ip]=temp0v
 
 rgh = (cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
 rgv = (ϵ_g*cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(ϵ_g*cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
-a_common.kvim1= imag(kv1)
-a_common.khim1= imag(kh1)
 
-K_hc = kh1
-K_vc = kv1
-K_ht = kh2
-K_vt = kv2
+K_hcⁱ, K_vcⁱ, K_htⁱ, K_vtⁱ = imag.((K_hc, K_vc, K_ht, K_vt))
 
-kpvc1 = conj(kv1)
-kmhc1 = conj(kh1)
+kpvc1 = conj(K_vc)
+kmhc1 = conj(K_hc)
 
-a_common.kvim2= imag(kv2)
-a_common.khim2= imag(kh2)
-kpvc2 = conj(kv2)
-kmhc2 = conj(kh2)
+kpvc2 = conj(K_vt)
+kmhc2 = conj(K_ht)
 
-reflhh = rgh*exp(parm1_common.ej*(kh1+kh1)*d_c+parm1_common.ej*(kh2+kh2)*d_t)
+reflhh = rgh*exp(ej*(K_hc+K_hc)*d_c+ej*(K_ht+K_ht)*d_t)
 reflhc = conj(reflhh)
-reflvv = rgv*exp(parm1_common.ej*(kv1+kv1)*d_c+parm1_common.ej*(kv2+kv2)*d_t)
+reflvv = rgv*exp(ej*(K_vc+K_vc)*d_c+ej*(K_vt+K_vt)*d_t)
 reflha = abs(reflhh)
 reflva = abs(reflvv)
-
-K_hcⁱ     = a_common.khim1
-K_vcⁱ     = a_common.kvim1
-K_htⁱ     = a_common.khim2
-K_vtⁱ     = a_common.kvim2
 
 dattenh1 = exp(-2*(K_hcⁱ+K_hcⁱ)*d_c)
 dattenh2 = exp(-2*(K_htⁱ+K_htⁱ)*d_t)
@@ -218,10 +200,10 @@ dattenv1 = exp(-2*(K_vcⁱ+K_vcⁱ)*d_c)
 dattenv2 = exp(-2*(K_vtⁱ+K_vtⁱ)*d_t)
 dattenvh1 = exp(-2*(K_vcⁱ+K_hcⁱ)*d_c)
 dattenvh2 = exp(-2*(K_vtⁱ+K_htⁱ)*d_t)
-a1     = (parm1_common.ej)*(kv1-kh1)
-e1     = (parm1_common.ej)*(kpvc1-kmhc1)
-a2     = (parm1_common.ej)*(kv2-kh2)
-e2     = (parm1_common.ej)*(kpvc2-kmhc2)
+a1     = (ej)*(K_vc-K_hc)
+e1     = (ej)*(kpvc1-kmhc1)
+a2     = (ej)*(K_vt-K_ht)
+e2     = (ej)*(kpvc2-kmhc2)
 
 factvh1 = exp(-2*(K_hcⁱ-K_vcⁱ)*d_c)
 factvh2 = exp(-2*(K_vcⁱ-K_hcⁱ)*d_c)
@@ -331,7 +313,6 @@ sgvh = sgvh1+sgvh2
 sgvhi = sgvhi1+sgvhi2
 sgvhidr=sgvhidr1+sgvhidr2
 
-
 ############################
 # Calculation of backscat cross sections in db
 
@@ -395,14 +376,12 @@ svvrd	= 10.0*log10(sgvvr)
 ################################
 # Add the effect of rough ground
 
-# klx=k₀*lm
-# kly=klx
 ksig=k₀*s
 
-shhg,svvg,svhg,gd = grdoh(ksig, a_common, b_common)
+shhg,svvg,svhg,gd = grdoh(ksig)
 
 shht = sghh + shhg
-svvt = sgvv + svvg #  sgvvd + sgvvr + sgvvdr + svvg(ground)
+svvt = sgvv + svvg
 svht = sgvh + svhg
 shhti=sghhi+shhg
 svvti=sgvvi+svvg

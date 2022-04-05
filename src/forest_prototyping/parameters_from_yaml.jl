@@ -16,23 +16,23 @@ function parameters_from_yaml(filepath)
     parml   = input_params["leaf_parameters"]["pdf_parameter"]
 
     # Primary Branch Parameters
-    radb1   = input_params["primary_branch_parameters"]["diameter"]
-    lb1     = input_params["primary_branch_parameters"]["length"]
+    r_b1    = input_params["primary_branch_parameters"]["diameter"]
+    l_b1    = input_params["primary_branch_parameters"]["length"]
     ρ_b1    = input_params["primary_branch_parameters"]["density"]
     ϵ_b1    = input_params["primary_branch_parameters"]["dielectric_constant"]
     ntypeb1 = input_params["primary_branch_parameters"]["branch_inclination_pdf_type"]
     parmb1  = input_params["primary_branch_parameters"]["pdf_parameter"]
 
     # Secondary Branch Parameters
-    radb2   = input_params["secondary_branch_parameters"]["diameter"]
-    lb2     = input_params["secondary_branch_parameters"]["length"]
+    r_b2   = input_params["secondary_branch_parameters"]["diameter"]
+    l_b2     = input_params["secondary_branch_parameters"]["length"]
     ρ_b2    = input_params["secondary_branch_parameters"]["density"]
     ϵ_b2    = input_params["secondary_branch_parameters"]["dielectric_constant"]
     ntypeb2 = input_params["secondary_branch_parameters"]["branch_inclination_pdf_type"]
     parmb2  = input_params["secondary_branch_parameters"]["pdf_parameter"]
 
     # Trunk Parameters
-    radt    = input_params["trunk_parameters"]["diameter"]
+    r_t     = input_params["trunk_parameters"]["diameter"]
     lt_temp      = input_params["trunk_parameters"]["length"]
     ρ_t     = input_params["trunk_parameters"]["density"]
     ϵ_t     = input_params["trunk_parameters"]["dielectric_constant"]
@@ -52,9 +52,9 @@ function parameters_from_yaml(filepath)
     ϵ_g  = eval(Meta.parse(ϵ_g))
 
     return Forest_Scattering_Parameters(bfrghz, amajcm, bmincm, tmm, ρ_l, ϵ_l, 
-                                        ntypel, parml, radb1, lb1, ρ_b1, ϵ_b1, ntypeb1, 
-                                        parmb1, radb2, lb2, ρ_b2, ϵ_b2, ntypeb2, parmb2, 
-                                        radt, lt_temp, ρ_t, ϵ_t, ntypet, parmt, 
+                                        ntypel, parml, r_b1, l_b1, ρ_b1, ϵ_b1, ntypeb1, 
+                                        parmb1, r_b2, l_b2, ρ_b2, ϵ_b2, ntypeb2, parmb2, 
+                                        r_t, lt_temp, ρ_t, ϵ_t, ntypet, parmt, 
                                         d_c, d_t, ϵ_g, l, sig)
 
 end
@@ -78,8 +78,8 @@ function Base.show(io::IO, x::Forest_Scattering_Parameters)
     println(io, "------------------------------")
     println(io, "Primary Branch Parameters")
     println(io, "------------------------------")
-    println(io, "radb1: $(x.radb1)")
-    println(io, "lb1: $(x.lb1)")
+    println(io, "r_b1: $(x.r_b1)")
+    println(io, "l_b1: $(x.l_b1)")
     println(io, "ρ_b1: $(x.ρ_b1)")
     println(io, "ϵ_b1: $(x.ϵ_b1)")
     println(io, "ntypeb1: $(x.ntypeb1)")
@@ -88,8 +88,8 @@ function Base.show(io::IO, x::Forest_Scattering_Parameters)
     println(io, "------------------------------")
     println(io, "Secondary Branch Parameters")
     println(io, "------------------------------")
-    println(io, "radb2: $(x.radb2)")
-    println(io, "lb2: $(x.lb2)")
+    println(io, "r_b2: $(x.r_b2)")
+    println(io, "l_b2: $(x.l_b2)")
     println(io, "ρ_b2: $(x.ρ_b2)")
     println(io, "ϵ_b2: $(x.ϵ_b2)")
     println(io, "ntypeb2: $(x.ntypeb2)")
@@ -99,7 +99,7 @@ function Base.show(io::IO, x::Forest_Scattering_Parameters)
     println(io, "Trunk Parameters")
     println(io, "------------------------------")
     println(io, "radt: $(x.radt)")
-    println(io, "lt_temp: $(x.lt_temp)")
+    println(io, "l_t: $(x.l_t)")
     println(io, "ρ_t: $(x.ρ_t)")
     println(io, "ϵ_t: $(x.ϵ_t)")
     println(io, "ntypet: $(x.ntypet)")

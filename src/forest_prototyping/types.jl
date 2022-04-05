@@ -13,7 +13,7 @@ mutable struct Forest_Scattering_Parameters
     parml
 
     # Primary Branch Parameters
-    radb1   
+    r_b1   
     l_b1     
     ρ_b1
     ϵ_b1   
@@ -21,7 +21,7 @@ mutable struct Forest_Scattering_Parameters
     parmb1  
 
     # Secondary Branch Parameters
-    radb2   
+    r_b2   
     l_b2     
     ρ_b2   
     ϵ_b2   
@@ -29,7 +29,7 @@ mutable struct Forest_Scattering_Parameters
     parmb2  
 
     # Trunk Parameters
-    radt    
+    r_t    
     l_t
     ρ_t    
     ϵ_t
@@ -43,33 +43,6 @@ mutable struct Forest_Scattering_Parameters
     sig     
 
 end
-mutable struct a 
-
-    khim1
-    khim2
-    kvim1
-    kvim2
-    
-    bfr
-    ϵ_g
-
-end
-
-mutable struct b
-
-    zk
-    sig
-    zlx
-    zly
-
-end
-
-mutable struct ds
-
-    d_t
-    d_c
-
-end
 
 mutable struct leaf 
 
@@ -80,28 +53,12 @@ mutable struct leaf
 
 end
 
-mutable struct branch 
+# (branch or trunk)
+mutable struct wood
 
-    ϵ_b
-    radbm
-    l_b
-
-end
-
-mutable struct trunk 
-
-    ϵ_t
-    radtm
-    l_t
-
-end
-
-mutable struct parm1
-
-    r0
-    h
-    ej
-    ϵ_i
+    ϵ
+    r
+    l
 
 end
 

@@ -23,9 +23,6 @@ function asal(θ_iʳ, ntype, parm, l_c::leaf)
     eb = exi / (1 + exi)
     b2 = abs(eb)^2
 
-    δθ =  π/n_θ
-    δϕ = 2π/n_ϕ
-
     sm = [0.0, 0.0, 0.0]
     sidr = [0.0, 0.0]
 
@@ -104,9 +101,6 @@ function asal(θ_iʳ, ntype, parm, l_c::leaf)
 		cnti=1.0
     end
 
-    Δϕ = δϕ/(2*π)
-    Δθ = δθ/π
-
     sgbd = a2*l_c.t^2 * sm * Δθ * Δϕ
     sgbd[2] *= b2
 
@@ -117,34 +111,14 @@ function asal(θ_iʳ, ntype, parm, l_c::leaf)
     return (sgbd, sgbdr, sgbvh1, sgbvh3)
 end
 
-function woodf(index, ntype, parm, branch_c::branch, trunk_c::trunk, p1_c::parm1, p2_c::parm2)
+function woodf(ntype, parm, wood_c::wood, p2_c::parm2)
 
-    p1_c.ej = 0.0 + 1.0im
-
-    if (index == 1) 
-        p1_c.r0 = branch_c.radbm
-        p1_c.h = 0.5 * branch_c.l_b
-        p1_c.ϵ_i = branch_c.ϵ_b
-    end
-
-    if (index == 2)
-        p1_c.r0 = trunk_c.radtm
-        p1_c.h = 0.5 * trunk_c.l_t
-        p1_c.ϵ_i = trunk_c.ϵ_t
-    end
-
-    nmax= Integer(floor(k₀*p1_c.r0+4.0*(k₀*p1_c.r0)^(1/3)+2.0))
+    nmax= Integer(floor(k₀*wood_c.r+4.0*(k₀*wood_c.r)^(1/3)+2.0))
 
     nmax = min(nmax, 20)
 
     ci=cos(θ_iʳ)
 	si=sin(θ_iʳ)
-    
-    ϕ_i = 0.0
-    δθ = π/n_θ
-    δϕ = 2.0*π/n_ϕ
-    Δϕ = δϕ/(2π)
-    Δθ = δθ/π
 
     fsm = [0.0 0.0 ; 0.0 0.0]
 
@@ -170,8 +144,8 @@ function woodf(index, ntype, parm, branch_c::branch, trunk_c::trunk, p1_c::parm1
 
             ϕ_curr = (j-1)*δϕ
             cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
-            sph=sin(ϕ_curr-ϕ_i)
-            cph=cos(ϕ_curr-ϕ_i)
+            sph=sin(ϕ_curr-ϕ_iʳ)
+            cph=cos(ϕ_curr-ϕ_iʳ)
             cnt=cnti*cntj
 
             cthi = +sth * si * cph - cth * ci
@@ -192,7 +166,7 @@ function woodf(index, ntype, parm, branch_c::branch, trunk_c::trunk, p1_c::parm1
             p2_c.phyi=acos(cphi)
             p2_c.phys=p2_c.phyi
 
-            fpvv,fpvh,fphv,fphh = scat(nmax, p1_c, p2_c, i=i)
+            fpvv,fpvh,fphv,fphh = scat(nmax, wood_c, p2_c)
 
             # SCATTERING OUTPUTS MATCH # 
 
@@ -217,15 +191,13 @@ function woodf(index, ntype, parm, branch_c::branch, trunk_c::trunk, p1_c::parm1
 
 end
 
-function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, p1_c::parm1, p2_c::parm2)
+function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, wood_c::wood, p2_c::parm2)
 
     si = sin(θ_iʳ)
     ci = cos(θ_iʳ)
 
-    ϕ_i = 0.0
-
-    sph=sin(ϕ_curr-ϕ_i)
-    cph=cos(ϕ_curr-ϕ_i)
+    sph=sin(ϕ_curr-ϕ_iʳ)
+    cph=cos(ϕ_curr-ϕ_iʳ)
     cthi=sth*si*cph-sign_i*cth*ci
     tvi=-sth*ci*cph-sign_i*cth*si
     thi=sign_i*sth*sph
@@ -244,7 +216,7 @@ function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, p1
     p2_c.phyi=acos(cphi)
     p2_c.phys=p2_c.phyi+π
 
-    fpvv,fpvh,fphv,fphh = scat(nmax, p1_c, p2_c)
+    fpvv,fpvh,fphv,fphh = scat(nmax, wood_c, p2_c)
 
     dsi=ti*ts  
     fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
@@ -260,25 +232,9 @@ end
 Calculation of average backscatter cross-section of a finite length cylinder, exact series solution
 (KARAM, FUNG, AND ANTAR, 1988)
 """
-function woodb(index,ntype,parm, branch_c, trunk_c, p1_c::parm1, p2_c::parm2)
+function woodb(ntype,parm, wood_c::wood, p2_c::parm2)
 
-    p1_c.ej=complex(0.0,1.0)
-
-    if (index == 1)
-        p1_c.r0 = branch_c.radbm
-        p1_c.h=0.5*branch_c.l_b
-        p1_c.ϵ_i=branch_c.ϵ_b
-    elseif index == 2
-        p1_c.r0 = trunk_c.radtm
-        p1_c.ϵ_i = trunk_c.ϵ_t
-    end
-
-    nmax=min(20, Integer(floor(k₀*p1_c.r0+4.0*(k₀*p1_c.r0)^(1/3)+2.0)))
-
-    δθ    = π/n_θ
-    δϕ   = 2π/n_ϕ
-    Δϕ = 1/n_ϕ # δϕ/(2π)
-    Δθ = 1/n_θ
+    nmax=min(20, Integer(floor(k₀*wood_c.r+4.0*(k₀*wood_c.r)^(1/3)+2.0)))
 
     smd = [0.0, 0.0, 0.0]
     smdr = [0.0, 0.0]
@@ -315,13 +271,13 @@ function woodb(index,ntype,parm, branch_c, trunk_c, p1_c::parm1, p2_c::parm2)
             cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
             cnt = cnti*cntj
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> -x, x -> x, p1_c, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> -x, x -> x, wood_c, p2_c)
 
             sumd += abs.([fvv ; fvh ; fhh] / dsi).^2*cnt
 
             ############### 
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> x, x -> π-x, p1_c, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> x, x -> π-x, wood_c, p2_c)
 
             sumdr += abs.([fvv ; fhh] / dsi).^2*cnt
             sumvh1 = abs(fvh/(dsi))^2*cnt + sumvh1
@@ -329,7 +285,7 @@ function woodb(index,ntype,parm, branch_c, trunk_c, p1_c::parm1, p2_c::parm2)
             
             ################## 
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, -1, x -> -x, x -> π-x, p1_c, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, -1, x -> -x, x -> π-x, wood_c, p2_c)
 
             sumvh3 = abs(fvh*fvhc/(dsi*dsi))*cnt + sumvh3
             cntj = 1.0
@@ -352,18 +308,18 @@ function woodb(index,ntype,parm, branch_c, trunk_c, p1_c::parm1, p2_c::parm2)
 
 end
 
-function scat(nmax, p1_c::parm1, p2_c::parm2; i=-1)
+function scat(nmax, wood_c::wood, p2_c::parm2)
 
     k02=k₀^2
     cthi=cos(p2_c.thetai)
     cths=cos(p2_c.thetas)
 
     sths=sqrt(1.0-cths^2)
-    argum=k₀*p1_c.h*(cthi+cths)
+    argum=k₀*(wood_c.l/2)*(cthi+cths)
 
     q = (argum == 0.0) ? 1.0 : sin(argum)/argum
 
-    z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, p1_c, p2_c)
+    z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, wood_c, p2_c.thetai, p2_c.thetas)
 
     shh0=b0*eta0h
     shv0=0
@@ -376,65 +332,65 @@ function scat(nmax, p1_c::parm1, p2_c::parm2; i=-1)
 
     for n = 1:nmax
 
-        zn,an,bn,enh,env,etanh,etanv = cylinder(n, p1_c, p2_c)
+        zn,an,bn,enh,env,etanh,etanv = cylinder(n, wood_c, p2_c.thetai, p2_c.thetas)
 
         sphn=0.0
         π_δ = 0.0001
-        cphn = (π - π_δ < p2_c.phys-p2_c.phyi < π + π_δ) ? (-1.0)^n : 1.0
+        cphn = (π - π_δ < p2_c.phys-p2_c.phyi < π + π_δ) ? (-1)^n : 1.0
 
-        shh += +2.0*(etanh*bn+p1_c.ej*enh*an*cthi)*cphn	
-        shv += +(etanv*bn+p1_c.ej*env*an*cthi)*sphn
-        svh += +((enh*bn*cthi-p1_c.ej*etanh*an)*cths-sths*enh*zn)*sphn
-        svv += +2.0*((env*cthi*bn-p1_c.ej*etanv*an)*cths-sths*env*zn)*cphn
+        shh += +2.0*(etanh*bn+ej*enh*an*cthi)*cphn	
+        shv += +(etanv*bn+ej*env*an*cthi)*sphn
+        svh += +((enh*bn*cthi-ej*etanh*an)*cths-sths*enh*zn)*sphn
+        svv += +2.0*((env*cthi*bn-ej*etanv*an)*cths-sths*env*zn)*cphn
         
     end
 
-    fhh=(shh0+shh)*k02*q*p1_c.h*(p1_c.ϵ_i-1.0)
-    fhv=2.0*(shv0+shv)*k02*p1_c.h*q*p1_c.ej*(p1_c.ϵ_i-1.0)
-    fvh=2.0*(svh0+svh)*k02*p1_c.h*q*p1_c.ej*(p1_c.ϵ_i-1.0)
-    fvv=(svv0+svv)*k02*p1_c.h*q*(p1_c.ϵ_i-1.0)
+    fhh=(shh0+shh)*k02*q*(wood_c.l/2)*(wood_c.ϵ-1.0)
+    fhv=2.0*(shv0+shv)*k02*(wood_c.l/2)*q*ej*(wood_c.ϵ-1.0)
+    fvh=2.0*(svh0+svh)*k02*(wood_c.l/2)*q*ej*(wood_c.ϵ-1.0)
+    fvv=(svv0+svv)*k02*(wood_c.l/2)*q*(wood_c.ϵ-1.0)
 
     return fvv,fvh,fhv,fhh
 
 end
 
-function cylinder(n, p1_c::parm1, p2_c::parm2)
+function cylinder(n, wood_c::wood, thetai, thetas)
 
-    cthi=cos(p2_c.thetai)
-    cths=cos(p2_c.thetas)
+    cthi=cos(thetai)
+    cths=cos(thetas)
 
     cthi2=cthi^2
-    coef1= sqrt(p1_c.ϵ_i-cthi2)	
-    u = k₀*p1_c.r0*coef1
-    vi = k₀*p1_c.r0*sqrt(1.0-cthi2)
-    vs = k₀*p1_c.r0*sqrt(1.0-(cths^2))
+    coef1= sqrt(wood_c.ϵ-cthi2)	
+    u = k₀*wood_c.r*coef1
+    vi = k₀*wood_c.r*sqrt(1.0-cthi2)
+    vs = k₀*wood_c.r*sqrt(1.0-(cths^2))
     sthi=sqrt(1.0-cthi2)
 
     bjnu=besselj(n,u)
     dbjnu=dbessj(n,u)
-    hnv=besselj(n,vi)-p1_c.ej*bessely(n,vi)
-    dhnv=dbessj(n,vi)-p1_c.ej*dbessy(n,vi)
+    hnv=besselj(n,vi)-ej*bessely(n,vi)
+    dhnv=dbessj(n,vi)-ej*dbessy(n,vi)
 
     zn,znp1,znm1 = zeta(n, u, vs)
 
-    zn=zn*p1_c.r0^2
-    znp1=znp1*p1_c.r0^2
-    znm1=znm1*p1_c.r0^2
+    zn=zn*wood_c.r^2
+    znp1=znp1*wood_c.r^2
+    znm1=znm1*wood_c.r^2
     an = (znm1-znp1)/(2.0*coef1)
     bn = (znm1+znp1)/(2.0*coef1)
 
     rn1=0.5*π*(vi^2)*hnv
     coefenv=(dhnv/(vi*hnv)-dbjnu/(u*bjnu))
-    coefetanh = (dhnv/(vi*hnv)-p1_c.ϵ_i*dbjnu/(u*bjnu))
+    coefetanh = (dhnv/(vi*hnv)-wood_c.ϵ*dbjnu/(u*bjnu))
     coefenh=(1.0/(vi^2)-1.0/(u^2))*n*cthi
 
     rn=rn1*(coefenv*coefetanh-coefenh^2)
 
-    env=p1_c.ej*sthi*coefenv/(rn*bjnu)
+    env=ej*sthi*coefenv/(rn*bjnu)
     enh=-sthi*coefenh/(rn*bjnu)	
 
     etanv=-enh
-    etanh=p1_c.ej*sthi*coefetanh/(rn*bjnu)
+    etanh=ej*sthi*coefetanh/(rn*bjnu)
 
     return (zn,an,bn,enh,env,etanh,etanv)
 end
@@ -484,8 +440,8 @@ function funcp(x, y, d)
     z=abs(dagd)
 
     # Edge cases 
-    z < 1.0e-03 && return d
-    z > 1.6e02 && return 1.0/dag
+    z < 1e-3 && return d
+    z > 1.6e2 && return 1.0/dag
 
     return (exp(dagd)-1.0)/dag
 
@@ -511,17 +467,17 @@ Oh et al, 1992 semi-emprical model for rough surface scattering
 URL=https://www.researchgate.net/publication/3202927_Semi-empirical_model_of_the_
 ensemble-averaged_differential_Mueller_matrix_for_microwave_backscattering_from_bare_soil_surfaces
 """
-function grdoh(ksig, a_c::a, ::b)
+function grdoh(ksig)
 
-    er=sqrt(a_c.ϵ_g)
+    er=sqrt(ϵ_g)
     r0 = abs((1.0-er)/(1.0+er))^2
     g=0.7*(1.0-exp(-0.65*ksig^1.8))
     q=0.23*(1.0-exp(-ksig))*sqrt(r0)
     sp1=(2.0*θ_iʳ/π)^(1.0/(3.0*r0))
     sp=1.0-sp1*exp(-ksig)
 
-    rgh  = (cos(θ_iʳ)-sqrt(a_c.ϵ_g-sin(θ_iʳ)^2))/(cos(θ_iʳ)+sqrt(a_c.ϵ_g-sin(θ_iʳ)^2))
-    rgv  = (a_c.ϵ_g*cos(θ_iʳ)-sqrt(a_c.ϵ_g-sin(θ_iʳ)^2))/(a_c.ϵ_g*cos(θ_iʳ)+sqrt(a_c.ϵ_g-sin(θ_iʳ)^2))
+    rgh  = (cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
+    rgv  = (ϵ_g*cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(ϵ_g*cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
 
     rh0=abs(rgh)^2
     rv0=abs(rgv)^2
