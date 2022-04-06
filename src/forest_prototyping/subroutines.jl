@@ -29,8 +29,7 @@ function asal(θ_iʳ, leaf::Leaf)
     sivh1 = 0.0
     sivh3 = 0.0
     cnst1 = k₀/π
-    cnst2 = 2π
-    cnst3 = cnst2*leaf.a_maj*leaf.b_min/4.0
+    cnst3 = 2π*leaf.a_maj*leaf.b_min/4.0
 
     cnti=1.0
 	cntj=1.0
@@ -65,8 +64,8 @@ function asal(θ_iʳ, leaf::Leaf)
             nud=sqrt(alphd^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)*cnst1
             nub=sqrt(alphb^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)*cnst1
 
-            zetad=cnst2*nud
-            zetab=cnst2*nub
+            zetad=2π*nud
+            zetab=2π*nub
             swigd=cnst3 * (besselj1(zetad) / zetad)
             swigb=cnst3 * (besselj1(zetab) / zetab)
             
@@ -78,6 +77,7 @@ function asal(θ_iʳ, leaf::Leaf)
             scs1 = scsph2+(cos(θ_curr)*sin(θ_iʳ))^2
             sscci = cos(θ_iʳ)^2-sin(θ_iʳ)^2
             sccs = (cos(θ_curr)*sin(θ_iʳ))^2-scsph2
+            
             cnt=cnti*cntj
 
             sumx[3] += (abs(1.0-eb*sthcp2))^2*cnt*swigd^2
@@ -111,14 +111,15 @@ function asal(θ_iʳ, leaf::Leaf)
     return (sgbd, sgbdr, sgbvh1, sgbvh3)
 end
 
-function woodf(wood::Wood, p2_c::parm2)
+"""
+Calculation of average forward scattering amplitudes of a
+finite length cylinder, exact series solution
+"""
+function woodf(wood::Wood)
 
     nmax= Integer(floor(k₀*wood.r+4.0*(k₀*wood.r)^(1/3)+2.0))
 
     nmax = min(nmax, 20)
-
-    ci=cos(θ_iʳ)
-	si=sin(θ_iʳ)
 
     fsm = [0.0 0.0 ; 0.0 0.0]
 
@@ -135,24 +136,21 @@ function woodf(wood::Wood, p2_c::parm2)
 
         (pdf < 1.0e-03) && break
 
-        cth=cos(θ_curr)
-        sth=sin(θ_curr)
-
         fsum = [0.0 0.0 ; 0.0 0.0]
 
         for j = 1:n_ϕ+1
 
             ϕ_curr = (j-1)*δϕ
             cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
-            sph=sin(ϕ_curr-ϕ_iʳ)
-            cph=cos(ϕ_curr-ϕ_iʳ)
+
             cnt=cnti*cntj
 
-            cthi = +sth * si * cph - cth * ci
-            tvi  = -sth * ci * cph - cth * si
-            thi=sth*sph
+            cthi =  sin(θ_curr) * sin(θ_iʳ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * cos(θ_iʳ)
+            tvi  = -sin(θ_curr) * cos(θ_iʳ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * sin(θ_iʳ)
+
+            thi = sin(θ_curr) * sin(ϕ_curr-ϕ_iʳ)
             ti=sqrt(tvi^2+thi^2)
-            cphi=(+si*cth*cph+sth*ci)/sqrt(1.0-cthi^2)
+            cphi = (sin(θ_iʳ)*cos(θ_curr)*cos(ϕ_curr-ϕ_iʳ)+sin(θ_curr)*cos(θ_iʳ))/sqrt(1.0-cthi^2)
 
             tvs=-tvi
             ths=thi
@@ -161,12 +159,12 @@ function woodf(wood::Wood, p2_c::parm2)
             cthi = max(min(cthi, 1.0), -1.0)
             cphi = max(min(cphi, 1.0), -1.0)
             
-            p2_c.thetai=acos(cthi)
-            p2_c.thetas=π-p2_c.thetai
-            p2_c.phyi=acos(cphi)
-            p2_c.phys=p2_c.phyi
+            thetai=acos(cthi)
+            thetas=π-thetai
+            phyi=acos(cphi)
+            phys=phyi
 
-            fpvv,fpvh,fphv,fphh = scat(nmax, wood, p2_c)
+            fpvv,fpvh,fphv,fphh = scat(nmax, wood, thetai, thetas, phyi, phys)
 
             # SCATTERING OUTPUTS MATCH # 
 
@@ -191,18 +189,13 @@ function woodf(wood::Wood, p2_c::parm2)
 
 end
 
-function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, wood::Wood, p2_c::parm2)
+function backscattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_thetas, wood::Wood)
 
-    si = sin(θ_iʳ)
-    ci = cos(θ_iʳ)
-
-    sph=sin(ϕ_curr-ϕ_iʳ)
-    cph=cos(ϕ_curr-ϕ_iʳ)
-    cthi=sth*si*cph-sign_i*cth*ci
-    tvi=-sth*ci*cph-sign_i*cth*si
-    thi=sign_i*sth*sph
+    cthi=sin(θ_curr)*sin(θ_iʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*cos(θ_iʳ)
+    tvi=-sin(θ_curr)*cos(θ_iʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*sin(θ_iʳ)
+    thi=sign_i*sin(θ_curr)*sin(ϕ_curr-ϕ_iʳ)
     ti=sqrt(tvi^2+thi^2)
-    cphi=(si*cth*cph+sign_i*sth*ci)/sqrt(1.0-cthi^2)
+    cphi=(sin(θ_iʳ)*cos(θ_curr)*cos(ϕ_curr-ϕ_iʳ)+sign_i*sin(θ_curr)*cos(θ_iʳ))/sqrt(1.0-cthi^2)
 
     ths=-thi
     tvs= new_tvs(tvi)
@@ -211,12 +204,12 @@ function backscattering(ϕ_curr, sth, cth, nmax, sign_i, new_tvs, new_thetas, wo
     cthi = max(min(cthi, 1.0), -1.0)
     cphi = max(min(cphi, 1.0), -1.0)
 
-    p2_c.thetai=acos(cthi)
-    p2_c.thetas=new_thetas(p2_c.thetai)
-    p2_c.phyi=acos(cphi)
-    p2_c.phys=p2_c.phyi+π
+    thetai=acos(cthi)
+    thetas=new_thetas(thetai)
+    phyi=acos(cphi)
+    phys=phyi+π
 
-    fpvv,fpvh,fphv,fphh = scat(nmax, wood, p2_c)
+    fpvv,fpvh,fphv,fphh = scat(nmax, wood, thetai, thetas, phyi, phys)
 
     dsi=ti*ts  
     fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
@@ -232,7 +225,7 @@ end
 Calculation of average backscatter cross-section of a finite length cylinder, exact series solution
 (KARAM, FUNG, AND ANTAR, 1988)
 """
-function woodb(wood::Wood, p2_c::parm2)
+function woodb(wood::Wood)
 
     nmax=min(20, Integer(floor(k₀*wood.r+4.0*(k₀*wood.r)^(1/3)+2.0)))
 
@@ -255,9 +248,6 @@ function woodb(wood::Wood, p2_c::parm2)
 
         (pdf < 1.0e-03) && break
 
-        cth=cos(θ_curr)
-        sth=sin(θ_curr)
-
         sumd = [0.0, 0.0, 0.0]
         sumdr = [0.0, 0.0]
 
@@ -271,13 +261,13 @@ function woodb(wood::Wood, p2_c::parm2)
             cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
             cnt = cnti*cntj
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> -x, x -> x, wood, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(θ_curr, ϕ_curr, nmax, 1, x -> -x, x -> x, wood)
 
             sumd += abs.([fvv ; fvh ; fhh] / dsi).^2*cnt
 
             ############### 
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, 1, x -> x, x -> π-x, wood, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(θ_curr, ϕ_curr, nmax, 1, x -> x, x -> π-x, wood)
 
             sumdr += abs.([fvv ; fhh] / dsi).^2*cnt
             sumvh1 = abs(fvh/(dsi))^2*cnt + sumvh1
@@ -285,7 +275,7 @@ function woodb(wood::Wood, p2_c::parm2)
             
             ################## 
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(ϕ_curr, sth, cth, nmax, -1, x -> -x, x -> π-x, wood, p2_c)
+            dsi, fvv, fvh, fhv, fhh = backscattering(θ_curr, ϕ_curr, nmax, -1, x -> -x, x -> π-x, wood)
 
             sumvh3 = abs(fvh*fvhc/(dsi*dsi))*cnt + sumvh3
             cntj = 1.0
@@ -308,18 +298,18 @@ function woodb(wood::Wood, p2_c::parm2)
 
 end
 
-function scat(nmax, wood_c::Wood, p2_c::parm2)
+function scat(nmax, wood_c::Wood, thetai, thetas, phyi, phys)
 
     k02=k₀^2
-    cthi=cos(p2_c.thetai)
-    cths=cos(p2_c.thetas)
+    cthi=cos(thetai)
+    cths=cos(thetas)
 
     sths=sqrt(1.0-cths^2)
     argum=k₀*(wood_c.l/2)*(cthi+cths)
 
     q = (argum == 0.0) ? 1.0 : sin(argum)/argum
 
-    z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, wood_c, p2_c.thetai, p2_c.thetas)
+    z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, wood_c, thetai, thetas)
 
     shh0=b0*eta0h
     shv0=0
@@ -332,11 +322,11 @@ function scat(nmax, wood_c::Wood, p2_c::parm2)
 
     for n = 1:nmax
 
-        zn,an,bn,enh,env,etanh,etanv = cylinder(n, wood_c, p2_c.thetai, p2_c.thetas)
+        zn,an,bn,enh,env,etanh,etanv = cylinder(n, wood_c, thetai, thetas)
 
         sphn=0.0
         π_δ = 0.0001
-        cphn = (π - π_δ < p2_c.phys-p2_c.phyi < π + π_δ) ? (-1)^n : 1.0
+        cphn = (π - π_δ < phys-phyi < π + π_δ) ? (-1)^n : 1.0
 
         shh += +2.0*(etanh*bn+ej*enh*an*cthi)*cphn	
         shv += +(etanv*bn+ej*env*an*cthi)*sphn

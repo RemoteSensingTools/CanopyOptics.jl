@@ -33,7 +33,7 @@ const k₀          = 2π*bfr/c        # Free space wave number (2π/λ)
 const zk          = k₀              # 
 const n_ϕ         = 41              # No. of ϕ
 const n_θ         = 37              # No. of θ
-const ej          = 0.0 + 1.0im 
+const ej          = 0.0 + 1.0im     # Complex unit vector
 
 ## 
 ## Calculation of Parameters
@@ -64,9 +64,6 @@ atvc = zeros(20)
 atht = zeros(20)
 atvt = zeros(20)
 
-## Common Block functionality 
-parm2_common = parm2(0.0, 0.0, 0.0, 0.0)
-
 # Calculation of skin depth skdh skdv and the bistatic cross sections sghh,sghv,sgvv
 
 afhhl, afvvl = afsal(θ_iʳ, ail, leaf)
@@ -74,26 +71,26 @@ sbdl, sbdrl, sbvh1l, sbvh3l = asal(θ_iʳ, leaf)
 
 # Compute scattering amplitudes from primary branches
 
-afb1 = woodf(branch_1, parm2_common)
+afb1 = woodf(branch_1)
 
 afhhb1 = complex(abs(real(afb1[2,2])),abs(imag(afb1[2,2])))
 afvvb1 = complex(abs(real(afb1[1,1])),abs(imag(afb1[1,1])))
 
-sbd_b1, sbdr_b1, sbvh1b1,sbvh3b1 = woodb(branch_1, parm2_common)
+sbd_b1, sbdr_b1, sbvh1b1,sbvh3b1 = woodb(branch_1)
 
 # compute scattering amplitudes from secondary branches
 
-afb2 = woodf(branch_2, parm2_common)
+afb2 = woodf(branch_2)
 
 afhhb2 = complex(abs(real(afb2[2,2])),abs(imag(afb2[2,2])))
 afvvb2 = complex(abs(real(afb2[1,1])),abs(imag(afb2[1,1])))
 
-sbd_b2, sbdr_b2, sbvh1b2,sbvh3b2 = woodb(branch_2, parm2_common)
+sbd_b2, sbdr_b2, sbvh1b2,sbvh3b2 = woodb(branch_2)
 
 # Compute scattering amplitudes from trunks
 
-aft = woodf(trunk, parm2_common)
-sbd_t, sbdr_t, sbvh1t,sbvh3t = woodb(trunk, parm2_common)
+aft = woodf(trunk)
+sbd_t, sbdr_t, sbvh1t,sbvh3t = woodb(trunk)
 
 # Using reciprocity and scatterer symmetry to calculate rho*sigma
 

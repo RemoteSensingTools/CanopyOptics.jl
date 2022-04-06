@@ -29,15 +29,6 @@ mutable struct Wood
 
 end
 
-mutable struct parm2
-
-    thetai
-    phyi
-    thetas
-    phys
-
-end
-
 mutable struct Forest_Scattering_Parameters 
 
     # Frequency
