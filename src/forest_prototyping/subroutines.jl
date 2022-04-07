@@ -28,7 +28,6 @@ function asal(θ_iʳ, leaf::Leaf)
 
     sivh1 = 0.0
     sivh3 = 0.0
-    cnst1 = k₀/π
     cnst3 = 2π*leaf.a_maj*leaf.b_min/4.0
 
     cnti=1.0
@@ -61,8 +60,8 @@ function asal(θ_iʳ, leaf::Leaf)
             alphd=alphb - (sin(θ_curr)*cos(θ_iʳ))
             betad=sin(θ_iʳ)*cos(ϕ_curr)
 
-            nud=sqrt(alphd^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)*cnst1
-            nub=sqrt(alphb^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)*cnst1
+            nud=sqrt(alphd^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)* k₀/π
+            nub=sqrt(alphb^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)* k₀/π
 
             zetad=2π*nud
             zetab=2π*nub
@@ -164,15 +163,16 @@ function woodf(wood::Wood)
             phyi=acos(cphi)
             phys=phyi
 
-            fpvv,fpvh,fphv,fphh = scat(nmax, wood, thetai, thetas, phyi, phys)
+            fp = scat(nmax, wood, thetai, thetas, phyi, phys)
 
             # SCATTERING OUTPUTS MATCH # 
 
             dsi=ti*ts  
-            fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
-            fvh = tvs*fpvv*thi+tvs*fpvh*tvi-ths*fphv*thi-ths*fphh*tvi
-            fhv = ths*fpvv*tvi+tvs*fphv*tvi-ths*fpvh*thi-tvs*fphh*thi
-            fhh = ths*fpvv*thi+tvs*fphv*thi+ths*fpvh*tvi+tvs*fphh*tvi
+
+            fvv = tvs*fp[1,1]*tvi-tvs*fp[1,2]*thi-ths*fp[2,1]*tvi+ths*fp[2,2]*thi
+            fvh = tvs*fp[1,1]*thi+tvs*fp[1,2]*tvi-ths*fp[2,1]*thi-ths*fp[2,2]*tvi
+            fhv = ths*fp[1,1]*tvi+tvs*fp[2,1]*tvi-ths*fp[1,2]*thi-tvs*fp[2,2]*thi
+            fhh = ths*fp[1,1]*thi+tvs*fp[2,1]*thi+ths*fp[1,2]*tvi+tvs*fp[2,2]*tvi
 
             fsum = cnt*[fvv fvh ; fhv fhh]/dsi + fsum
 
@@ -209,13 +209,13 @@ function backscattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_thetas, woo
     phyi=acos(cphi)
     phys=phyi+π
 
-    fpvv,fpvh,fphv,fphh = scat(nmax, wood, thetai, thetas, phyi, phys)
+    fp = scat(nmax, wood, thetai, thetas, phyi, phys)
 
     dsi=ti*ts  
-    fvv = tvs*fpvv*tvi-tvs*fpvh*thi-ths*fphv*tvi+ths*fphh*thi
-    fvh = tvs*fpvv*thi+tvs*fpvh*tvi-ths*fphv*thi-ths*fphh*tvi
-    fhv = ths*fpvv*tvi+tvs*fphv*tvi-ths*fpvh*thi-tvs*fphh*thi
-    fhh = ths*fpvv*thi+tvs*fphv*thi+ths*fpvh*tvi+tvs*fphh*tvi
+    fvv = tvs*fp[1,1]*tvi-tvs*fp[1,2]*thi-ths*fp[2,1]*tvi+ths*fp[2,2]*thi
+    fvh = tvs*fp[1,1]*thi+tvs*fp[1,2]*tvi-ths*fp[2,1]*thi-ths*fp[2,2]*tvi
+    fhv = ths*fp[1,1]*tvi+tvs*fp[1,2]*tvi-ths*fp[2,1]*thi-tvs*fp[2,2]*thi
+    fhh = ths*fp[1,1]*thi+tvs*fp[1,2]*thi+ths*fp[2,1]*tvi+tvs*fp[2,2]*tvi
 
     return dsi, fvv, fvh, fhv, fhh
 
@@ -298,94 +298,104 @@ function woodb(wood::Wood)
 
 end
 
-function scat(nmax, wood_c::Wood, thetai, thetas, phyi, phys)
+function scat(nmax, wood_c::Wood, θ_i, θ_s, phyi, phys)
 
     k02=k₀^2
-    cthi=cos(thetai)
-    cths=cos(thetas)
+    cos_θ_i=cos(θ_i)
+    cos_θ_s=cos(θ_s)
+    sths=sqrt(1.0-cos_θ_s^2)
 
-    sths=sqrt(1.0-cths^2)
-    argum=k₀*(wood_c.l/2)*(cthi+cths)
+    # Equation 26 (Karam, Fung, Antar)
+    argum = k₀*(wood_c.l/2)*(cos_θ_i+cos_θ_s)
+    μ_si = (argum == 0.0) ? 1.0 : sin(argum)/argum
 
-    q = (argum == 0.0) ? 1.0 : sin(argum)/argum
+    z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, wood_c, θ_i, θ_s)
 
-    z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, wood_c, thetai, thetas)
-
-    shh0=b0*eta0h
-    shv0=0
-    svh0=0
-    svv0=e0v*(b0*cths*cthi-sths*z0)
-    shh=0.0
-    shv=0.0
-    svv=0.0
-    svh=0.0
+    s0 = [e0v*(b0*cos_θ_s*cos_θ_i-sths*z0) 0 ; 0 b0*eta0h]
+    s = zeros(Complex, 2,2)
 
     for n = 1:nmax
 
-        zn,an,bn,enh,env,etanh,etanv = cylinder(n, wood_c, thetai, thetas)
+        zn,an,bn,enh,env,etanh,etanv = cylinder(n, wood_c, θ_i, θ_s)
 
         sphn=0.0
         π_δ = 0.0001
         cphn = (π - π_δ < phys-phyi < π + π_δ) ? (-1)^n : 1.0
-
-        shh += +2.0*(etanh*bn+ej*enh*an*cthi)*cphn	
-        shv += +(etanv*bn+ej*env*an*cthi)*sphn
-        svh += +((enh*bn*cthi-ej*etanh*an)*cths-sths*enh*zn)*sphn
-        svv += +2.0*((env*cthi*bn-ej*etanv*an)*cths-sths*env*zn)*cphn
+        
+        s[1,1] += +2.0*((env*cos_θ_i*bn-ej*etanv*an)*cos_θ_s-sths*env*zn)*cphn
+        s[1,2] +=     +((enh*cos_θ_i*bn-ej*etanh*an)*cos_θ_s-sths*enh*zn)*sphn
+        s[2,1] +=     +(etanv*bn+ej*env*an*cos_θ_i)*sphn
+        s[2,2] += +2.0*(etanh*bn+ej*enh*an*cos_θ_i)*cphn	
         
     end
 
-    fhh=(shh0+shh)*k02*q*(wood_c.l/2)*(wood_c.ϵ-1.0)
-    fhv=2.0*(shv0+shv)*k02*(wood_c.l/2)*q*ej*(wood_c.ϵ-1.0)
-    fvh=2.0*(svh0+svh)*k02*(wood_c.l/2)*q*ej*(wood_c.ϵ-1.0)
-    fvv=(svv0+svv)*k02*(wood_c.l/2)*q*(wood_c.ϵ-1.0)
+    f = (s0 + s) * k02 * μ_si * (wood_c.l/2) * (wood_c.ϵ-1.0)
+    f[1,2] *= 2 * μ_si* ej
+    f[2,1] *= 2 * μ_si* ej
 
-    return fvv,fvh,fhv,fhh
+    return f
 
 end
 
-function cylinder(n, wood_c::Wood, thetai, thetas)
+"""
+Compute the coefficients of the series expansion of cylinder scattering amplitude.
 
-    cthi=cos(thetai)
-    cths=cos(thetas)
+Equation 24 in 
+Electromagnetic Wave Scattering from Some Vegetation Samples
+(KARAM, FUNG, AND ANTAR, 1988)
+http://www2.geog.ucl.ac.uk/~plewis/kuusk/karam.pdf
+"""
+function cylinder(n::Integer, wood_c::Wood, θ_i::Real, θ_s::Real)
 
-    cthi2=cthi^2
-    coef1= sqrt(wood_c.ϵ-cthi2)	
-    u = k₀*wood_c.r*coef1
-    vi = k₀*wood_c.r*sqrt(1.0-cthi2)
-    vs = k₀*wood_c.r*sqrt(1.0-(cths^2))
-    sthi=sqrt(1.0-cthi2)
+    # Constants
+    a = wood_c.r
+    ϵᵣ = wood_c.ϵ
+    cos_θ_i  = cos(θ_i)
+    cos_θ_s  = cos(θ_s)
+    coef1    = sqrt(ϵᵣ-cos_θ_i^2)	
+    sin_θ_i  = sqrt( 1-cos_θ_i^2)
+    
+    # Last equations in 24
+    u  = k₀ * a * coef1
+    vᵢ = k₀ * a * sqrt(1-cos_θ_i^2)
+    vₛ = k₀ * a * sqrt(1-cos_θ_s^2)
 
-    bjnu=besselj(n,u)
-    dbjnu=dbessj(n,u)
-    hnv=besselj(n,vi)-ej*bessely(n,vi)
-    dhnv=dbessj(n,vi)-ej*dbessy(n,vi)
+    # Bessel functions and derivatives at u, v
+    Jₙu=besselj(n,u)
+    Hₙv=besselj(n,vᵢ) - ej*bessely(n,vᵢ)
+    d_Jₙu=dbessj(n,u)
+    d_Hₙv=dbessj(n,vᵢ) - ej*dbessy(n,vᵢ)
+    
+    # Equation 26 (Karam, Fung, Antar)
+    zn, znp1, znm1 = zeta(n, a, u, vₛ)
 
-    zn,znp1,znm1 = zeta(n, u, vs)
+    # Equation 28 (Karam, Fung, Antar)
+    aₙ = (znm1-znp1)/(2*coef1)
+    bₙ = (znm1+znp1)/(2*coef1)
 
-    zn=zn*wood_c.r^2
-    znp1=znp1*wood_c.r^2
-    znm1=znm1*wood_c.r^2
-    an = (znm1-znp1)/(2.0*coef1)
-    bn = (znm1+znp1)/(2.0*coef1)
+    # Compute Rₙ with sub-expressions
+    term1   = (d_Hₙv/(vᵢ*Hₙv)-d_Jₙu/(u*Jₙu))
+    term2   = (d_Hₙv/(vᵢ*Hₙv)-ϵᵣ*d_Jₙu/(u*Jₙu))
+    term3   = (1.0/(vᵢ^2)-1.0/(u^2))*n*cos_θ_i
+    Rₙ      = (π*vᵢ^2*Hₙv/2) * (term1*term2-term3^2)
 
-    rn1=0.5*π*(vi^2)*hnv
-    coefenv=(dhnv/(vi*hnv)-dbjnu/(u*bjnu))
-    coefetanh = (dhnv/(vi*hnv)-wood_c.ϵ*dbjnu/(u*bjnu))
-    coefenh=(1.0/(vi^2)-1.0/(u^2))*n*cthi
+    # Calculate remaining terms, using above sub-expressions
+    e_nv   = ej*sin_θ_i*term1/(Rₙ*Jₙu)
+    e_nh   = -sin_θ_i*term3/(Rₙ*Jₙu)	
+    e_tanv = -e_nh
+    e_tanh = ej*sin_θ_i*term2/(Rₙ*Jₙu)
 
-    rn=rn1*(coefenv*coefetanh-coefenh^2)
-
-    env=ej*sthi*coefenv/(rn*bjnu)
-    enh=-sthi*coefenh/(rn*bjnu)	
-
-    etanv=-enh
-    etanh=ej*sthi*coefetanh/(rn*bjnu)
-
-    return (zn,an,bn,enh,env,etanh,etanv)
+    return (zn, aₙ, bₙ, e_nh, e_nv, e_tanh, e_tanv)
 end
 
-function zeta(n, u, vs)
+"""
+Zeta function described in Equation 26 of 
+
+Electromagnetic Wave Scattering from Some Vegetation Samples
+(KARAM, FUNG, AND ANTAR, 1988)
+http://www2.geog.ucl.ac.uk/~plewis/kuusk/karam.pdf
+"""
+function zeta(n::Integer, a, u, vs)
 
     bjnu=besselj(n,u)
     bjnv=besselj(n,vs)
@@ -399,9 +409,9 @@ function zeta(n, u, vs)
     bjnm1u=besselj(n-1,u)
 	bjnm1v=besselj(n-1,vs)
 
-    zn   = (u * bjnv   * bjnp1u - vs * bjnu   * bjnp1v) / (u^2-vs^2)
-    znp1 = (u * bjnp1v * bjnp2u - vs * bjnp1u * bjnp2v) / (u^2-vs^2)
-    znm1 = (u * bjnm1v * bjnu   - vs * bjnm1u * bjnv)   / (u^2-vs^2)
+    znp1 = (a^2 / (u^2-vs^2)) * (u * bjnp1v * bjnp2u - vs * bjnp1u * bjnp2v) 
+    zn   = (a^2 / (u^2-vs^2)) * (u * bjnv   * bjnp1u - vs * bjnu   * bjnp1v) 
+    znm1 = (a^2 / (u^2-vs^2)) * (u * bjnm1v * bjnu   - vs * bjnm1u * bjnv)   
 
     return zn, znp1, znm1
 end
@@ -459,12 +469,11 @@ ensemble-averaged_differential_Mueller_matrix_for_microwave_backscattering_from_
 """
 function grdoh(ksig)
 
-    er=sqrt(ϵ_g)
-    r0 = abs((1.0-er)/(1.0+er))^2
-    g=0.7*(1.0-exp(-0.65*ksig^1.8))
-    q=0.23*(1.0-exp(-ksig))*sqrt(r0)
-    sp1=(2.0*θ_iʳ/π)^(1.0/(3.0*r0))
-    sp=1.0-sp1*exp(-ksig)
+    r0 = abs((1-sqrt(ϵ_g))/(1+sqrt(ϵ_g)))^2
+    g=0.7*(1-exp(-0.65*ksig^1.8))
+    q=0.23*(1-exp(-ksig))*sqrt(r0)
+    sp1=(2*θ_iʳ/π)^(1/(3*r0))
+    sp=1-sp1*exp(-ksig)
 
     rgh  = (cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
     rgv  = (ϵ_g*cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(ϵ_g*cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
