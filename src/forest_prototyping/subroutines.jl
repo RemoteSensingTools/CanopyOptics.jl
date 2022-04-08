@@ -111,50 +111,50 @@ function asal(θ_iʳ, leaf::Leaf)
 end
 
 """
-Calculation of average forward scattering amplitudes of a
-finite length cylinder, exact series solution
+Calculation of average forward scattering amplitudes of a finite length cylinder, 
+exact series solution
 """
 function woodf(wood::Wood)
 
-    nmax= Integer(floor(k₀*wood.r+4.0*(k₀*wood.r)^(1/3)+2.0))
-
-    nmax = min(nmax, 20)
+    # Maximum n for scattering loop 
+    nmax= min(20, Integer(floor(k₀*wood.r+4*(k₀*wood.r)^(1/3)+2)))
 
     fsm = [0.0 0.0 ; 0.0 0.0]
 
     cnti=1.0
 	cntj=1.0
 
+    # Loop over θs
     for i = 1:n_θ+1
 
+        # Current θ
         θ_curr = (i-1)*δθ
-
         cnti = (i == 1 || i == n_θ+1) ? 0.5 : cnti
 
+        # Probability of θ 
         pdf = prob(θ_curr,wood.pdf_num,wood.pdf_param)
-
         (pdf < 1.0e-03) && break
 
         fsum = [0.0 0.0 ; 0.0 0.0]
 
+        # Loop over ϕs
         for j = 1:n_ϕ+1
 
+            # Current ϕ
             ϕ_curr = (j-1)*δϕ
             cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
 
             cnt=cnti*cntj
 
+            # Calculate new geometries
             cthi =  sin(θ_curr) * sin(θ_iʳ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * cos(θ_iʳ)
             tvi  = -sin(θ_curr) * cos(θ_iʳ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * sin(θ_iʳ)
-
             thi = sin(θ_curr) * sin(ϕ_curr-ϕ_iʳ)
             ti=sqrt(tvi^2+thi^2)
             cphi = (sin(θ_iʳ)*cos(θ_curr)*cos(ϕ_curr-ϕ_iʳ)+sin(θ_curr)*cos(θ_iʳ))/sqrt(1.0-cthi^2)
-
             tvs=-tvi
             ths=thi
             ts=sqrt(tvs^2+ths^2)
-
             cthi = max(min(cthi, 1.0), -1.0)
             cphi = max(min(cphi, 1.0), -1.0)
             
@@ -163,9 +163,8 @@ function woodf(wood::Wood)
             phyi=acos(cphi)
             phys=phyi
 
-            fp = scat(nmax, wood, thetai, thetas, phyi, phys)
-
-            # SCATTERING OUTPUTS MATCH # 
+            # Get scattering amplitudes for current geometry
+            fp = scattering(nmax, wood, thetai, thetas, phyi, phys)
 
             dsi=ti*ts  
 
@@ -180,6 +179,7 @@ function woodf(wood::Wood)
 
         end
 
+        # Weight sum by pdf
         fsm += fsum * pdf
         cnti=1.0
 
@@ -209,7 +209,7 @@ function backscattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_thetas, woo
     phyi=acos(cphi)
     phys=phyi+π
 
-    fp = scat(nmax, wood, thetai, thetas, phyi, phys)
+    fp = scattering(nmax, wood, thetai, thetas, phyi, phys)
 
     dsi=ti*ts  
     fvv = tvs*fp[1,1]*tvi-tvs*fp[1,2]*thi-ths*fp[2,1]*tvi+ths*fp[2,2]*thi
@@ -283,8 +283,8 @@ function woodb(wood::Wood)
 
         smd += sumd * pdf
         smdr += sumdr * pdf
-        smvh1 = sumvh1*pdf + smvh1
-        smvh3 = sumvh3*pdf + smvh3
+        smvh3 += sumvh3 * pdf 
+        smvh1 += sumvh1 * pdf 
         cnti = 1.0
 
     end
@@ -298,42 +298,54 @@ function woodb(wood::Wood)
 
 end
 
-function scat(nmax, wood_c::Wood, θ_i, θ_s, phyi, phys)
+"""
+Calculate bistatic scattering amplitude in the cylinder coordinate
 
-    k02=k₀^2
-    cos_θ_i=cos(θ_i)
-    cos_θ_s=cos(θ_s)
-    sths=sqrt(1.0-cos_θ_s^2)
+Equations 26, 27 in 
+Electromagnetic Wave Scattering from Some Vegetation Samples
+(KARAM, FUNG, AND ANTAR, 1988)
+http://www2.geog.ucl.ac.uk/~plewis/kuusk/karam.pdf
+"""
+function scattering(nmax, wood_c::Wood, θ_i, θ_s, phyi, phys)
+
+    cos_θ_i = cos(θ_i)
+    cos_θ_s = cos(θ_s)
+    sin_θ_s = sqrt(1-cos_θ_s^2)
+    s = zeros(Complex, 2,2)
 
     # Equation 26 (Karam, Fung, Antar)
     argum = k₀*(wood_c.l/2)*(cos_θ_i+cos_θ_s)
     μ_si = (argum == 0.0) ? 1.0 : sin(argum)/argum
 
-    z0, a0, b0, e0h, e0v, eta0h, eta0v = cylinder(0, wood_c, θ_i, θ_s)
+    # Calculate scattering amplitude for n = 0
+    z₀, A₀, B₀, e_0v, e_0h, ηh_0v, ηh_0h = cylinder(0, wood_c, θ_i, θ_s)
+    s0 = [e_0v*(B₀*cos_θ_s*cos_θ_i-sin_θ_s*z₀) 0 ; 0 B₀*ηh_0h]
 
-    s0 = [e0v*(b0*cos_θ_s*cos_θ_i-sths*z0) 0 ; 0 b0*eta0h]
-    s = zeros(Complex, 2,2)
-
+    # Loop over all needed n values
     for n = 1:nmax
 
-        zn,an,bn,enh,env,etanh,etanv = cylinder(n, wood_c, θ_i, θ_s)
+        # Cylindrical scattering coefficients at current n 
+        zₙ,Aₙ,Bₙ,e_nv,e_nh,ηh_nv,ηh_nh = cylinder(n, wood_c, θ_i, θ_s)
 
         sphn=0.0
         π_δ = 0.0001
         cphn = (π - π_δ < phys-phyi < π + π_δ) ? (-1)^n : 1.0
         
-        s[1,1] += +2.0*((env*cos_θ_i*bn-ej*etanv*an)*cos_θ_s-sths*env*zn)*cphn
-        s[1,2] +=     +((enh*cos_θ_i*bn-ej*etanh*an)*cos_θ_s-sths*enh*zn)*sphn
-        s[2,1] +=     +(etanv*bn+ej*env*an*cos_θ_i)*sphn
-        s[2,2] += +2.0*(etanh*bn+ej*enh*an*cos_θ_i)*cphn	
+        # Inside summation term in each line of Equation 27
+        s[1,1] += 2*((e_nv*cos_θ_i*Bₙ-ej*ηh_nv*Aₙ)*cos_θ_s-sin_θ_s*e_nv*zₙ)*cphn
+        s[1,2] +=   ((e_nh*cos_θ_i*Bₙ-ej*ηh_nh*Aₙ)*cos_θ_s-sin_θ_s*e_nh*zₙ)*sphn
+        s[2,1] +=   (ηh_nv*Bₙ+ej*e_nv*Aₙ*cos_θ_i)*sphn
+        s[2,2] += 2*(ηh_nh*Bₙ+ej*e_nh*Aₙ*cos_θ_i)*cphn	
         
     end
 
-    f = (s0 + s) * k02 * μ_si * (wood_c.l/2) * (wood_c.ϵ-1.0)
-    f[1,2] *= 2 * μ_si* ej
-    f[2,1] *= 2 * μ_si* ej
+    # Added coefficients to finish Equation 27
+    h = (wood_c.l/2)
+    F = k₀^2 * h * (wood_c.ϵ-1.0) * μ_si * (s0 + s)
+    F[1,2] *= 2 * ej
+    F[2,1] *= 2 * ej
 
-    return f
+    return F
 
 end
 
@@ -367,36 +379,38 @@ function cylinder(n::Integer, wood_c::Wood, θ_i::Real, θ_s::Real)
     d_Hₙv=dbessj(n,vᵢ) - ej*dbessy(n,vᵢ)
     
     # Equation 26 (Karam, Fung, Antar)
-    zn, znp1, znm1 = zeta(n, a, u, vₛ)
+    zₙ, znp1, znm1 = zeta(n, a, u, vₛ)
 
     # Equation 28 (Karam, Fung, Antar)
-    aₙ = (znm1-znp1)/(2*coef1)
-    bₙ = (znm1+znp1)/(2*coef1)
+    Aₙ = (znm1-znp1)/(2*coef1)
+    Bₙ = (znm1+znp1)/(2*coef1)
 
     # Compute Rₙ with sub-expressions
     term1   = (d_Hₙv/(vᵢ*Hₙv)-d_Jₙu/(u*Jₙu))
     term2   = (d_Hₙv/(vᵢ*Hₙv)-ϵᵣ*d_Jₙu/(u*Jₙu))
-    term3   = (1.0/(vᵢ^2)-1.0/(u^2))*n*cos_θ_i
+    term3   = (1/vᵢ^2-1/u^2)*n*cos_θ_i
     Rₙ      = (π*vᵢ^2*Hₙv/2) * (term1*term2-term3^2)
 
     # Calculate remaining terms, using above sub-expressions
     e_nv   = ej*sin_θ_i*term1/(Rₙ*Jₙu)
     e_nh   = -sin_θ_i*term3/(Rₙ*Jₙu)	
-    e_tanv = -e_nh
-    e_tanh = ej*sin_θ_i*term2/(Rₙ*Jₙu)
+    ηh_nv = -e_nh
+    ηh_nh = ej*sin_θ_i*term2/(Rₙ*Jₙu)
 
-    return (zn, aₙ, bₙ, e_nh, e_nv, e_tanh, e_tanv)
+    return (zₙ, Aₙ, Bₙ, e_nv, e_nh, ηh_nv, ηh_nh)
 end
 
 """
-Zeta function described in Equation 26 of 
+Calculate zeta function using bessel functions
 
+Equation 26 in 
 Electromagnetic Wave Scattering from Some Vegetation Samples
 (KARAM, FUNG, AND ANTAR, 1988)
 http://www2.geog.ucl.ac.uk/~plewis/kuusk/karam.pdf
 """
 function zeta(n::Integer, a, u, vs)
 
+    # Pre-compute bessel function outputs at n-1, n, n+1, n+2
     bjnu=besselj(n,u)
     bjnv=besselj(n,vs)
 
@@ -409,6 +423,7 @@ function zeta(n::Integer, a, u, vs)
     bjnm1u=besselj(n-1,u)
 	bjnm1v=besselj(n-1,vs)
 
+    # Compute z_n values
     znp1 = (a^2 / (u^2-vs^2)) * (u * bjnp1v * bjnp2u - vs * bjnp1u * bjnp2v) 
     zn   = (a^2 / (u^2-vs^2)) * (u * bjnv   * bjnp1u - vs * bjnu   * bjnp1v) 
     znm1 = (a^2 / (u^2-vs^2)) * (u * bjnm1v * bjnu   - vs * bjnm1u * bjnv)   
@@ -416,9 +431,13 @@ function zeta(n::Integer, a, u, vs)
     return zn, znp1, znm1
 end
 
+# Bessel function derivatives 
 dbessj(n, x) = -n/x*besselj(n,x)+besselj(n-1,x)
 dbessy(n, x) = -n/x*bessely(n,x)+bessely(n-1,x)
 
+"""
+3.1.2 in SAATCHI, MCDONALD
+"""
 function funcm(x, y, d)
 
     dag = x+y
@@ -464,7 +483,10 @@ end
 """
 Oh et al, 1992 semi-emprical model for rough surface scattering
 
-URL=https://www.researchgate.net/publication/3202927_Semi-empirical_model_of_the_
+Equation 3.1.5 in 
+Coherent Effects in Microwave Backscattering Models for Forest Canopies
+(SAATCHI, MCDONALD)
+https://www.researchgate.net/publication/3202927_Semi-empirical_model_of_the_
 ensemble-averaged_differential_Mueller_matrix_for_microwave_backscattering_from_bare_soil_surfaces
 """
 function grdoh(ksig)
