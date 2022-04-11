@@ -512,8 +512,9 @@ function grdoh(ksig)
     svvg=sigvv*exp(-4*imag(K_vc*d_c + K_vt*d_t)) # Factor of 2 pulled out in exp
     svhg=sigvh*exp(-2*imag((K_hc+K_vc)*d_c + (K_ht+K_vt)*d_t))
 
+    sg = [svvg svhg shhg]
     gd = 10 * log10.([sigvv sigvh sighh])
 
-    return shhg, svvg, svhg, gd 
+    return sg, gd 
 
 end

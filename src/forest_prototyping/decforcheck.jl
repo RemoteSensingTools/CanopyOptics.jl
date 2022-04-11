@@ -91,37 +91,13 @@ afvvb2 = complex(abs(real(afb2[1,1])),abs(imag(afb2[1,1])))
 aft = woodf(trunk)
 σ_d_t, σ_dr_t, σ_vh1_t, σ_vh3_t = woodb(trunk)
 
-# Using reciprocity and scatterer symmetry to calculate rho*sigma
-
-# TODO: Remove these variables
-
-# Branch / trunk / leaf (VH1)
-bsgvh11 = branch_1.ρ*σ_vh1_b1 + branch_2.ρ*σ_vh1_b2 +leaf.ρ*σ_vh1_l
-bsgvh12 = trunk.ρ*σ_vh1_t
-bsgvh13 = leaf.ρ*σ_vh1_l
-        
-# Branch / trunk / leaf (VH3)
-bsgvh31 = branch_1.ρ*σ_vh3_b1 + branch_2.ρ*σ_vh3_b2 +leaf.ρ*σ_vh3_l
-bsgvh32 = trunk.ρ*σ_vh3_t
-bsgvh33 = leaf.ρ*σ_vh3_l 
-
-bsgvh21=bsgvh11
-bsgvh22=bsgvh12
-bsgvh23=bsgvh13
-
-afhh1 = leaf.ρ*afhhl + branch_1.ρ*afhhb1 + branch_2.ρ*afhhb2
-afhh2 = trunk.ρ*aft[2,2]
-
-afvv1 = leaf.ρ*afvvl + branch_1.ρ*afvvb1 + branch_2.ρ*afvvb2
-afvv2 = trunk.ρ*aft[1,1]
-
 ############################
 
 # CALCULATION OF PROPAGATION CONSTANT IN LAYER 1(TOP)
 
 # 3.1.8??? 
-K_vc = k₀*cos(θ_iʳ)+(2π*afvv1)/(k₀*cos(θ_iʳ))
-K_hc = k₀*cos(θ_iʳ)+(2π*afhh1)/(k₀*cos(θ_iʳ))
+K_vc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afvvl + branch_1.ρ*afvvb1 + branch_2.ρ*afvvb2))/(k₀*cos(θ_iʳ))
+K_hc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afhhl + branch_1.ρ*afhhb1 + branch_2.ρ*afhhb2))/(k₀*cos(θ_iʳ))
 
 ath1= abs(imag(K_hc))
 atv1= abs(imag(K_vc))
@@ -139,8 +115,8 @@ at[2, 1, ip]=ath1
 ############################
 # CALCULATION OF PROPAGATION CONSTANT IN LAYER 2 (BOTTOM) 
 
-K_ht = k₀*cos(θ_iʳ)+(2π*afhh2)/(k₀*cos(θ_iʳ))
-K_vt = k₀*cos(θ_iʳ)+(2π*afvv2)/(k₀*cos(θ_iʳ))
+K_ht = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[2,2])/(k₀*cos(θ_iʳ))
+K_vt = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[1,1])/(k₀*cos(θ_iʳ))
 K_ht = complex(real(K_ht),abs(imag(K_ht)))
 K_vt = complex(real(K_vt),abs(imag(K_vt)))
 
@@ -148,12 +124,9 @@ ath2= abs(imag(K_ht))
 atv2= abs(imag(K_vt))
 temp0h=abs(imag(K_hc+K_ht))
 temp0v=abs(imag(K_vc+K_vt))
-skdh2= 1/ath2
-skdv2= 1/atv2
 
 at[1, 2, ip]=temp0v
 at[2, 2, ip]=temp0h
-
 
 ############################
 # Calculation of reflection coefficient from ground 
@@ -179,10 +152,6 @@ a1     = (ej)*(K_vc-K_hc)
 e1     = (ej)*(conj(K_vc)-conj(K_hc))
 a2     = (ej)*(K_vt-K_ht)
 e2     = (ej)*(conj(K_vt)-conj(K_ht))
-
-factvh1 = exp(-2*(K_hcⁱ-K_vcⁱ)*d_c)
-factvh2 = exp(-2*(K_vcⁱ-K_hcⁱ)*d_c)
-factvh3 = exp((-a1-e1)*d_c)
 
 ############################
 
@@ -220,34 +189,21 @@ term_t = map((x,y) -> funcm(2*x, 2*y, d_t), [K_vtⁱ, K_vtⁱ, K_htⁱ], [K_vt�
 
 ############################
 # Backscat. cross section, hh pol.
-
-sghdri1=σ_dr[2,1]/2
-sghdri2=σ_dr[2,2]/2
-sghdri3=σ_dr[2,3]/2
-
-sghhr1 = 0
-sghhr2 = 0
         
 sghhd = σ_d[3,1]+σ_d[3,2]    
-sghhr = sghhr1+sghhr2
+sghhr = 0
 sghhdr = σ_dr[2,1]+σ_dr[2,2]
-sghdri = sghdri1+sghdri2
+sghdri = (σ_dr[2,1]+σ_dr[2,2])/2
 sghh  = sghhd+sghhr+sghhdr
 sghhi=sghhd+sghhr+sghdri
 
 ############################
 # Backscat. cross section, vv pol.
-sgvdri1=σ_dr[1,1]/2.0
-sgvdri2=σ_dr[1,2]/2.0
-sgvdri3=σ_dr[1,3]/2.0
-
-sgvvr1 = 0
-sgvvr2 = 0
 
 sgvvd = σ_d[1,1]+σ_d[1,2]
-sgvvr = sgvvr1+sgvvr2
+sgvvr = 0
 sgvvdr = σ_dr[1,1]+σ_dr[1,2]
-sgvdri = sgvdri1+sgvdri2
+sgvdri = (σ_dr[1,1]+σ_dr[1,2])/2
 sgvv  = sgvvd+sgvvr+sgvvdr
 sgvvi=sgvvd+sgvvr+sgvdri
 
@@ -256,51 +212,49 @@ sgvvi=sgvvd+sgvvr+sgvdri
 
 sgvhd = σ_d[2,1]+σ_d[2,2]
 
-sgvh11 = bsgvh11*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
-sgvh21 = bsgvh21*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+factvh1 = exp(-2*(K_hcⁱ-K_vcⁱ)*d_c)
+factvh2 = exp(-2*(K_vcⁱ-K_hcⁱ)*d_c)
+factvh3 = exp((-a1-e1)*d_c)
 
-avh31  =   bsgvh31*reflvv*reflhc*cfun(a1,e1,d_c)*r_g
-sgvh31 =  abs(2.0*real(avh31))
+# vh1 
+σ_vh[1,1] = (branch_1.ρ*σ_vh1_b1+branch_2.ρ*σ_vh1_b2+leaf.ρ*σ_vh1_l)*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+σ_vh[2,1] = (branch_1.ρ*σ_vh1_b1+branch_2.ρ*σ_vh1_b2+leaf.ρ*σ_vh1_l)*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+σ_vh[3,1] = abs(2*real((branch_1.ρ*σ_vh3_b1 + branch_2.ρ*σ_vh3_b2 +leaf.ρ*σ_vh3_l)*reflvv*reflhc*cfun(a1,e1,d_c)*r_g))
+# vh2
+σ_vh[1,3] = (leaf.ρ*σ_vh1_l)*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+σ_vh[2,3] = (leaf.ρ*σ_vh1_l)*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+σ_vh[3,3] = abs(2*real((leaf.ρ*σ_vh3_l)*reflvv*reflhc*cfun(a1,e1,d_c)*r_g))
+# vh3
+σ_vh[1,2] = factvh1*(trunk.ρ*σ_vh1_t)*(reflha)^2*funcm(2*K_vtⁱ,-2*K_htⁱ,d_t)*r_g
+σ_vh[2,2] = factvh2*(trunk.ρ*σ_vh1_t)*(reflva)^2*funcp(2*K_vtⁱ,-2*K_htⁱ,d_t)*r_g
+σ_vh[3,2] = abs(2*real(factvh3*(trunk.ρ*σ_vh3_t)*reflvv*reflhc*cfun(a2,e2,d_t)*r_g))
 
-sgvhr1 = 0
-sgvhr2 = 0
-sgvhr3 = 0
+sgvhdr1=σ_vh[1,1]+σ_vh[2,1]+σ_vh[3,1]
+sgvh1  =   σ_d[2,1]+σ_vh[1,1]+σ_vh[2,1]+σ_vh[3,1]
+sgvhi1 =   σ_d[2,1]+σ_vh[1,1]+σ_vh[2,1]
+sgvhidr1=σ_vh[1,1]+σ_vh[2,1]
 
-sgvhdr1=sgvh11+sgvh21+sgvh31
-sgvh1  =   σ_d[2,1]+sgvhr1+sgvh11+sgvh21+sgvh31
-sgvhi1=σ_d[2,1]+sgvhr1+sgvh11+sgvh21
-sgvhidr1=sgvh11+sgvh21
+sgvhdr3=σ_vh[1,3]+σ_vh[2,3]+σ_vh[3,3]
+sgvh3  =   σ_d[2,3]+σ_vh[1,3]+σ_vh[2,3]+σ_vh[3,3]
 
-sgvh13 = bsgvh13*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
-sgvh23 = bsgvh23*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+sgvhi3=σ_d[2,3]+σ_vh[1,3]+σ_vh[2,3]
+sgvhidr3=σ_vh[1,3]+σ_vh[2,3]
 
-avh33  =   bsgvh33*reflvv*reflhc*cfun(a1,e1,d_c)*r_g
-sgvh33 =  abs(2.0*real(avh33))
+sgvhdr2=σ_vh[1,2]+σ_vh[2,2]+σ_vh[3,2]
 
-sgvhdr3=sgvh13+sgvh23+sgvh33
-sgvh3  =   σ_d[2,3]+sgvhr3+sgvh13+sgvh23+sgvh33
-
-sgvhi3=σ_d[2,3]+sgvhr3+sgvh13+sgvh23
-sgvhidr3=sgvh13+sgvh23
-
-sgvh12 = factvh1*bsgvh12*(reflha)^2*funcm(2*K_vtⁱ,-2*K_htⁱ,d_t)
-sgvh12=sgvh12*r_g
-
-sgvh22 = factvh2*bsgvh22*(reflva)^2*funcp(2*K_vtⁱ,-2*K_htⁱ,d_t)
-sgvh22 = sgvh22*r_g
-
-avh32  =   factvh3*bsgvh32*reflvv*reflhc*cfun(a2,e2,d_t)*r_g
-sgvh32 =  abs(2*real(avh32))
-sgvhdr2=sgvh12+sgvh22+sgvh32
-
-sgvh2  =   σ_d[2,2]+sgvhr2+sgvh12+sgvh22+sgvh32
+sgvh2  =   σ_d[2,2]+σ_vh[1,2]+σ_vh[2,2]+σ_vh[3,2]
                 
-sgvhi2=σ_d[2,2]+sgvhr2+sgvh12+sgvh22
-sgvhidr2=sgvh12+sgvh22
+sgvhi2=σ_d[2,2]+σ_vh[1,2]+σ_vh[2,2]
+sgvhidr2=σ_vh[1,2]+σ_vh[2,2]
 
 sgvh = sgvh1+sgvh2
 sgvhi = sgvhi1+sgvhi2
 sgvhidr=sgvhidr1+sgvhidr2
+
+### 
+
+σ = [sgvv sgvh sghh]
+σ_i = [sgvvi sgvhi sghhi]
 
 ############################
 # Calculation of backscat cross sections in db
@@ -355,36 +309,32 @@ svvrd	= 10.0*log10(sgvvr)
 
 ksig=k₀*s
 
-shhg,svvg,svhg,gd = grdoh(ksig)
+σ_g, gd = grdoh(ksig)
 
-shht = sghh + shhg
-svvt = sgvv + svvg
-svht = sgvh + svhg
-shhti=sghhi+shhg
-svvti=sgvvi+svvg
-svhti=sgvhi+svhg
+σ_t = σ + σ_g
+σ_t_i = σ_i + σ_g
 
 ###############################
 
 output = Forest_Scattering_Output(θ_iᵈ, σ_d_db[3,1], σ_d_db[3,2], σ_d_db[3,3], 
                                   σ_dr_db[2,1], σ_dr_db[2,2], σ_dr_db[2,3],
-                                  10.0*log10(shht), shhdd, shhdrd,
+                                  10.0*log10(σ_t[3]), shhdd, shhdrd,
                                   
                                   σ_d_db[1,1], σ_d_db[1,2], σ_d_db[1,3],
                                   σ_dr_db[1,1], σ_dr_db[1,2], σ_dr_db[1,3],
-                                  10.0*log10(svvt), svvdd, svvdrd,
+                                  10.0*log10(σ_t[1]), svvdd, svvdrd,
                                   
                                   σ_d_db[2,1], σ_d_db[2,2], σ_d_db[2,3],
                                   svhdrd1, svhdrd2, svhdrd3,
-                                  10.0*log10(svht), svhdd, svhdrd,
+                                  10.0*log10(σ_t[2]), svhdd, svhdrd,
                                   
-                                  10.0*log10(shhg), 10.0*log10(svhg), 10.0*log10(svvg),
+                                  10.0*log10(σ_g[3]), 10.0*log10(σ_g[2]), 10.0*log10(σ_g[1]),
                                   
                                   sghhoi, sgvhoi, sgvvoi,
                                   
                                   10.0*log10(sgvhidr1), 10.0*log10(sgvhidr2), 10.0*log10(sgvhidr3),
                                   
-                                  shht/shhti, svht/svhti, svvt/svvti, 
+                                  σ_t[3]/σ_t_i[3], σ_t[2]/σ_t_i[2], σ_t[1]/σ_t_i[1], 
                                   ath1, atv1, temp0h, temp0v)
 
 check_output_matches_fortran(output)
