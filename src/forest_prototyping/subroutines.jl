@@ -13,14 +13,19 @@ end
 
 """
 Calculate scattering coefficients for a thin disk
+
+Equations 26, 27 in 
+Electromagnetic Wave Scattering from Some Vegetation Samples
+(KARAM, FUNG, AND ANTAR, 1988)
+http://www2.geog.ucl.ac.uk/~plewis/kuusk/karam.pdf
 """
 function asal(θ_iʳ, leaf::Leaf)
 
-    # Needed constants
-    exi = leaf.ϵ - 1.0
-    ea = k₀^2 * exi / sqrt(4π)
-    a2 = abs(ea)^2
-    eb = exi / (1 + exi)
+    # Equations 14 and 29, leading term
+    a2 = abs(k₀^2 * (leaf.ϵ - 1) / sqrt(4π))^2 
+
+    # 
+    eb = (leaf.ϵ - 1) / leaf.ϵ
     b2 = abs(eb)^2
 
     sm = [0.0, 0.0, 0.0]
@@ -28,7 +33,7 @@ function asal(θ_iʳ, leaf::Leaf)
 
     sivh1 = 0.0
     sivh3 = 0.0
-    cnst3 = 2π*leaf.a_maj*leaf.b_min/4.0
+    cnst3 = 2π*leaf.a_maj*leaf.b_min/4
 
     cnti=1.0
 	cntj=1.0
@@ -70,7 +75,7 @@ function asal(θ_iʳ, leaf::Leaf)
             
             # calculate integrands
             sthcp2=(sin(θ_curr)*cos(ϕ_curr))^2
-            ss2=((sin(θ_curr)*cos(θ_iʳ))*sin(ϕ_curr)-(cos(θ_curr)*sin(θ_iʳ)))^2
+            ss2=(sin(θ_curr)*cos(θ_iʳ)*sin(ϕ_curr)-(cos(θ_curr)*sin(θ_iʳ)))^2
             scsph2=(sin(θ_curr)*cos(θ_iʳ))^2*sin(ϕ_curr)^2
             scs2 = (cos(θ_curr)*sin(θ_iʳ))^2 - scsph2
             scs1 = scsph2+(cos(θ_curr)*sin(θ_iʳ))^2
@@ -86,8 +91,8 @@ function asal(θ_iʳ, leaf::Leaf)
             sjdr[1] +=  (abs(sscci+eb*sccs))^2*cnt*swigb^2 # vv
             sjdr[2] +=  (abs(1.0-eb*sthcp2))^2*cnt*swigb^2 # hh
 
-            sjvh1=sthcp2*scs1*cnt*swigb^2+sjvh1
-            sjvh3=sthcp2*scs2*cnt*swigb^2+sjvh3
+            sjvh1 += sthcp2*scs1*cnt*swigb^2
+            sjvh3 += sthcp2*scs2*cnt*swigb^2
 
             cntj=1.0
         end
@@ -173,7 +178,7 @@ function woodf(wood::Wood)
             fhv = ths*fp[1,1]*tvi+tvs*fp[2,1]*tvi-ths*fp[1,2]*thi-tvs*fp[2,2]*thi
             fhh = ths*fp[1,1]*thi+tvs*fp[2,1]*thi+ths*fp[1,2]*tvi+tvs*fp[2,2]*tvi
 
-            fsum = cnt*[fvv fvh ; fhv fhh]/dsi + fsum
+            fsum += cnt*[fvv fvh ; fhv fhh]/dsi 
 
             cntj=1.0
 

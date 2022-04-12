@@ -99,8 +99,7 @@ aft = woodf(trunk)
 K_vc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afvvl + branch_1.ρ*afvvb1 + branch_2.ρ*afvvb2))/(k₀*cos(θ_iʳ))
 K_hc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afhhl + branch_1.ρ*afhhb1 + branch_2.ρ*afhhb2))/(k₀*cos(θ_iʳ))
 
-ath1= abs(imag(K_hc))
-atv1= abs(imag(K_vc))
+ath1, atv1 = abs.(imag.([K_hc, K_vc]))
 K_hc=complex(real(K_hc),abs(imag(K_hc)))
 K_vc=complex(real(K_vc),abs(imag(K_vc)))
 
@@ -117,16 +116,13 @@ at[2, 1, ip]=ath1
 
 K_ht = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[2,2])/(k₀*cos(θ_iʳ))
 K_vt = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[1,1])/(k₀*cos(θ_iʳ))
+
+ath2, atv2 = abs.(imag.([K_ht, K_vt]))
 K_ht = complex(real(K_ht),abs(imag(K_ht)))
 K_vt = complex(real(K_vt),abs(imag(K_vt)))
 
-ath2= abs(imag(K_ht))
-atv2= abs(imag(K_vt))
-temp0h=abs(imag(K_hc+K_ht))
-temp0v=abs(imag(K_vc+K_vt))
-
-at[1, 2, ip]=temp0v
-at[2, 2, ip]=temp0h
+at[1, 2, ip]=abs(imag(K_vc+K_vt))
+at[2, 2, ip]=abs(imag(K_hc+K_ht))
 
 ############################
 # Calculation of reflection coefficient from ground 
@@ -335,6 +331,6 @@ output = Forest_Scattering_Output(θ_iᵈ, σ_d_db[3,1], σ_d_db[3,2], σ_d_db[3
                                   10.0*log10(sgvhidr1), 10.0*log10(sgvhidr2), 10.0*log10(sgvhidr3),
                                   
                                   σ_t[3]/σ_t_i[3], σ_t[2]/σ_t_i[2], σ_t[1]/σ_t_i[1], 
-                                  ath1, atv1, temp0h, temp0v)
+                                  ath1, atv1, imag(K_hc+K_ht), imag(K_vc+K_vt))
 
 check_output_matches_fortran(output)
