@@ -1,7 +1,7 @@
 """
 All leaf-related parameters
 """
-mutable struct Leaf 
+struct Leaf 
 
     ϵ           # Dielectric constant
     a_maj       # Major axis (m)
@@ -17,7 +17,7 @@ end
 """
 All wood-related parameters (branch or trunk)
 """
-mutable struct Wood
+struct Wood
 
     ϵ           # Dielectric constant
     r           # Radius (m)
@@ -29,7 +29,14 @@ mutable struct Wood
 
 end
 
-mutable struct Forest_Scattering_Parameters 
+struct BackscatterFields
+
+    d::Array
+    dr::Array
+    vh::Array
+
+end
+struct Forest_Scattering_Parameters 
 
     # Frequency
     bfrghz

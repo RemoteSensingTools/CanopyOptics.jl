@@ -25,23 +25,14 @@ d_c, d_t, ϵ_g, l, sig = input_params
 
 # Conversion to standard metric
 
-const c           = 3e8             # Speed of light 
+const c           = 3e8             # Speed of light m/s
 const bfr         = bfrghz*1e9      # GHz to Hz
 const lm          = l*1e-2          # cm to m
 const s           = sig*1e-2        # cm to m (surface rms height)
 const k₀          = 2π*bfr/c        # Free space wave number (2π/λ)
-const zk          = k₀              # 
 const n_ϕ         = 41              # No. of ϕ
 const n_θ         = 37              # No. of θ
 const ej          = 0.0 + 1.0im     # Complex unit vector
-
-## 
-## Calculation of Parameters
-## 
-
-# Calculate integral of p(θ)*sin(θ)^2 from 0 to pi
-# That is, the average integral over inclinations
-const ail = sum(x -> prob(x, leaf.pdf_num, leaf.pdf_param) * sin(x)^2 * π/n_θ, collect(1:n_θ) * π/n_θ)
 
 # Loop over angle of incidence θ_i (not currently looped)
 const ip = 1
@@ -63,41 +54,27 @@ const r_g = exp(-4*(k₀*s*cos(θ_iʳ))^2)
 # dim2 = layer [crown, trunk]
 at = zeros(2, 2, 20)
 
-# Calculation of skin depth skdh skdv and the bistatic cross sections sghh,sghv,sgvv
+# Compute scattering amplitudes from leaves (forward and backward)
+afhhl, afvvl = afsal(θ_iʳ, leaf)
+σ_l = asal(θ_iʳ, leaf)
 
-afhhl, afvvl = afsal(θ_iʳ, ail, leaf)
-σ_d_l, σ_dr_l, σ_vh1_l, σ_vh3_l = asal(θ_iʳ, leaf)
+# Forward scattering of all wood types
+# Each output is a 2x2 matrix (vv vh ; hv hh)
+afb1, afb2, aft = wood_forward.([branch_1, branch_2, trunk])
 
-# Compute scattering amplitudes from primary branches
-
-afb1 = woodf(branch_1)
-
-afhhb1 = complex(abs(real(afb1[2,2])),abs(imag(afb1[2,2])))
-afvvb1 = complex(abs(real(afb1[1,1])),abs(imag(afb1[1,1])))
-
-σ_d_b1, σ_dr_b1, σ_vh1_b1, σ_vh3_b1 = woodb(branch_1)
-
-# compute scattering amplitudes from secondary branches
-
-afb2 = woodf(branch_2)
-
-afhhb2 = complex(abs(real(afb2[2,2])),abs(imag(afb2[2,2])))
-afvvb2 = complex(abs(real(afb2[1,1])),abs(imag(afb2[1,1])))
-
-σ_d_b2, σ_dr_b2, σ_vh1_b2, σ_vh3_b2 = woodb(branch_2)
-
-# Compute scattering amplitudes from trunks
-
-aft = woodf(trunk)
-σ_d_t, σ_dr_t, σ_vh1_t, σ_vh3_t = woodb(trunk)
+# Backward scattering of all wood types
+# Each output is a WoodBackscatter type, with 3 fields: d, dr, vh
+# Each of these fields is an array 
+# (d: [vv, vh, hh], dr: [vv, hh], vh: [vh1, vh3])
+σ_b1, σ_b2, σ_t = wood_backward.([branch_1, branch_2, trunk])
 
 ############################
 
 # CALCULATION OF PROPAGATION CONSTANT IN LAYER 1(TOP)
 
 # 3.1.8??? 
-K_vc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afvvl + branch_1.ρ*afvvb1 + branch_2.ρ*afvvb2))/(k₀*cos(θ_iʳ))
-K_hc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afhhl + branch_1.ρ*afhhb1 + branch_2.ρ*afhhb2))/(k₀*cos(θ_iʳ))
+K_vc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afvvl + branch_1.ρ*abs_components(afb1[1,1]) + branch_2.ρ*abs_components(afb2[1,1])))/(k₀*cos(θ_iʳ))
+K_hc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afhhl + branch_1.ρ*abs_components(afb1[2,2]) + branch_2.ρ*abs_components(afb2[2,2])))/(k₀*cos(θ_iʳ))
 
 ath1, atv1 = abs.(imag.([K_hc, K_vc]))
 K_hc=complex(real(K_hc),abs(imag(K_hc)))
@@ -159,18 +136,18 @@ e2     = (ej)*(conj(K_vt)-conj(K_ht))
 term_c = map((x,y) -> funcm(2*x, 2*y, d_c), [K_vcⁱ, K_vcⁱ, K_hcⁱ], [K_vcⁱ, K_hcⁱ, K_hcⁱ])
 term_t = map((x,y) -> funcm(2*x, 2*y, d_t), [K_vtⁱ, K_vtⁱ, K_htⁱ], [K_vtⁱ, K_htⁱ, K_htⁱ])
 
-σ_d[:,1] = (branch_1.ρ*σ_d_b1 + branch_2.ρ*σ_d_b2 + leaf.ρ*σ_d_l) .* term_c
-σ_d[:,2] = trunk.ρ*σ_d_t .* term_t .* [dattenv1, dattenvh1, dattenh1]
-σ_d[:,3] = leaf.ρ*σ_d_l .* term_c
+σ_d[:,1] = (branch_1.ρ*σ_b1.d + branch_2.ρ*σ_b2.d + leaf.ρ*σ_l.d) .* term_c
+σ_d[:,2] = trunk.ρ*σ_t.d .* term_t .* [dattenv1, dattenvh1, dattenh1]
+σ_d[:,3] = leaf.ρ*σ_l.d .* term_c
 
 ############################
 
 # Row is polarization [vv, hh]
 # Column is layer [branch+leaf (d1), trunk (d2), leaf (d3)]
 σ_dr = zeros(2,3)
-σ_dr[:,1] = 4*d_c*(branch_1.ρ*σ_dr_b1 + branch_2.ρ*σ_dr_b2 + leaf.ρ*σ_dr_l)*r_g
-σ_dr[:,2] = 4*d_t*trunk.ρ*σ_dr_t*r_g
-σ_dr[:,3] = 4*d_c*leaf.ρ*σ_dr_l*r_g
+σ_dr[:,1] = 4*d_c*(branch_1.ρ*σ_b1.dr + branch_2.ρ*σ_b2.dr + leaf.ρ*σ_l.dr)*r_g
+σ_dr[:,2] = 4*d_t*trunk.ρ*σ_t.dr*r_g
+σ_dr[:,3] = 4*d_c*leaf.ρ*σ_l.dr*r_g
 
 σ_dr[1,:] *= reflva^2
 σ_dr[2,:] *= reflha^2
@@ -213,17 +190,17 @@ factvh2 = exp(-2*(K_vcⁱ-K_hcⁱ)*d_c)
 factvh3 = exp((-a1-e1)*d_c)
 
 # vh1 
-σ_vh[1,1] = (branch_1.ρ*σ_vh1_b1+branch_2.ρ*σ_vh1_b2+leaf.ρ*σ_vh1_l)*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
-σ_vh[2,1] = (branch_1.ρ*σ_vh1_b1+branch_2.ρ*σ_vh1_b2+leaf.ρ*σ_vh1_l)*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
-σ_vh[3,1] = abs(2*real((branch_1.ρ*σ_vh3_b1 + branch_2.ρ*σ_vh3_b2 +leaf.ρ*σ_vh3_l)*reflvv*reflhc*cfun(a1,e1,d_c)*r_g))
+σ_vh[1,1] = (branch_1.ρ*σ_b1.vh[1]+branch_2.ρ*σ_b2.vh[1]+leaf.ρ*σ_l.vh[1])*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+σ_vh[2,1] = (branch_1.ρ*σ_b1.vh[1]+branch_2.ρ*σ_b2.vh[1]+leaf.ρ*σ_l.vh[1])*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+σ_vh[3,1] = abs(2*real((branch_1.ρ*σ_b1.vh[2] + branch_2.ρ*σ_b2.vh[2] +leaf.ρ*σ_l.vh[2])*reflvv*reflhc*cfun(a1,e1,d_c)*r_g))
 # vh2
-σ_vh[1,3] = (leaf.ρ*σ_vh1_l)*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
-σ_vh[2,3] = (leaf.ρ*σ_vh1_l)*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
-σ_vh[3,3] = abs(2*real((leaf.ρ*σ_vh3_l)*reflvv*reflhc*cfun(a1,e1,d_c)*r_g))
+σ_vh[1,3] = (leaf.ρ*σ_l.vh[1])*(reflha)^2*funcm(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+σ_vh[2,3] = (leaf.ρ*σ_l.vh[1])*(reflva)^2*funcp(2*K_vcⁱ,-2*K_hcⁱ,d_c)*r_g
+σ_vh[3,3] = abs(2*real((leaf.ρ*σ_l.vh[2])*reflvv*reflhc*cfun(a1,e1,d_c)*r_g))
 # vh3
-σ_vh[1,2] = factvh1*(trunk.ρ*σ_vh1_t)*(reflha)^2*funcm(2*K_vtⁱ,-2*K_htⁱ,d_t)*r_g
-σ_vh[2,2] = factvh2*(trunk.ρ*σ_vh1_t)*(reflva)^2*funcp(2*K_vtⁱ,-2*K_htⁱ,d_t)*r_g
-σ_vh[3,2] = abs(2*real(factvh3*(trunk.ρ*σ_vh3_t)*reflvv*reflhc*cfun(a2,e2,d_t)*r_g))
+σ_vh[1,2] = factvh1*(trunk.ρ*σ_t.vh[1])*(reflha)^2*funcm(2*K_vtⁱ,-2*K_htⁱ,d_t)*r_g
+σ_vh[2,2] = factvh2*(trunk.ρ*σ_t.vh[1])*(reflva)^2*funcp(2*K_vtⁱ,-2*K_htⁱ,d_t)*r_g
+σ_vh[3,2] = abs(2*real(factvh3*(trunk.ρ*σ_t.vh[2])*reflvv*reflhc*cfun(a2,e2,d_t)*r_g))
 
 sgvhdr1=σ_vh[1,1]+σ_vh[2,1]+σ_vh[3,1]
 sgvh1  =   σ_d[2,1]+σ_vh[1,1]+σ_vh[2,1]+σ_vh[3,1]

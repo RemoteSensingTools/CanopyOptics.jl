@@ -1,7 +1,58 @@
+
+"""
+Transformation from spherical to cartesian coordinates (r, θ, ϕ) → (x, y, z)
+
+r is radial distance from origin to point
+θ is inclination angle between zenith and point's inclination
+ϕ is azimuthal angle from reference direction (1, 0, 0) to point's azimuth
+"""
+function spherical_to_cartesian(r::Real, θ::Real, ϕ::Real) 
+    
+    @assert r ≥ 0
+    @assert 0 ≤ θ ≤ π
+    @assert 0 ≤ ϕ ≤ 2π
+
+    return [r*cos(ϕ)*sin(θ), r*sin(ϕ)*sin(θ), r*cos(θ)]
+
+end
+
+"""
+Given two spherical coordinates P₁(θ₁, ϕ₁) and P₂(θ₂, ϕ₂), rotate the coordinate system to 
+place both points on the same ϕ and ϕ₂=0. 
+That is, now you have points Q₁(θ, ϕ) and Q₂(0, ϕ)
+
+Return Q₁(θ, ϕ)
+"""
+function angle_between_spherical_coords(coord1::Tuple, coord2::Tuple)
+
+    θ₁, ϕ₁ = coord1 # curr
+    θ₂, ϕ₂ = coord2 # i
+
+    P₁ = spherical_to_cartesian(1, coord1...)
+    P₂ = spherical_to_cartesian(1, coord2...)
+
+    θ_new = dot(P₁, P₂) / (norm(P₁) * norm(P₂))
+    # ϕ_new = 
+
+    cthi = sin(θ₁) * sin(θ₂) * cos(ϕ₁-ϕ₂) - cos(θ₁) * cos(θ₂)
+    # cphi = (sin(θ_iʳ  ) * cos(θ_curr) * cos(ϕ_curr-ϕ_iʳ) + sin(θ_curr) * cos(θ_iʳ)) / sqrt(1.0-cthi^2)
+    return cthi, θ_new
+    # return 
+end
+
+"""
+Given a complex number, return the complex number with both parts
+"""
+abs_components(x::Complex) = complex(abs(real(x)),abs(imag(x)))
+
 """
 Calculate forward scattering amplitudes
 """
-function afsal(θ_iʳ, ai1, leaf::Leaf)
+function afsal(θ_iʳ, leaf::Leaf)
+
+    # Calculate integral of p(θ)*sin(θ)^2 from 0 to pi
+    # That is, the average integral over inclinations
+    ai1 = sum(θ -> prob(θ, leaf.pdf_num, leaf.pdf_param) * sin(θ)^2 * δθ, collect(1:n_θ) * π/n_θ)
     vol = π * leaf.a_maj * leaf.b_min * leaf.t / 4      # Volume of leaf 
     β = k₀^2 * vol / (4π)                   # ν² * vol / 4π
     xi = leaf.ϵ - 1
@@ -30,13 +81,14 @@ function asal(θ_iʳ, leaf::Leaf)
 
     sm = [0.0, 0.0, 0.0]
     sidr = [0.0, 0.0]
+    sivh = [0.0, 0.0]
 
-    sivh1 = 0.0
-    sivh3 = 0.0
     cnst3 = 2π*leaf.a_maj*leaf.b_min/4
 
     cnti=1.0
 	cntj=1.0
+
+    # Double integral trapezoidal rule? 
 
     # Loop over θ
     for i = 1:n_θ+1
@@ -50,9 +102,7 @@ function asal(θ_iʳ, leaf::Leaf)
 
         sumx = [0.0, 0.0, 0.0]
         sjdr = [0.0, 0.0]
-
-        sjvh1=0.0
-        sjvh3=0.0
+        sjvh = [0.0, 0.0]
 
         for j = 1:n_ϕ+1
 
@@ -91,8 +141,8 @@ function asal(θ_iʳ, leaf::Leaf)
             sjdr[1] +=  (abs(sscci+eb*sccs))^2*cnt*swigb^2 # vv
             sjdr[2] +=  (abs(1.0-eb*sthcp2))^2*cnt*swigb^2 # hh
 
-            sjvh1 += sthcp2*scs1*cnt*swigb^2
-            sjvh3 += sthcp2*scs2*cnt*swigb^2
+            sjvh[1] += sthcp2*scs1*cnt*swigb^2
+            sjvh[2] += sthcp2*scs2*cnt*swigb^2
 
             cntj=1.0
         end
@@ -100,8 +150,8 @@ function asal(θ_iʳ, leaf::Leaf)
         sm   += sumx * pdf
         sidr += sjdr * pdf 
 
-		sivh1+=sjvh1*pdf
-		sivh3+=sjvh3*pdf
+		sivh[1]+=sjvh[1]*pdf
+		sivh[2]+=sjvh[2]*pdf
 		cnti=1.0
     end
 
@@ -109,32 +159,31 @@ function asal(θ_iʳ, leaf::Leaf)
     sgbd[2] *= b2
 
     sgbdr  =  a2*leaf.t^2 * sidr*Δθ*Δϕ
-    sgbvh1 =  a2*leaf.t^2 * b2  *abs(sivh1)*Δθ*Δϕ
-    sgbvh3 =  a2*leaf.t^2 * b2  *abs(sivh3)*Δθ*Δϕ
+    sgbvh  =  a2*leaf.t^2 * b2 * abs.(sivh)*Δθ*Δϕ
 
-    return (sgbd, sgbdr, sgbvh1, sgbvh3)
+    return BackscatterFields(sgbd, sgbdr, sgbvh)
 end
 
 """
 Calculation of average forward scattering amplitudes of a finite length cylinder, 
 exact series solution
 """
-function woodf(wood::Wood)
+function wood_forward(wood::Wood)
 
     # Maximum n for scattering loop 
     nmax= min(20, Integer(floor(k₀*wood.r+4*(k₀*wood.r)^(1/3)+2)))
 
     fsm = [0.0 0.0 ; 0.0 0.0]
 
-    cnti=1.0
-	cntj=1.0
+    cnti = 1.0
+	cntj = 1.0
 
     # Loop over θs
     for i = 1:n_θ+1
 
         # Current θ
         θ_curr = (i-1)*δθ
-        cnti = (i == 1 || i == n_θ+1) ? 0.5 : cnti
+        cnti = (i == 1 || i == n_θ+1) ? 0.5 : 1.0
 
         # Probability of θ 
         pdf = prob(θ_curr,wood.pdf_num,wood.pdf_param)
@@ -147,24 +196,32 @@ function woodf(wood::Wood)
 
             # Current ϕ
             ϕ_curr = (j-1)*δϕ
-            cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
-
+            cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : 1.0
             cnt=cnti*cntj
 
-            # Calculate new geometries
-            cthi =  sin(θ_curr) * sin(θ_iʳ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * cos(θ_iʳ)
+            # Calculate the angle between cylinder axis and the incidence wave direction
+            
             tvi  = -sin(θ_curr) * cos(θ_iʳ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * sin(θ_iʳ)
             thi = sin(θ_curr) * sin(ϕ_curr-ϕ_iʳ)
             ti=sqrt(tvi^2+thi^2)
-            cphi = (sin(θ_iʳ)*cos(θ_curr)*cos(ϕ_curr-ϕ_iʳ)+sin(θ_curr)*cos(θ_iʳ))/sqrt(1.0-cthi^2)
+            
             tvs=-tvi
             ths=thi
             ts=sqrt(tvs^2+ths^2)
+
+            # Angle between (ϕ_curr, θ_curr) and (ϕ_iʳ, θ_iʳ)
+            # Rotate vectors to place both coordinates on same ϕ
+            cthi =  sin(θ_curr) * sin(θ_iʳ  ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * cos(θ_iʳ)
+            cphi = (sin(θ_iʳ  ) * cos(θ_curr) * cos(ϕ_curr-ϕ_iʳ) + sin(θ_curr) * cos(θ_iʳ)) / sqrt(1.0-cthi^2)
+            
             cthi = max(min(cthi, 1.0), -1.0)
             cphi = max(min(cphi, 1.0), -1.0)
-            
+
+            # 
             thetai=acos(cthi)
             thetas=π-thetai
+
+            # Same phi
             phyi=acos(cphi)
             phys=phyi
 
@@ -180,13 +237,10 @@ function woodf(wood::Wood)
 
             fsum += cnt*[fvv fvh ; fhv fhh]/dsi 
 
-            cntj=1.0
-
         end
 
         # Weight sum by pdf
         fsm += fsum * pdf
-        cnti=1.0
 
     end
 
@@ -230,15 +284,13 @@ end
 Calculation of average backscatter cross-section of a finite length cylinder, exact series solution
 (KARAM, FUNG, AND ANTAR, 1988)
 """
-function woodb(wood::Wood)
+function wood_backward(wood::Wood)
 
     nmax=min(20, Integer(floor(k₀*wood.r+4.0*(k₀*wood.r)^(1/3)+2.0)))
 
     smd = [0.0, 0.0, 0.0]
     smdr = [0.0, 0.0]
-
-    smvh1=0.0
-    smvh3=0.0
+    smvh = [0.0, 0.0] # smvh[1] is smvh1, smvh[2] is **smvh3**
 
     cnti=1.0
 	cntj=1.0
@@ -247,7 +299,7 @@ function woodb(wood::Wood)
 
         θ_curr = (i-1) * δθ
 
-        cnti = (i == 1 || i == n_θ+1) ? 0.5 : cnti
+        cnti = (i == 1 || i == n_θ+1) ? 0.5 : 1.0
 
         pdf = prob(θ_curr,wood.pdf_num,wood.pdf_param)
 
@@ -255,15 +307,13 @@ function woodb(wood::Wood)
 
         sumd = [0.0, 0.0, 0.0]
         sumdr = [0.0, 0.0]
-
-        sumvh1=0.0
-        sumvh3=0.0
+        sumvh = [0.0, 0.0]
 
         for j = 1:n_ϕ+1
 
             ϕ_curr= (j-1) * δϕ
 
-            cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
+            cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : 1.0
             cnt = cnti*cntj
 
             dsi, fvv, fvh, fhv, fhh = backscattering(θ_curr, ϕ_curr, nmax, 1, x -> -x, x -> x, wood)
@@ -275,31 +325,27 @@ function woodb(wood::Wood)
             dsi, fvv, fvh, fhv, fhh = backscattering(θ_curr, ϕ_curr, nmax, 1, x -> x, x -> π-x, wood)
 
             sumdr += abs.([fvv ; fhh] / dsi).^2*cnt
-            sumvh1 = abs(fvh/(dsi))^2*cnt + sumvh1
+            sumvh[1] += abs(fvh/(dsi))^2*cnt
             fvhc=conj(fvh)
             
             ################## 
 
             dsi, fvv, fvh, fhv, fhh = backscattering(θ_curr, ϕ_curr, nmax, -1, x -> -x, x -> π-x, wood)
 
-            sumvh3 = abs(fvh*fvhc/(dsi*dsi))*cnt + sumvh3
-            cntj = 1.0
+            sumvh[2] += abs(fvh*fvhc/(dsi*dsi))*cnt
         end
 
         smd += sumd * pdf
         smdr += sumdr * pdf
-        smvh3 += sumvh3 * pdf 
-        smvh1 += sumvh1 * pdf 
-        cnti = 1.0
+        smvh += sumvh * pdf
 
     end
 
     sbd   = 4π * smd   * Δϕ * Δθ
     sbdr  = 4π * smdr  * Δϕ * Δθ
-    sbvh1 = 4π * smvh1 * Δϕ * Δθ
-    sbvh3 = 4π * smvh3 * Δϕ * Δθ
+    sbvh = 4π * smvh * Δϕ * Δθ
 
-    return sbd, sbdr, sbvh1, sbvh3
+    return BackscatterFields(sbd, sbdr, sbvh)
 
 end
 
