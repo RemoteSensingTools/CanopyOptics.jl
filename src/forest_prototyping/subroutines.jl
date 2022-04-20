@@ -64,11 +64,6 @@ end
 
 """
 Calculate scattering coefficients for a thin disk
-
-Equations 26, 27 in 
-Electromagnetic Wave Scattering from Some Vegetation Samples
-(KARAM, FUNG, AND ANTAR, 1988)
-http://www2.geog.ucl.ac.uk/~plewis/kuusk/karam.pdf
 """
 function asal(θ_iʳ, leaf::Leaf)
 
@@ -201,17 +196,24 @@ function wood_forward(wood::Wood)
 
             # Calculate the angle between cylinder axis and the incidence wave direction
             
+            # B.44
+            # cos_c * sin_i - sin_c * cos_i * cos(phi_c - phi_i)
             tvi  = -sin(θ_curr) * cos(θ_iʳ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * sin(θ_iʳ)
+            # B.45
+            # - sin_c * sin(ϕ_c - ϕ_i)
             thi = sin(θ_curr) * sin(ϕ_curr-ϕ_iʳ)
-            ti=sqrt(tvi^2+thi^2)
-            
+            # 
             tvs=-tvi
             ths=thi
+
+            ti=sqrt(tvi^2+thi^2)
             ts=sqrt(tvs^2+ths^2)
 
             # Angle between (ϕ_curr, θ_curr) and (ϕ_iʳ, θ_iʳ)
             # Rotate vectors to place both coordinates on same ϕ
+            # B.50
             cthi =  sin(θ_curr) * sin(θ_iʳ  ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * cos(θ_iʳ)
+            
             cphi = (sin(θ_iʳ  ) * cos(θ_curr) * cos(ϕ_curr-ϕ_iʳ) + sin(θ_curr) * cos(θ_iʳ)) / sqrt(1.0-cthi^2)
             
             cthi = max(min(cthi, 1.0), -1.0)
@@ -230,12 +232,40 @@ function wood_forward(wood::Wood)
 
             dsi=ti*ts  
 
-            fvv = tvs*fp[1,1]*tvi-tvs*fp[1,2]*thi-ths*fp[2,1]*tvi+ths*fp[2,2]*thi
-            fvh = tvs*fp[1,1]*thi+tvs*fp[1,2]*tvi-ths*fp[2,1]*thi-ths*fp[2,2]*tvi
-            fhv = ths*fp[1,1]*tvi+tvs*fp[2,1]*tvi-ths*fp[1,2]*thi-tvs*fp[2,2]*thi
-            fhh = ths*fp[1,1]*thi+tvs*fp[2,1]*thi+ths*fp[1,2]*tvi+tvs*fp[2,2]*tvi
+            # B.35
+            # @show fp
+            # fvv = tvs*fp[1,1]*tvi-tvs*fp[1,2]*thi-ths*fp[2,1]*tvi+ths*fp[2,2]*thi
+            # fvh = tvs*fp[1,1]*thi+tvs*fp[1,2]*tvi-ths*fp[2,1]*thi-ths*fp[2,2]*tvi
+            # fhv = ths*fp[1,1]*tvi+tvs*fp[2,1]*tvi-ths*fp[1,2]*thi-tvs*fp[2,2]*thi
+            # fhh = ths*fp[1,1]*thi+tvs*fp[2,1]*thi+ths*fp[1,2]*tvi+tvs*fp[2,2]*tvi
 
-            fsum += cnt*[fvv fvh ; fhv fhh]/dsi 
+            # hi ̇hi =  vi ̇vi
+            # hi ̇vi = -vi ̇hi
+            # hs ̇hs =  vs ̇vs
+            # hs ̇vs = -vs ̇hs
+
+            # Ts = [hs ̇hs  hs ̇vs  ;  vs ̇hs  vs ̇vs]
+            # Ti = [hi ̇hi  vi ̇hi  ;  hi ̇vi  vi ̇vi]
+
+            # tvs is -tvi 
+            # ths is  thi 
+
+            # tvi is [hi ̇hi =  vi ̇vi]
+            # thi is [hi ̇vi = -vi ̇hi]
+            # tvs is []
+            # ths is []
+
+            S = [fp[2,2] fp[2,1] ; fp[1,2] fp[1,1]]
+
+            # a_1 = tvs, a_2 = ths
+            # a_3 = tvi, a_4 = thi
+
+            Ts = [tvs  ths ; -ths tvs]
+            Ti = [tvi -thi ;  thi tvi]
+
+            S_new = Ts * S * Ti
+
+            fsum += cnt*S_new/dsi 
 
         end
 
@@ -244,7 +274,7 @@ function wood_forward(wood::Wood)
 
     end
 
-    return fsm * Δϕ * Δθ
+    return reverse(fsm) * Δϕ * Δθ
 
 end
 
