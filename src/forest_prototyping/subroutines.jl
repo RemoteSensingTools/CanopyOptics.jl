@@ -197,10 +197,8 @@ function wood_forward(wood::Wood)
             # Calculate the angle between cylinder axis and the incidence wave direction
             
             # B.44
-            # cos_c * sin_i - sin_c * cos_i * cos(phi_c - phi_i)
             tvi  = -sin(θ_curr) * cos(θ_iʳ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * sin(θ_iʳ)
             # B.45
-            # - sin_c * sin(ϕ_c - ϕ_i)
             thi = sin(θ_curr) * sin(ϕ_curr-ϕ_iʳ)
             # 
             tvs=-tvi
@@ -213,7 +211,6 @@ function wood_forward(wood::Wood)
             # Rotate vectors to place both coordinates on same ϕ
             # B.50
             cthi =  sin(θ_curr) * sin(θ_iʳ  ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * cos(θ_iʳ)
-            
             cphi = (sin(θ_iʳ  ) * cos(θ_curr) * cos(ϕ_curr-ϕ_iʳ) + sin(θ_curr) * cos(θ_iʳ)) / sqrt(1.0-cthi^2)
             
             cthi = max(min(cthi, 1.0), -1.0)
@@ -233,36 +230,9 @@ function wood_forward(wood::Wood)
             dsi=ti*ts  
 
             # B.35
-            # @show fp
-            # fvv = tvs*fp[1,1]*tvi-tvs*fp[1,2]*thi-ths*fp[2,1]*tvi+ths*fp[2,2]*thi
-            # fvh = tvs*fp[1,1]*thi+tvs*fp[1,2]*tvi-ths*fp[2,1]*thi-ths*fp[2,2]*tvi
-            # fhv = ths*fp[1,1]*tvi+tvs*fp[2,1]*tvi-ths*fp[1,2]*thi-tvs*fp[2,2]*thi
-            # fhh = ths*fp[1,1]*thi+tvs*fp[2,1]*thi+ths*fp[1,2]*tvi+tvs*fp[2,2]*tvi
-
-            # hi ̇hi =  vi ̇vi
-            # hi ̇vi = -vi ̇hi
-            # hs ̇hs =  vs ̇vs
-            # hs ̇vs = -vs ̇hs
-
-            # Ts = [hs ̇hs  hs ̇vs  ;  vs ̇hs  vs ̇vs]
-            # Ti = [hi ̇hi  vi ̇hi  ;  hi ̇vi  vi ̇vi]
-
-            # tvs is -tvi 
-            # ths is  thi 
-
-            # tvi is [hi ̇hi =  vi ̇vi]
-            # thi is [hi ̇vi = -vi ̇hi]
-            # tvs is []
-            # ths is []
-
             S = [fp[2,2] fp[2,1] ; fp[1,2] fp[1,1]]
-
-            # a_1 = tvs, a_2 = ths
-            # a_3 = tvi, a_4 = thi
-
             Ts = [tvs  ths ; -ths tvs]
             Ti = [tvi -thi ;  thi tvi]
-
             S_new = Ts * S * Ti
 
             fsum += cnt*S_new/dsi 
@@ -280,15 +250,18 @@ end
 
 function backscattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_thetas, wood::Wood)
 
-    cthi=sin(θ_curr)*sin(θ_iʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*cos(θ_iʳ)
+    # B.44
     tvi=-sin(θ_curr)*cos(θ_iʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*sin(θ_iʳ)
+    # B.45
     thi=sign_i*sin(θ_curr)*sin(ϕ_curr-ϕ_iʳ)
     ti=sqrt(tvi^2+thi^2)
-    cphi=(sin(θ_iʳ)*cos(θ_curr)*cos(ϕ_curr-ϕ_iʳ)+sign_i*sin(θ_curr)*cos(θ_iʳ))/sqrt(1.0-cthi^2)
 
     ths=-thi
     tvs= new_tvs(tvi)
     ts=sqrt(ths^2+tvs^2)
+
+    cthi=sin(θ_curr)*sin(θ_iʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*cos(θ_iʳ)
+    cphi=(sin(θ_iʳ)*cos(θ_curr)*cos(ϕ_curr-ϕ_iʳ)+sign_i*sin(θ_curr)*cos(θ_iʳ))/sqrt(1.0-cthi^2)
 
     cthi = max(min(cthi, 1.0), -1.0)
     cphi = max(min(cphi, 1.0), -1.0)
@@ -301,12 +274,14 @@ function backscattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_thetas, woo
     fp = scattering(nmax, wood, thetai, thetas, phyi, phys)
 
     dsi=ti*ts  
-    fvv = tvs*fp[1,1]*tvi-tvs*fp[1,2]*thi-ths*fp[2,1]*tvi+ths*fp[2,2]*thi
-    fvh = tvs*fp[1,1]*thi+tvs*fp[1,2]*tvi-ths*fp[2,1]*thi-ths*fp[2,2]*tvi
-    fhv = ths*fp[1,1]*tvi+tvs*fp[1,2]*tvi-ths*fp[2,1]*thi-tvs*fp[2,2]*thi
-    fhh = ths*fp[1,1]*thi+tvs*fp[1,2]*thi+ths*fp[2,1]*tvi+tvs*fp[2,2]*tvi
+    
+    # B.35
+    S = [fp[2,2] fp[2,1] ; fp[1,2] fp[1,1]]
+    Ts = [tvs  ths ; -ths tvs]
+    Ti = [tvi -thi ;  thi tvi]
+    S_new = Ts * S * Ti
 
-    return dsi, fvv, fvh, fhv, fhh
+    return dsi, S_new[2,2], S_new[2,1], S_new[1,2], S_new[1,1]
 
 end
 
