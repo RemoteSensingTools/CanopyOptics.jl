@@ -1,45 +1,3 @@
-
-"""
-Transformation from spherical to cartesian coordinates (r, θ, ϕ) → (x, y, z)
-
-r is radial distance from origin to point
-θ is inclination angle between zenith and point's inclination
-ϕ is azimuthal angle from reference direction (1, 0, 0) to point's azimuth
-"""
-function spherical_to_cartesian(r::Real, θ::Real, ϕ::Real) 
-    
-    @assert r ≥ 0
-    @assert 0 ≤ θ ≤ π
-    @assert 0 ≤ ϕ ≤ 2π
-
-    return [r*cos(ϕ)*sin(θ), r*sin(ϕ)*sin(θ), r*cos(θ)]
-
-end
-
-"""
-Given two spherical coordinates P₁(θ₁, ϕ₁) and P₂(θ₂, ϕ₂), rotate the coordinate system to 
-place both points on the same ϕ and ϕ₂=0. 
-That is, now you have points Q₁(θ, ϕ) and Q₂(0, ϕ)
-
-Return Q₁(θ, ϕ)
-"""
-function angle_between_spherical_coords(coord1::Tuple, coord2::Tuple)
-
-    θ₁, ϕ₁ = coord1 # curr
-    θ₂, ϕ₂ = coord2 # i
-
-    P₁ = spherical_to_cartesian(1, coord1...)
-    P₂ = spherical_to_cartesian(1, coord2...)
-
-    θ_new = dot(P₁, P₂) / (norm(P₁) * norm(P₂))
-    # ϕ_new = 
-
-    cthi = sin(θ₁) * sin(θ₂) * cos(ϕ₁-ϕ₂) - cos(θ₁) * cos(θ₂)
-    # cphi = (sin(θ_iʳ  ) * cos(θ_curr) * cos(ϕ_curr-ϕ_iʳ) + sin(θ_curr) * cos(θ_iʳ)) / sqrt(1.0-cthi^2)
-    return cthi, θ_new
-    # return 
-end
-
 """
 Given a complex number, return the complex number with both parts
 """
@@ -194,49 +152,8 @@ function wood_forward(wood::Wood)
             cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : 1.0
             cnt=cnti*cntj
 
-            # Calculate the angle between cylinder axis and the incidence wave direction
-            
-            # B.44
-            tvi  = -sin(θ_curr) * cos(θ_iʳ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * sin(θ_iʳ)
-            # B.45
-            thi = sin(θ_curr) * sin(ϕ_curr-ϕ_iʳ)
-            # 
-            tvs=-tvi
-            ths=thi
-
-            ti=sqrt(tvi^2+thi^2)
-            ts=sqrt(tvs^2+ths^2)
-
-            # Angle between (ϕ_curr, θ_curr) and (ϕ_iʳ, θ_iʳ)
-            # Rotate vectors to place both coordinates on same ϕ
-            # B.50
-            cthi =  sin(θ_curr) * sin(θ_iʳ  ) * cos(ϕ_curr-ϕ_iʳ) - cos(θ_curr) * cos(θ_iʳ)
-            cphi = (sin(θ_iʳ  ) * cos(θ_curr) * cos(ϕ_curr-ϕ_iʳ) + sin(θ_curr) * cos(θ_iʳ)) / sqrt(1.0-cthi^2)
-            
-            cthi = max(min(cthi, 1.0), -1.0)
-            cphi = max(min(cphi, 1.0), -1.0)
-
-            # 
-            thetai=acos(cthi)
-            thetas=π-thetai
-
-            # Same phi
-            phyi=acos(cphi)
-            phys=phyi
-
-            # Get scattering amplitudes for current geometry
-            fp = scattering(nmax, wood, thetai, thetas, phyi, phys)
-
-            dsi=ti*ts  
-
-            # B.35
-            S = [fp[2,2] fp[2,1] ; fp[1,2] fp[1,1]]
-            Ts = [tvs  ths ; -ths tvs]
-            Ti = [tvi -thi ;  thi tvi]
-            S_new = Ts * S * Ti
-
-            fsum += cnt*S_new/dsi 
-
+            dsi, S = scattering(θ_curr, ϕ_curr, nmax, 1, x -> -x, x->x, x -> π-x, x->x, wood)
+            fsum += cnt*S/dsi 
         end
 
         # Weight sum by pdf
@@ -248,7 +165,10 @@ function wood_forward(wood::Wood)
 
 end
 
-function backscattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_thetas, wood::Wood)
+"""
+Calculate scattering cross-section of a finite length cylinder with specified orientation 
+"""
+function scattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_ths, new_thetas, new_phys, wood::Wood)
 
     # B.44
     tvi=-sin(θ_curr)*cos(θ_iʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*sin(θ_iʳ)
@@ -256,32 +176,30 @@ function backscattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_thetas, woo
     thi=sign_i*sin(θ_curr)*sin(ϕ_curr-ϕ_iʳ)
     ti=sqrt(tvi^2+thi^2)
 
-    ths=-thi
-    tvs= new_tvs(tvi)
-    ts=sqrt(ths^2+tvs^2)
+    ths = new_ths(thi)
+    tvs = new_tvs(tvi)
+    ts  = sqrt(ths^2+tvs^2)
 
     cthi=sin(θ_curr)*sin(θ_iʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*cos(θ_iʳ)
-    cphi=(sin(θ_iʳ)*cos(θ_curr)*cos(ϕ_curr-ϕ_iʳ)+sign_i*sin(θ_curr)*cos(θ_iʳ))/sqrt(1.0-cthi^2)
+    cphi=(sin(θ_iʳ)*cos(θ_curr)*cos(ϕ_curr-ϕ_iʳ)+sign_i*sin(θ_curr)*cos(θ_iʳ))/sqrt(1-cthi^2)
 
-    cthi = max(min(cthi, 1.0), -1.0)
-    cphi = max(min(cphi, 1.0), -1.0)
+    cthi,cphi = max.(min.([cthi, cphi], 1.0), -1.0)
 
-    thetai=acos(cthi)
-    thetas=new_thetas(thetai)
-    phyi=acos(cphi)
-    phys=phyi+π
+    thetai, phyi = acos.([cthi, cphi])
 
-    fp = scattering(nmax, wood, thetai, thetas, phyi, phys)
+    thetas = new_thetas(thetai)
+    phys   = new_phys(phyi)
+
+    S = scattering_amplitude(nmax, wood, thetai, thetas, phyi, phys)
 
     dsi=ti*ts  
-    
+
     # B.35
-    S = [fp[2,2] fp[2,1] ; fp[1,2] fp[1,1]]
     Ts = [tvs  ths ; -ths tvs]
     Ti = [tvi -thi ;  thi tvi]
     S_new = Ts * S * Ti
 
-    return dsi, S_new[2,2], S_new[2,1], S_new[1,2], S_new[1,1]
+    return dsi, S_new
 
 end
 
@@ -321,23 +239,17 @@ function wood_backward(wood::Wood)
             cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : 1.0
             cnt = cnti*cntj
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(θ_curr, ϕ_curr, nmax, 1, x -> -x, x -> x, wood)
+            dsi, S = scattering(θ_curr, ϕ_curr, nmax, 1, x -> -x, x->-x, x -> x, x->x+π, wood)
+            sumd += abs.([S[2,2] ; S[1,2] ; S[1,1]] / dsi).^2*cnt
 
-            sumd += abs.([fvv ; fvh ; fhh] / dsi).^2*cnt
+            dsi, S = scattering(θ_curr, ϕ_curr, nmax, 1, x -> x, x->-x, x -> π-x, x->x+π, wood)
+            sumdr += abs.([S[2,2] ; S[1,1]] / dsi).^2*cnt
 
-            ############### 
+            sumvh[1] += abs(S[1,2]/(dsi))^2*cnt
+            fvhc=conj(S[1,2])
 
-            dsi, fvv, fvh, fhv, fhh = backscattering(θ_curr, ϕ_curr, nmax, 1, x -> x, x -> π-x, wood)
-
-            sumdr += abs.([fvv ; fhh] / dsi).^2*cnt
-            sumvh[1] += abs(fvh/(dsi))^2*cnt
-            fvhc=conj(fvh)
-            
-            ################## 
-
-            dsi, fvv, fvh, fhv, fhh = backscattering(θ_curr, ϕ_curr, nmax, -1, x -> -x, x -> π-x, wood)
-
-            sumvh[2] += abs(fvh*fvhc/(dsi*dsi))*cnt
+            dsi, S = scattering(θ_curr, ϕ_curr, nmax, -1, x -> -x, x->-x, x -> π-x, x->x+π, wood)
+            sumvh[2] += abs(S[1,2]*fvhc/(dsi*dsi))*cnt
         end
 
         smd += sumd * pdf
@@ -362,11 +274,13 @@ Electromagnetic Wave Scattering from Some Vegetation Samples
 (KARAM, FUNG, AND ANTAR, 1988)
 http://www2.geog.ucl.ac.uk/~plewis/kuusk/karam.pdf
 """
-function scattering(nmax, wood_c::Wood, θ_i, θ_s, phyi, phys)
+function scattering_amplitude(nmax, wood_c::Wood, θ_i, θ_s, phyi, phys)
 
     cos_θ_i = cos(θ_i)
     cos_θ_s = cos(θ_s)
     sin_θ_s = sqrt(1-cos_θ_s^2)
+
+    # [hh hv ; vh vv]
     s = zeros(Complex, 2,2)
 
     # Equation 26 (Karam, Fung, Antar)
@@ -375,7 +289,7 @@ function scattering(nmax, wood_c::Wood, θ_i, θ_s, phyi, phys)
 
     # Calculate scattering amplitude for n = 0
     z₀, A₀, B₀, e_0v, e_0h, ηh_0v, ηh_0h = cylinder(0, wood_c, θ_i, θ_s)
-    s0 = [e_0v*(B₀*cos_θ_s*cos_θ_i-sin_θ_s*z₀) 0 ; 0 B₀*ηh_0h]
+    s0 = [B₀*ηh_0h 0 ; 0 e_0v*(B₀*cos_θ_s*cos_θ_i-sin_θ_s*z₀)]
 
     # Loop over all needed n values
     for n = 1:nmax
@@ -388,10 +302,10 @@ function scattering(nmax, wood_c::Wood, θ_i, θ_s, phyi, phys)
         cphn = (π - π_δ < phys-phyi < π + π_δ) ? (-1)^n : 1.0
         
         # Inside summation term in each line of Equation 27
-        s[1,1] += 2*((e_nv*cos_θ_i*Bₙ-ej*ηh_nv*Aₙ)*cos_θ_s-sin_θ_s*e_nv*zₙ)*cphn
-        s[1,2] +=   ((e_nh*cos_θ_i*Bₙ-ej*ηh_nh*Aₙ)*cos_θ_s-sin_θ_s*e_nh*zₙ)*sphn
-        s[2,1] +=   (ηh_nv*Bₙ+ej*e_nv*Aₙ*cos_θ_i)*sphn
-        s[2,2] += 2*(ηh_nh*Bₙ+ej*e_nh*Aₙ*cos_θ_i)*cphn	
+        s[1,1] += 2*(ηh_nh*Bₙ+ej*e_nh*Aₙ*cos_θ_i)*cphn
+        s[1,2] +=   (ηh_nv*Bₙ+ej*e_nv*Aₙ*cos_θ_i)*sphn
+        s[2,1] +=   ((e_nh*cos_θ_i*Bₙ-ej*ηh_nh*Aₙ)*cos_θ_s-sin_θ_s*e_nh*zₙ)*sphn
+        s[2,2] += 2*((e_nv*cos_θ_i*Bₙ-ej*ηh_nv*Aₙ)*cos_θ_s-sin_θ_s*e_nv*zₙ)*cphn
         
     end
 
@@ -556,8 +470,7 @@ function grdoh(ksig)
     rgh  = (cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
     rgv  = (ϵ_g*cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(ϵ_g*cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
 
-    rh0=abs(rgh)^2
-    rv0=abs(rgv)^2
+    rh0, rv0 = abs.([rgh rgv]).^2
 
     sighh=g*sp*cos(θ_iʳ)^3*(rh0+rv0)
     sigvv=g*cos(θ_iʳ)^3*(rh0+rv0)/sp
