@@ -71,44 +71,30 @@ afb1, afb2, aft = wood_forward.([branch_1, branch_2, trunk])
 
 ############################
 
-# CALCULATION OF PROPAGATION CONSTANT IN LAYER 1(TOP)
+# CALCULATION OF PROPAGATION CONSTANT IN TOP AND BOTTOM LAYERS
 
 # 3.1.8??? 
 K_hc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afhhl + branch_1.ρ*abs_components(afb1[1,1]) + branch_2.ρ*abs_components(afb2[1,1])))/(k₀*cos(θ_iʳ))
 K_vc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afvvl + branch_1.ρ*abs_components(afb1[2,2]) + branch_2.ρ*abs_components(afb2[2,2])))/(k₀*cos(θ_iʳ))
+K_ht = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[1,1])/(k₀*cos(θ_iʳ))
+K_vt = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[2,2])/(k₀*cos(θ_iʳ))
 
-ath1, atv1 = abs.(imag.([K_hc, K_vc]))
-K_hc=complex(real(K_hc),abs(imag(K_hc)))
-K_vc=complex(real(K_vc),abs(imag(K_vc)))
+ath1, atv1, ath2, atv2 = abs.(imag.([K_hc, K_vc, K_ht, K_vt]))
+K_hc, K_vc, K_ht, K_vt = abs_imag_only.([K_hc, K_vc, K_ht, K_vt])
+K_hcⁱ, K_vcⁱ, K_htⁱ, K_vtⁱ = imag.((K_hc, K_vc, K_ht, K_vt))
 
 atv1 = (atv1 <= 1.0E-20 ? 0.0001 : atv1)
 
 skdh1= 1/ath1
 skdv1= 1/atv1
 
-at[1, 1, ip]=atv1
-at[2, 1, ip]=ath1
-
-############################
-# CALCULATION OF PROPAGATION CONSTANT IN LAYER 2 (BOTTOM) 
-
-K_ht = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[1,1])/(k₀*cos(θ_iʳ))
-K_vt = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[2,2])/(k₀*cos(θ_iʳ))
-
-ath2, atv2 = abs.(imag.([K_ht, K_vt]))
-K_ht = complex(real(K_ht),abs(imag(K_ht)))
-K_vt = complex(real(K_vt),abs(imag(K_vt)))
-
-at[1, 2, ip]=abs(imag(K_vc+K_vt))
-at[2, 2, ip]=abs(imag(K_hc+K_ht))
+at[:,:,ip] = [atv1 abs(imag(K_vc+K_vt)) ; ath1 abs(imag(K_hc+K_ht))]
 
 ############################
 # Calculation of reflection coefficient from ground 
 
 rgh = (cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
 rgv = (ϵ_g*cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(ϵ_g*cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
-
-K_hcⁱ, K_vcⁱ, K_htⁱ, K_vtⁱ = imag.((K_hc, K_vc, K_ht, K_vt))
 
 reflhh = rgh*exp(ej*(K_hc+K_hc)*d_c+ej*(K_ht+K_ht)*d_t)
 reflhc = conj(reflhh)
@@ -159,30 +145,19 @@ term_t = map((x,y) -> funcm(2*x, 2*y, d_t), [K_htⁱ, K_vtⁱ, K_vtⁱ], [K_ht�
 # Columns is 
 σ_vh = zeros(3,3)
 
-############################
-# Backscat. cross section, hh pol.
+sg_d   = σ_d[:,1]+σ_d[:,2]
+sg_r   = zeros(2)
+sg_dr  = σ_dr[:,1]+σ_dr[:,2]
+sg_dri = (σ_dr[:,1]+σ_dr[:,2])/2
         
-sghhd = σ_d[1,1]+σ_d[1,2]    
-sghhr = 0
-sghhdr = σ_dr[1,1]+σ_dr[1,2]
-sghdri = (σ_dr[1,1]+σ_dr[1,2])/2
-sghh  = sghhd+sghhr+sghhdr
-sghhi=sghhd+sghhr+sghdri
+sghh   = sg_d[1]+sg_r[1]+sg_dr[1]
+sghhi  = sg_d[1]+sg_r[1]+sg_dri[1]
 
-############################
-# Backscat. cross section, vv pol.
-
-sgvvd = σ_d[3,1]+σ_d[3,2]
-sgvvr = 0
-sgvvdr = σ_dr[2,1]+σ_dr[2,2]
-sgvdri = (σ_dr[2,1]+σ_dr[2,2])/2
-sgvv  = sgvvd+sgvvr+sgvvdr
-sgvvi=sgvvd+sgvvr+sgvdri
+sgvv  = sg_d[3]+sg_r[2]+sg_dr[2]
+sgvvi = sg_d[3]+sg_r[2]+sg_dri[2]
 
 ############################
 # Backscat. cross section, vh pol.
-
-sgvhd = σ_d[2,1]+σ_d[2,2]
 
 factvh1 = exp(-2*(K_hcⁱ-K_vcⁱ)*d_c)
 factvh2 = exp(-2*(K_vcⁱ-K_hcⁱ)*d_c)
@@ -225,8 +200,11 @@ sgvhidr=sgvhidr1+sgvhidr2
 
 ### 
 
-σ = [sgvv sgvh sghh]
-σ_i = [sgvvi sgvhi sghhi]
+σ = [sghh sgvh sgvv]
+σ_i = [sghhi sgvhi sgvvi]
+
+σ_o = 10.0*log10.(abs.(σ))
+σ_i_o = 10.0*log10.(abs.(σ_i))
 
 ############################
 # Calculation of backscat cross sections in db
@@ -246,35 +224,26 @@ svhi1[ip] = 10.0*log10(sgvhidr1)
 svhi2[ip] = 10.0*log10(sgvhidr2)
 svhi3[ip] = 10.0*log10(sgvhidr3)
 
-sghho  = 10.0*log10(sghh)
-sghhoi = 10.0*log10(sghhi)
-sgvvo  = 10.0*log10(sgvv)
-sgvvoi = 10.0*log10(sgvvi)
-sgvho  = 10.0*log10(abs(sgvh))
-sgvhoi = 10.0*log10(abs(sgvhi))
-shhdd  = 10.0*log10(sghhd)
+s_dd = 10.0*log10.(sg_d)
 
-shhdrd	= 10.0*log10(sghhdr)
+shhdrd	= 10.0*log10(sg_dr[1])
+shhdri	= 10.0*log10(sg_dri[1])
+shhrd	= 10.0*log10(sg_r[1])
 
-shhdri	= 10.0*log10(sghdri)
-shhrd	= 10.0*log10(sghhr)
-
-svhdd	= 10.0*log10(abs(sgvhd))
+svhdd	= 10.0*log10(abs(sg_d[2]))
 sgvhdr	= sgvhdr1+sgvhdr2+sgvhdr3
 
 svhdrd	= 10.0*log10(abs(sgvhdr))
 svhdrd1	= 10.0*log10(abs(sgvhdr1))
 svhdrd2	= 10.0*log10(abs(sgvhdr2))
 svhdrd3	= 10.0*log10(abs(sgvhdr3))            
-sgvho	= 10.0*log10(sgvhd+sgvhdr+sgvhr)
+sgvho	= 10.0*log10(sg_d[2]+sgvhdr+sgvhr)
 
 svhrd	= 10.0*log10(abs(sgvhr))
-svvdd	= 10.0*log10(sgvvd)
 
-svvdrd	= 10.0*log10(sgvvdr)
-
-svvdri	= 10.0*log10(sgvdri)
-svvrd	= 10.0*log10(sgvvr)
+svvdrd	= 10.0*log10(sg_dr[2])
+svvdri	= 10.0*log10(sg_dri[2])
+svvrd	= 10.0*log10(sg_r[2])
 
 ################################
 # Add the effect of rough ground
@@ -290,23 +259,23 @@ ksig=k₀*s
 
 output = Forest_Scattering_Output(θ_iᵈ, σ_d_db[1,1], σ_d_db[1,2], σ_d_db[1,3], 
                                   σ_dr_db[1,1], σ_dr_db[1,2], σ_dr_db[1,3],
-                                  10.0*log10(σ_t[3]), shhdd, shhdrd,
+                                  10.0*log10(σ_t[1]), s_dd[1], shhdrd,
                                   
                                   σ_d_db[3,1], σ_d_db[3,2], σ_d_db[3,3],
                                   σ_dr_db[2,1], σ_dr_db[2,2], σ_dr_db[2,3],
-                                  10.0*log10(σ_t[1]), svvdd, svvdrd,
+                                  10.0*log10(σ_t[3]), s_dd[3], svvdrd,
                                   
                                   σ_d_db[2,1], σ_d_db[2,2], σ_d_db[2,3],
                                   svhdrd1, svhdrd2, svhdrd3,
                                   10.0*log10(σ_t[2]), svhdd, svhdrd,
                                   
-                                  10.0*log10(σ_g[3]), 10.0*log10(σ_g[2]), 10.0*log10(σ_g[1]),
+                                  10.0*log10(σ_g[1]), 10.0*log10(σ_g[2]), 10.0*log10(σ_g[3]),
                                   
-                                  sghhoi, sgvhoi, sgvvoi,
+                                  σ_i_o[1], σ_i_o[2], σ_i_o[3],
                                   
                                   10.0*log10(sgvhidr1), 10.0*log10(sgvhidr2), 10.0*log10(sgvhidr3),
                                   
-                                  σ_t[3]/σ_t_i[3], σ_t[2]/σ_t_i[2], σ_t[1]/σ_t_i[1], 
+                                  σ_t[1]/σ_t_i[1], σ_t[2]/σ_t_i[2], σ_t[3]/σ_t_i[3], 
                                   ath1, atv1, imag(K_hc+K_ht), imag(K_vc+K_vt))
 
 check_output_matches_fortran(output)

@@ -1,7 +1,12 @@
 """
-Given a complex number, return the complex number with both parts
+Given a complex number, return the complex number with absolute value of both parts
 """
 abs_components(x::Complex) = complex(abs(real(x)),abs(imag(x)))
+
+"""
+Given a complex number, return the complex number with same real part and absolute value of imaginary part
+"""
+abs_imag_only(x::Complex) = complex(real(x),abs(imag(x)))
 
 """
 Calculate forward scattering amplitudes
@@ -488,8 +493,8 @@ function grdoh(ksig)
     svvg=sigvv*exp(-4*imag(K_vc*d_c + K_vt*d_t)) # Factor of 2 pulled out in exp
     svhg=sigvh*exp(-2*imag((K_hc+K_vc)*d_c + (K_ht+K_vt)*d_t))
 
-    sg = [svvg svhg shhg]
-    gd = 10 * log10.([sigvv sigvh sighh])
+    sg = [shhg svhg svvg]
+    gd = 10 * log10.([sighh sigvh sigvv])
 
     return sg, gd 
 
