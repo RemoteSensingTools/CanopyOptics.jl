@@ -51,7 +51,7 @@ const Δθ   = 1/n_θ
 # r_g defined right above 3.1.9
 const r_g = exp(-4*(k₀*s*cos(θ_iʳ))^2)
 
-# dim1 = polarization [v, h]
+# dim1 = polarization [h, v]
 # dim2 = layer [crown, trunk]
 at = zeros(2, 2, 20)
 
@@ -60,13 +60,13 @@ afhhl, afvvl = afsal(θ_iʳ, leaf)
 σ_l = asal(θ_iʳ, leaf)
 
 # Forward scattering of all wood types
-# Each output is a 2x2 matrix (vv vh ; hv hh)
+# Each output is a 2x2 matrix (hh hv ; vh vv)
 afb1, afb2, aft = wood_forward.([branch_1, branch_2, trunk])
 
 # Backward scattering of all wood types
 # Each output is a WoodBackscatter type, with 3 fields: d, dr, vh
 # Each of these fields is an array 
-# (d: [vv, vh, hh], dr: [vv, hh], vh: [vh1, vh3])
+# (d: [hh, vh, vv], dr: [hh, vv], vh: [vh1, vh3])
 σ_b1, σ_b2, σ_t = wood_backward.([branch_1, branch_2, trunk])
 
 ############################
@@ -74,8 +74,8 @@ afb1, afb2, aft = wood_forward.([branch_1, branch_2, trunk])
 # CALCULATION OF PROPAGATION CONSTANT IN LAYER 1(TOP)
 
 # 3.1.8??? 
-K_vc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afvvl + branch_1.ρ*abs_components(afb1[1,1]) + branch_2.ρ*abs_components(afb2[1,1])))/(k₀*cos(θ_iʳ))
-K_hc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afhhl + branch_1.ρ*abs_components(afb1[2,2]) + branch_2.ρ*abs_components(afb2[2,2])))/(k₀*cos(θ_iʳ))
+K_hc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afhhl + branch_1.ρ*abs_components(afb1[1,1]) + branch_2.ρ*abs_components(afb2[1,1])))/(k₀*cos(θ_iʳ))
+K_vc = k₀*cos(θ_iʳ)+(2π*(leaf.ρ*afvvl + branch_1.ρ*abs_components(afb1[2,2]) + branch_2.ρ*abs_components(afb2[2,2])))/(k₀*cos(θ_iʳ))
 
 ath1, atv1 = abs.(imag.([K_hc, K_vc]))
 K_hc=complex(real(K_hc),abs(imag(K_hc)))
@@ -92,8 +92,8 @@ at[2, 1, ip]=ath1
 ############################
 # CALCULATION OF PROPAGATION CONSTANT IN LAYER 2 (BOTTOM) 
 
-K_ht = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[2,2])/(k₀*cos(θ_iʳ))
-K_vt = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[1,1])/(k₀*cos(θ_iʳ))
+K_ht = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[1,1])/(k₀*cos(θ_iʳ))
+K_vt = k₀*cos(θ_iʳ)+(2π*trunk.ρ*aft[2,2])/(k₀*cos(θ_iʳ))
 
 ath2, atv2 = abs.(imag.([K_ht, K_vt]))
 K_ht = complex(real(K_ht),abs(imag(K_ht)))
@@ -129,33 +129,31 @@ e2     = (ej)*(conj(K_vt)-conj(K_ht))
 
 ############################
 
-# Row is polarization [vv, vh, hh]
+# Row is polarization [hh, vh, vv]
 # Column is layer [branch+leaf (d1), trunk (d2), leaf (d3)]
 σ_d = zeros(3,3)
 
 # Perform 3.1.2 over all polarizations, using computed subexpressions (term_c, term_t)
-term_c = map((x,y) -> funcm(2*x, 2*y, d_c), [K_vcⁱ, K_vcⁱ, K_hcⁱ], [K_vcⁱ, K_hcⁱ, K_hcⁱ])
-term_t = map((x,y) -> funcm(2*x, 2*y, d_t), [K_vtⁱ, K_vtⁱ, K_htⁱ], [K_vtⁱ, K_htⁱ, K_htⁱ])
+term_c = map((x,y) -> funcm(2*x, 2*y, d_c), [K_hcⁱ, K_vcⁱ, K_vcⁱ], [K_hcⁱ, K_hcⁱ, K_vcⁱ])
+term_t = map((x,y) -> funcm(2*x, 2*y, d_t), [K_htⁱ, K_vtⁱ, K_vtⁱ], [K_htⁱ, K_htⁱ, K_vtⁱ])
 
 σ_d[:,1] = (branch_1.ρ*σ_b1.d + branch_2.ρ*σ_b2.d + leaf.ρ*σ_l.d) .* term_c
-σ_d[:,2] = trunk.ρ*σ_t.d .* term_t .* [dattenv1, dattenvh1, dattenh1]
+σ_d[:,2] = trunk.ρ*σ_t.d .* term_t .* [dattenh1, dattenvh1, dattenv1]
 σ_d[:,3] = leaf.ρ*σ_l.d .* term_c
 
 ############################
 
-# Row is polarization [vv, hh]
+# Row is polarization [hh, vv]
 # Column is layer [branch+leaf (d1), trunk (d2), leaf (d3)]
 σ_dr = zeros(2,3)
 σ_dr[:,1] = 4*d_c*(branch_1.ρ*σ_b1.dr + branch_2.ρ*σ_b2.dr + leaf.ρ*σ_l.dr)*r_g
 σ_dr[:,2] = 4*d_t*trunk.ρ*σ_t.dr*r_g
 σ_dr[:,3] = 4*d_c*leaf.ρ*σ_l.dr*r_g
 
-σ_dr[1,:] *= reflva^2
-σ_dr[2,:] *= reflha^2
+σ_dr[1,:] *= reflha^2
+σ_dr[2,:] *= reflva^2
 
 ############################
-
-# TODO: Perform this vh polarization cleanup (cmd-F sgvh)
 
 # Row is 
 # Columns is 
@@ -164,20 +162,20 @@ term_t = map((x,y) -> funcm(2*x, 2*y, d_t), [K_vtⁱ, K_vtⁱ, K_htⁱ], [K_vt�
 ############################
 # Backscat. cross section, hh pol.
         
-sghhd = σ_d[3,1]+σ_d[3,2]    
+sghhd = σ_d[1,1]+σ_d[1,2]    
 sghhr = 0
-sghhdr = σ_dr[2,1]+σ_dr[2,2]
-sghdri = (σ_dr[2,1]+σ_dr[2,2])/2
+sghhdr = σ_dr[1,1]+σ_dr[1,2]
+sghdri = (σ_dr[1,1]+σ_dr[1,2])/2
 sghh  = sghhd+sghhr+sghhdr
 sghhi=sghhd+sghhr+sghdri
 
 ############################
 # Backscat. cross section, vv pol.
 
-sgvvd = σ_d[1,1]+σ_d[1,2]
+sgvvd = σ_d[3,1]+σ_d[3,2]
 sgvvr = 0
-sgvvdr = σ_dr[1,1]+σ_dr[1,2]
-sgvdri = (σ_dr[1,1]+σ_dr[1,2])/2
+sgvvdr = σ_dr[2,1]+σ_dr[2,2]
+sgvdri = (σ_dr[2,1]+σ_dr[2,2])/2
 sgvv  = sgvvd+sgvvr+sgvvdr
 sgvvi=sgvvd+sgvvr+sgvdri
 
@@ -240,7 +238,7 @@ svhi3 = zeros(20)
 
 sgvhr = 0
 
-σ_d_db = 10 * log10.(σ_d)
+σ_d_db  = 10 * log10.(σ_d)
 σ_dr_db = 10 * log10.(σ_dr)
 
 svhi[ip]  = 10.0*log10(sgvhidr)
@@ -290,12 +288,12 @@ ksig=k₀*s
 
 ###############################
 
-output = Forest_Scattering_Output(θ_iᵈ, σ_d_db[3,1], σ_d_db[3,2], σ_d_db[3,3], 
-                                  σ_dr_db[2,1], σ_dr_db[2,2], σ_dr_db[2,3],
+output = Forest_Scattering_Output(θ_iᵈ, σ_d_db[1,1], σ_d_db[1,2], σ_d_db[1,3], 
+                                  σ_dr_db[1,1], σ_dr_db[1,2], σ_dr_db[1,3],
                                   10.0*log10(σ_t[3]), shhdd, shhdrd,
                                   
-                                  σ_d_db[1,1], σ_d_db[1,2], σ_d_db[1,3],
-                                  σ_dr_db[1,1], σ_dr_db[1,2], σ_dr_db[1,3],
+                                  σ_d_db[3,1], σ_d_db[3,2], σ_d_db[3,3],
+                                  σ_dr_db[2,1], σ_dr_db[2,2], σ_dr_db[2,3],
                                   10.0*log10(σ_t[1]), svvdd, svvdrd,
                                   
                                   σ_d_db[2,1], σ_d_db[2,2], σ_d_db[2,3],

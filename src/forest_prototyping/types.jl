@@ -29,7 +29,7 @@ struct Wood
 
 end
 
-struct BackscatterFields
+mutable struct BackscatterFields
 
     d::Array
     dr::Array

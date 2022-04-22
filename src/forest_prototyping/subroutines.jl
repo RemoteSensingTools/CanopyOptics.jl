@@ -87,12 +87,12 @@ function asal(θ_iʳ, leaf::Leaf)
             
             cnt=cnti*cntj
 
-            sumx[3] += (abs(1.0-eb*sthcp2))^2*cnt*swigd^2
+            sumx[1] += (abs(1.0-eb*sthcp2))^2*cnt*swigd^2
             sumx[2] += sthcp2*ss2*cnt*swigd^2
-            sumx[1] += (abs(1.0-eb*ss2))^2*cnt*swigd^2
+            sumx[3] += (abs(1.0-eb*ss2))^2*cnt*swigd^2
 
-            sjdr[1] +=  (abs(sscci+eb*sccs))^2*cnt*swigb^2 # vv
-            sjdr[2] +=  (abs(1.0-eb*sthcp2))^2*cnt*swigb^2 # hh
+            sjdr[1] +=  (abs(1.0-eb*sthcp2))^2*cnt*swigb^2 # hh
+            sjdr[2] +=  (abs(sscci+eb*sccs))^2*cnt*swigb^2 # vv
 
             sjvh[1] += sthcp2*scs1*cnt*swigb^2
             sjvh[2] += sthcp2*scs2*cnt*swigb^2
@@ -126,10 +126,8 @@ function wood_forward(wood::Wood)
     # Maximum n for scattering loop 
     nmax= min(20, Integer(floor(k₀*wood.r+4*(k₀*wood.r)^(1/3)+2)))
 
-    fsm = [0.0 0.0 ; 0.0 0.0]
-
-    cnti = 1.0
-	cntj = 1.0
+    # To store total averaged scattering matrix
+    S = zeros(Float64, 2, 2)
 
     # Loop over θs
     for i = 1:n_θ+1
@@ -142,7 +140,8 @@ function wood_forward(wood::Wood)
         pdf = prob(θ_curr,wood.pdf_num,wood.pdf_param)
         (pdf < 1.0e-03) && break
 
-        fsum = [0.0 0.0 ; 0.0 0.0]
+        # To store averaged scattering matrix for current θ
+        S_θ = zeros(Float64, 2, 2)
 
         # Loop over ϕs
         for j = 1:n_ϕ+1
@@ -152,18 +151,89 @@ function wood_forward(wood::Wood)
             cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : 1.0
             cnt=cnti*cntj
 
-            dsi, S = scattering(θ_curr, ϕ_curr, nmax, 1, x -> -x, x->x, x -> π-x, x->x, wood)
-            fsum += cnt*S/dsi 
+            # Get scattering at current angle
+            dsi, S_curr = scattering(θ_curr, ϕ_curr, nmax, 1, x -> -x, x->x, x -> π-x, x->x, wood)
+            S_θ += (cnt*S_curr/dsi) * Δθ * Δϕ
         end
 
-        # Weight sum by pdf
-        fsm += fsum * pdf
+        # Weight scattering sum by θ pdf
+        S += S_θ * pdf
 
     end
 
-    return reverse(fsm) * Δϕ * Δθ
+    # Return total S
+    return S
+end
+
+"""
+Calculation of average backscatter cross-section of a finite length cylinder, exact series solution
+(KARAM, FUNG, AND ANTAR, 1988)
+"""
+function wood_backward(wood::Wood)
+
+    # Maximum n for scattering loop
+    nmax=min(20, Integer(floor(k₀*wood.r+4.0*(k₀*wood.r)^(1/3)+2.0)))
+
+    # To store total averaged scattering matrix
+    S_d  = zeros(3)  # hh, vh, vv
+    S_dr = zeros(2)  # hh, vv
+    S_vh = zeros(2)  # smvh[1] is smvh1, smvh[2] is **smvh3**
+
+    # Loop over θs
+    for i = 1:n_θ+1
+
+        # Current θ
+        θ_curr = (i-1) * δθ
+        cnti = (i == 1 || i == n_θ+1) ? 0.5 : 1.0
+
+        # Probability of θ 
+        pdf = prob(θ_curr,wood.pdf_num,wood.pdf_param)
+        (pdf < 1.0e-03) && break
+
+        # To store averaged scattering matrix for current θ
+        S_d_θ  = zeros(3)  # hh, vh, vv
+        S_dr_θ = zeros(2)  # hh, vv
+        S_vh_θ = zeros(2)  # smvh[1] is smvh1, smvh[2] is **smvh3**
+
+        # Loop over ϕs
+        for j = 1:n_ϕ+1
+
+            # Current ϕ
+            ϕ_curr= (j-1) * δϕ
+            cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : 1.0
+            cnt = cnti*cntj
+
+            # Get direct scattering at current angle
+            dsi, S = scattering(θ_curr, ϕ_curr, nmax, 1, x -> -x, x->-x, x -> x, x->x+π, wood)
+            S_d_θ += abs.([S[1,1] ; S[1,2] ; S[2,2]] / dsi).^2*cnt
+
+            # Get direct-reflected scattering at current angle
+            dsi, S = scattering(θ_curr, ϕ_curr, nmax, 1, x -> x, x->-x, x -> π-x, x->x+π, wood)
+            S_dr_θ += abs.([S[1,1] ; S[2,2]] / dsi).^2*cnt
+            S_vh_θ[1] += abs(S[1,2]/(dsi))^2*cnt
+            fvhc=conj(S[1,2])
+
+            # Get vh scattering at current angle
+            dsi, S = scattering(θ_curr, ϕ_curr, nmax, -1, x -> -x, x->-x, x -> π-x, x->x+π, wood)
+            S_vh_θ[2] += abs(S[1,2]*fvhc/(dsi*dsi))*cnt
+        end
+
+        # Weight scattering sum by θ pdf
+        S_d  += S_d_θ  * pdf
+        S_dr += S_dr_θ * pdf
+        S_vh += S_vh_θ * pdf
+
+    end
+
+    # Why are we multiplying by 4π here? 
+    S_d  = 4π * Δϕ * Δθ * S_d  
+    S_dr = 4π * Δϕ * Δθ * S_dr 
+    S_vh = 4π * Δϕ * Δθ * S_vh 
+
+    return BackscatterFields(S_d, S_dr, S_vh)
 
 end
+
 
 """
 Calculate scattering cross-section of a finite length cylinder with specified orientation 
@@ -200,69 +270,6 @@ function scattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_ths, new_thetas
     S_new = Ts * S * Ti
 
     return dsi, S_new
-
-end
-
-"""
-Calculation of average backscatter cross-section of a finite length cylinder, exact series solution
-(KARAM, FUNG, AND ANTAR, 1988)
-"""
-function wood_backward(wood::Wood)
-
-    nmax=min(20, Integer(floor(k₀*wood.r+4.0*(k₀*wood.r)^(1/3)+2.0)))
-
-    smd = [0.0, 0.0, 0.0]
-    smdr = [0.0, 0.0]
-    smvh = [0.0, 0.0] # smvh[1] is smvh1, smvh[2] is **smvh3**
-
-    cnti=1.0
-	cntj=1.0
-
-    for i = 1:n_θ+1
-
-        θ_curr = (i-1) * δθ
-
-        cnti = (i == 1 || i == n_θ+1) ? 0.5 : 1.0
-
-        pdf = prob(θ_curr,wood.pdf_num,wood.pdf_param)
-
-        (pdf < 1.0e-03) && break
-
-        sumd = [0.0, 0.0, 0.0]
-        sumdr = [0.0, 0.0]
-        sumvh = [0.0, 0.0]
-
-        for j = 1:n_ϕ+1
-
-            ϕ_curr= (j-1) * δϕ
-
-            cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : 1.0
-            cnt = cnti*cntj
-
-            dsi, S = scattering(θ_curr, ϕ_curr, nmax, 1, x -> -x, x->-x, x -> x, x->x+π, wood)
-            sumd += abs.([S[2,2] ; S[1,2] ; S[1,1]] / dsi).^2*cnt
-
-            dsi, S = scattering(θ_curr, ϕ_curr, nmax, 1, x -> x, x->-x, x -> π-x, x->x+π, wood)
-            sumdr += abs.([S[2,2] ; S[1,1]] / dsi).^2*cnt
-
-            sumvh[1] += abs(S[1,2]/(dsi))^2*cnt
-            fvhc=conj(S[1,2])
-
-            dsi, S = scattering(θ_curr, ϕ_curr, nmax, -1, x -> -x, x->-x, x -> π-x, x->x+π, wood)
-            sumvh[2] += abs(S[1,2]*fvhc/(dsi*dsi))*cnt
-        end
-
-        smd += sumd * pdf
-        smdr += sumdr * pdf
-        smvh += sumvh * pdf
-
-    end
-
-    sbd   = 4π * smd   * Δϕ * Δθ
-    sbdr  = 4π * smdr  * Δϕ * Δθ
-    sbvh = 4π * smvh * Δϕ * Δθ
-
-    return BackscatterFields(sbd, sbdr, sbvh)
 
 end
 
