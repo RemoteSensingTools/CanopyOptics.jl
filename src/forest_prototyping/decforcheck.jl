@@ -19,7 +19,7 @@ include("output_check.jl")
 ## 
 
 const INPUT_FILE = "deccheckin.yaml"
-const input_params = parameters_from_yaml(INPUT_FILE)
+const input_params = CanopyOptics.parameters_from_yaml(INPUT_FILE)
 
 @unpack bfrghz, leaf, branch_1, branch_2, trunk, 
 d_c, d_t, ϵ_g, l, sig = input_params
@@ -56,8 +56,8 @@ const r_g = exp(-4*(k₀*s*cos(θ_iʳ))^2)
 at = zeros(2, 2, 20)
 
 # Compute scattering amplitudes from leaves (forward and backward)
-afhhl, afvvl = afsal(θ_iʳ, leaf)
-σ_l = asal(θ_iʳ, leaf)
+afhhl, afvvl = afsal(θ_iʳ, leaf, k₀)
+σ_l = asal(θ_iʳ, leaf, k₀)
 
 # Forward scattering of all wood types
 # Each output is a 2x2 matrix (hh hv ; vh vv)

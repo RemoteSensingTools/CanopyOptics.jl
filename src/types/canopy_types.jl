@@ -22,7 +22,7 @@ Base.@kwdef struct SpecularCanopyScattering{FT<:AbstractFloat} <: AbstractCanopy
 end
 
 "Abstract Type for leaf distributions"
-abstract type AbstractLeafDistribution end
+abstract type AbstractLeafDistribution{FT<:AbstractFloat} end
 
 """
     struct LeafDistribution{FT<:AbstractFloat}
@@ -30,7 +30,7 @@ A struct that defines the leaf angular distribution in radians (from 0->π/2; he
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct LeafDistribution{FT<:AbstractFloat} <: AbstractLeafDistribution
+struct LeafDistribution{FT<:AbstractFloat} <: AbstractLeafDistribution{FT}
     "Julia Univariate Distribution from Distributions.js"
     LD::UnivariateDistribution
     "Scaling factor to normalize distribution (here mostly 2/π as Beta distribution is from [0,1])"

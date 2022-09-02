@@ -12,6 +12,8 @@ using UnPack                   # @unpack and stuff
 using LazyArtifacts            # Artifacts
 using LinearAlgebra            # Well, guess...
 using Polynomials              # Polynomials for some empirical functions
+using YAML
+using QuadGK
 
 # Filename for ProspectPro optical properties
 const OPTI_2021 = artifact"Prospect" * "/dataSpec_PRO.csv";
@@ -38,6 +40,13 @@ include("core/leafAngleRoutines.jl")
 include("initialization/loadProspect.jl")
 include("initialization/default_constructors.jl")
 
+include("forest_prototyping/types.jl")
+include("forest_prototyping/parameters_from_yaml.jl")
+include("forest_prototyping/probabilities.jl")
+include("forest_prototyping/subroutines.jl")
+#include("forest_prototyping/output_check.jl")
+
+
 include("utils/dielectric.jl")
 
 
@@ -47,6 +56,8 @@ export AbstractCanopyScatteringType, BiLambertianCanopyScattering, SpecularCanop
 export PureIce, LiquidPureWater, LiquidSaltWater
 export LeafProspectProProperties, LeafOpticalProperties, dielectric
 # Functions:
-export compute_Z_matrices, prospect, compute_specular_reflection, G
+export compute_Z_matrices, prospect, compute_specular_reflection
+# MW stuff
+export wood_forward, wood_backward, afsal, asal, abs_components 
 
 end # module

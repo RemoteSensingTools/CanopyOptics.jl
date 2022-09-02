@@ -45,10 +45,36 @@ julia> G   = CanopyOptics.G(μ, LD)                  # Compute G(μ)
 function G(μ::Array{FT}, LD::AbstractLeafDistribution; nLeg=20) where FT
     θₗ,w = gauleg(nLeg,FT(0),FT(π/2))
     Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling
+    @show Fᵢ' * w
     res = similar(μ);
     θ = acos.(μ)
     for i in eachindex(μ)
         res[i] =  sum(w .* Fᵢ .* A.(θ[i],θₗ))
+    end
+    return res
+end
+
+"Brute Force G calculation (for testing"
+function bfG(μ::Array{FT}, LD::AbstractLeafDistribution; nLeg=20) where FT
+    nQuad = 580
+    ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
+    # Reference angles to integrate over in both ϕ and μ
+    
+    μ_l, w = gauleg(180,0.0,1.0);
+    Ω_l  = [dirVector_μ(a,b) for a in μ_l, b in ϕ];
+    θₗ = acos.(μ_l)
+    # Have to divide by sin(θ) again to get ∂θ/∂μ for integration (weights won't work)
+    Fᵢ = pdf.(LD.LD,2θₗ/π)  * LD.scaling ./ abs.(sin.(θₗ))
+    #@show Fᵢ' * w 
+    #Fᵢ = Fᵢ ./ (Fᵢ' * w)
+    #@show Fᵢ' * w
+    res = similar(μ);
+    
+    for i in eachindex(μ)
+        Ω = dirVector_μ(μ[i],0.0);
+        #res[i] =  sum(w .* Fᵢ .* A.(θ[i],θₗ))
+        # Double integration here:
+        res[i] =  ((Fᵢ .* abs.(dot.((Ω,),Ω_l)))' * w)' * w_azi /(2π)
     end
     return res
 end
@@ -175,8 +201,8 @@ function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::
         dirOutꜛ = [dirVector_μ(a,b) for a in μ, b in ϕ];
         dirOutꜜ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
         # Compute over μ and μ_azi:
-        Zup   = compute_reflection.([mod],[Ωⁱⁿ],dirOutꜛ, [LD]);
-        Zdown = compute_reflection.([mod],[Ωⁱⁿ],dirOutꜜ, [LD]);
+        Zup   = compute_reflection.((mod,),(Ωⁱⁿ,),dirOutꜛ, (LD,));
+        Zdown = compute_reflection.((mod,),(Ωⁱⁿ,),dirOutꜜ, (LD,));
         # integrate over the azimuth:
         𝐙⁻⁺[i,:] = Zup   * (w_azi .* f_weights)
         𝐙⁺⁺[i,:] = Zdown * (w_azi .* f_weights)

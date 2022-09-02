@@ -11,24 +11,29 @@ abs_imag_only(x::Complex) = complex(real(x),abs(imag(x)))
 """
 Calculate forward scattering amplitudes
 """
-function afsal(θ_iʳ, leaf::Leaf)
+function afsal(Θᵢʳ, leaf::Leaf, k₀)
 
     # Calculate integral of p(θ)*sin(θ)^2 from 0 to pi
     # That is, the average integral over inclinations
-    ai1 = sum(θ -> prob(θ, leaf.pdf_num, leaf.pdf_param) * sin(θ)^2 * δθ, collect(1:n_θ) * π/n_θ)
-    vol = π * leaf.a_maj * leaf.b_min * leaf.t / 4      # Volume of leaf 
-    β = k₀^2 * vol / (4π)                   # ν² * vol / 4π
-    xi = leaf.ϵ - 1
-    xii = xi/(2 * (1 + xi))
+    # prob needs to be replaced with Distributions.jl (which can integrate better anyhow)
+    f(x) = prob(x, leaf.pdf_num, leaf.pdf_param) * sin(x)^2
+    ai1  = quadgk(f, 0, π)[1]
+    # Volume of leaf 
+    vol  = π * leaf.a_maj * leaf.b_min * leaf.t / 4
+    # ν² * vol / 4π      
+    β    = k₀^2 * vol / (4π) 
+
+    xi   = leaf.ϵ - 1
+    xii  = xi/(2 * (1 + xi))
     afhhl = β * xi * (1 - xii * ai1)
-    afvvl = β * xi * (1 - xii * (2 * sin(θ_iʳ)^2 + (cos(θ_iʳ)^2 - 2 * sin(θ_iʳ)^2) * ai1))
+    afvvl = β * xi * (1 - xii * (2 * sin(Θᵢʳ)^2 + (cos(Θᵢʳ)^2 - 2 * sin(Θᵢʳ)^2) * ai1))
     return (afhhl, afvvl)
 end
 
 """
 Calculate scattering coefficients for a thin disk
 """
-function asal(θ_iʳ, leaf::Leaf)
+function asal(Θᵢʳ, leaf::Leaf, k₀)
 
     # Equations 14 and 29, leading term
     a2 = abs(k₀^2 * (leaf.ϵ - 1) / sqrt(4π))^2 
@@ -69,28 +74,28 @@ function asal(θ_iʳ, leaf::Leaf)
             cntj = (j == 1 || j == n_ϕ+1) ? 0.5 : cntj
 
             # calculate swig--beam pattern
-            alphb=(cos(θ_curr)*sin(θ_iʳ))*sin(ϕ_curr)
-            alphd=alphb - (sin(θ_curr)*cos(θ_iʳ))
-            betad=sin(θ_iʳ)*cos(ϕ_curr)
+            alphb = (cos(θ_curr)*sin(Θᵢʳ))*sin(ϕ_curr)
+            alphd = alphb - (sin(θ_curr)*cos(Θᵢʳ))
+            betad = sin(Θᵢʳ)*cos(ϕ_curr)
 
-            nud=sqrt(alphd^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)* k₀/π
-            nub=sqrt(alphb^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)* k₀/π
+            nud   = sqrt(alphd^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)* k₀/π
+            nub   = sqrt(alphb^2*(leaf.a_maj/2)^2+betad^2*(leaf.b_min/2)^2)* k₀/π
 
-            zetad=2π*nud
-            zetab=2π*nub
-            swigd=cnst3 * (besselj1(zetad) / zetad)
-            swigb=cnst3 * (besselj1(zetab) / zetab)
+            zetad = 2π*nud
+            zetab = 2π*nub
+            swigd = cnst3 * (besselj1(zetad) / zetad)
+            swigb = cnst3 * (besselj1(zetab) / zetab)
             
             # calculate integrands
-            sthcp2=(sin(θ_curr)*cos(ϕ_curr))^2
-            ss2=(sin(θ_curr)*cos(θ_iʳ)*sin(ϕ_curr)-(cos(θ_curr)*sin(θ_iʳ)))^2
-            scsph2=(sin(θ_curr)*cos(θ_iʳ))^2*sin(ϕ_curr)^2
-            scs2 = (cos(θ_curr)*sin(θ_iʳ))^2 - scsph2
-            scs1 = scsph2+(cos(θ_curr)*sin(θ_iʳ))^2
-            sscci = cos(θ_iʳ)^2-sin(θ_iʳ)^2
-            sccs = (cos(θ_curr)*sin(θ_iʳ))^2-scsph2
+            sthcp2 = (sin(θ_curr)*cos(ϕ_curr))^2
+            ss2    = (sin(θ_curr)*cos(Θᵢʳ)*sin(ϕ_curr)-(cos(θ_curr)*sin(Θᵢʳ)))^2
+            scsph2 = (sin(θ_curr)*cos(Θᵢʳ))^2*sin(ϕ_curr)^2
+            scs2   = (cos(θ_curr)*sin(Θᵢʳ))^2 - scsph2
+            scs1   = scsph2+(cos(θ_curr)*sin(Θᵢʳ))^2
+            sscci  = cos(Θᵢʳ)^2-sin(Θᵢʳ)^2
+            sccs   = (cos(θ_curr)*sin(Θᵢʳ))^2-scsph2
             
-            cnt=cnti*cntj
+            cnt    = cnti*cntj
 
             sumx[1] += (abs(1.0-eb*sthcp2))^2*cnt*swigd^2
             sumx[2] += sthcp2*ss2*cnt*swigd^2
@@ -245,18 +250,18 @@ Calculate scattering cross-section of a finite length cylinder with specified or
 """
 function scattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_ths, new_thetas, new_phys, wood::Wood)
 
-    # B.44
-    tvi=-sin(θ_curr)*cos(θ_iʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*sin(θ_iʳ)
-    # B.45
-    thi=sign_i*sin(θ_curr)*sin(ϕ_curr-ϕ_iʳ)
-    ti=sqrt(tvi^2+thi^2)
+    # B.44 from Zyl and Kim book Synthetic Aperture Radar Polarimetry
+    tvi = -sin(θ_curr)*cos(Θᵢʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*sin(Θᵢʳ)
+    # B.45 from Zyl and Kim book Synthetic Aperture Radar Polarimetry
+    thi = sign_i*sin(θ_curr)*sin(ϕ_curr-ϕ_iʳ)
+    ti  = sqrt(tvi^2+thi^2)
 
     ths = new_ths(thi)
     tvs = new_tvs(tvi)
     ts  = sqrt(ths^2+tvs^2)
 
-    cthi=sin(θ_curr)*sin(θ_iʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*cos(θ_iʳ)
-    cphi=(sin(θ_iʳ)*cos(θ_curr)*cos(ϕ_curr-ϕ_iʳ)+sign_i*sin(θ_curr)*cos(θ_iʳ))/sqrt(1-cthi^2)
+    cthi = sin(θ_curr)*sin(Θᵢʳ)*cos(ϕ_curr-ϕ_iʳ)-sign_i*cos(θ_curr)*cos(Θᵢʳ)
+    cphi = (sin(Θᵢʳ)*cos(θ_curr)*cos(ϕ_curr-ϕ_iʳ)+sign_i*sin(θ_curr)*cos(Θᵢʳ))/sqrt(1-cthi^2)
 
     cthi,cphi = max.(min.([cthi, cphi], 1.0), -1.0)
 
@@ -269,7 +274,7 @@ function scattering(θ_curr, ϕ_curr, nmax, sign_i, new_tvs, new_ths, new_thetas
 
     dsi=ti*ts  
 
-    # B.35
+    # B.35 from Zyl and Kim book Synthetic Aperture Radar Polarimetry
     Ts = [tvs  ths ; -ths tvs]
     Ti = [tvi -thi ;  thi tvi]
     S_new = Ts * S * Ti
@@ -286,38 +291,38 @@ Electromagnetic Wave Scattering from Some Vegetation Samples
 (KARAM, FUNG, AND ANTAR, 1988)
 http://www2.geog.ucl.ac.uk/~plewis/kuusk/karam.pdf
 """
-function scattering_amplitude(nmax, wood_c::Wood, θ_i, θ_s, phyi, phys)
+function scattering_amplitude(nmax, wood_c::Wood, θᵢ, Θₛ, ϕᵢ, ϕₛ)
 
-    cos_θ_i = cos(θ_i)
-    cos_θ_s = cos(θ_s)
-    sin_θ_s = sqrt(1-cos_θ_s^2)
+    μᵢ = cos(θᵢ)
+    μₛ = cos(Θₛ)
+    sin_θₛ = sqrt(1-μₛ^2)
 
     # [hh hv ; vh vv]
     s = zeros(Complex, 2,2)
 
     # Equation 26 (Karam, Fung, Antar)
-    argum = k₀*(wood_c.l/2)*(cos_θ_i+cos_θ_s)
+    argum = k₀*(wood_c.l/2)*( μᵢ+μₛ )
     μ_si = (argum == 0.0) ? 1.0 : sin(argum)/argum
 
     # Calculate scattering amplitude for n = 0
-    z₀, A₀, B₀, e_0v, e_0h, ηh_0v, ηh_0h = cylinder(0, wood_c, θ_i, θ_s)
-    s0 = [B₀*ηh_0h 0 ; 0 e_0v*(B₀*cos_θ_s*cos_θ_i-sin_θ_s*z₀)]
+    z₀, A₀, B₀, e_0v, e_0h, ηh_0v, ηh_0h = cylinder(0, wood_c, θᵢ, Θₛ)
+    s0 = [B₀*ηh_0h 0 ; 0 e_0v*(B₀ * μₛ * μᵢ - sin_θₛ * z₀)]
 
     # Loop over all needed n values
     for n = 1:nmax
 
         # Cylindrical scattering coefficients at current n 
-        zₙ,Aₙ,Bₙ,e_nv,e_nh,ηh_nv,ηh_nh = cylinder(n, wood_c, θ_i, θ_s)
+        zₙ,Aₙ,Bₙ,e_nv,e_nh,ηh_nv,ηh_nh = cylinder(n, wood_c, θᵢ, Θₛ)
 
-        sphn=0.0
-        π_δ = 0.0001
-        cphn = (π - π_δ < phys-phyi < π + π_δ) ? (-1)^n : 1.0
+        sphn = 0.0
+        π_δ  = 0.0001
+        cphn = (π - π_δ < ϕₛ - ϕᵢ < π + π_δ) ? (-1)^n : 1.0
         
         # Inside summation term in each line of Equation 27
-        s[1,1] += 2*(ηh_nh*Bₙ+ej*e_nh*Aₙ*cos_θ_i)*cphn
-        s[1,2] +=   (ηh_nv*Bₙ+ej*e_nv*Aₙ*cos_θ_i)*sphn
-        s[2,1] +=   ((e_nh*cos_θ_i*Bₙ-ej*ηh_nh*Aₙ)*cos_θ_s-sin_θ_s*e_nh*zₙ)*sphn
-        s[2,2] += 2*((e_nv*cos_θ_i*Bₙ-ej*ηh_nv*Aₙ)*cos_θ_s-sin_θ_s*e_nv*zₙ)*cphn
+        s[1,1] += 2*(ηh_nh*Bₙ + ej*e_nh*Aₙ*μᵢ) * cphn
+        s[1,2] +=   (ηh_nv*Bₙ + ej*e_nv*Aₙ*μᵢ) * sphn
+        s[2,1] +=   ((e_nh* μᵢ *Bₙ - ej*ηh_nh*Aₙ)* μₛ - sin_θₛ * e_nh*zₙ) * sphn
+        s[2,2] += 2*((e_nv* μᵢ *Bₙ - ej*ηh_nv*Aₙ)* μₛ - sin_θₛ * e_nv*zₙ) * cphn
         
     end
 
@@ -339,20 +344,20 @@ Electromagnetic Wave Scattering from Some Vegetation Samples
 (KARAM, FUNG, AND ANTAR, 1988)
 http://www2.geog.ucl.ac.uk/~plewis/kuusk/karam.pdf
 """
-function cylinder(n::Integer, wood_c::Wood, θ_i::Real, θ_s::Real)
+function cylinder(n::Integer, wood_c::Wood, Θᵢ::Real, Θₛ::Real)
 
     # Constants
-    a = wood_c.r
+    a  = wood_c.r
     ϵᵣ = wood_c.ϵ
-    cos_θ_i  = cos(θ_i)
-    cos_θ_s  = cos(θ_s)
-    coef1    = sqrt(ϵᵣ-cos_θ_i^2)	
-    sin_θ_i  = sqrt( 1-cos_θ_i^2)
+    μᵢ  = cos(Θᵢ)
+    μₛ  = cos(Θₛ)
+    coef1   = sqrt(ϵᵣ-μᵢ^2)	
+    sin_Θᵢ  = sqrt( 1-μᵢ^2)
     
     # Last equations in 24
     u  = k₀ * a * coef1
-    vᵢ = k₀ * a * sqrt(1-cos_θ_i^2)
-    vₛ = k₀ * a * sqrt(1-cos_θ_s^2)
+    vᵢ = k₀ * a * sqrt(1-μᵢ^2)
+    vₛ = k₀ * a * sqrt(1-μₛ^2)
 
     # Bessel functions and derivatives at u, v
     Jₙu=besselj(n,u)
@@ -370,14 +375,14 @@ function cylinder(n::Integer, wood_c::Wood, θ_i::Real, θ_s::Real)
     # Compute Rₙ with sub-expressions
     term1   = (d_Hₙv/(vᵢ*Hₙv)-d_Jₙu/(u*Jₙu))
     term2   = (d_Hₙv/(vᵢ*Hₙv)-ϵᵣ*d_Jₙu/(u*Jₙu))
-    term3   = (1/vᵢ^2-1/u^2)*n*cos_θ_i
+    term3   = (1/vᵢ^2-1/u^2)*n*μᵢ
     Rₙ      = (π*vᵢ^2*Hₙv/2) * (term1*term2-term3^2)
 
     # Calculate remaining terms, using above sub-expressions
-    e_nv   = ej*sin_θ_i*term1/(Rₙ*Jₙu)
-    e_nh   = -sin_θ_i*term3/(Rₙ*Jₙu)	
+    e_nv   = ej*sin_Θᵢ*term1/(Rₙ*Jₙu)
+    e_nh   = -sin_Θᵢ*term3/(Rₙ*Jₙu)	
     ηh_nv = -e_nh
-    ηh_nh = ej*sin_θ_i*term2/(Rₙ*Jₙu)
+    ηh_nh = ej*sin_Θᵢ*term2/(Rₙ*Jₙu)
 
     return (zₙ, Aₙ, Bₙ, e_nv, e_nh, ηh_nv, ηh_nh)
 end
@@ -476,16 +481,16 @@ function grdoh(ksig)
     r0 = abs((1-sqrt(ϵ_g))/(1+sqrt(ϵ_g)))^2
     g=0.7*(1-exp(-0.65*ksig^1.8))
     q=0.23*(1-exp(-ksig))*sqrt(r0)
-    sp1=(2*θ_iʳ/π)^(1/(3*r0))
+    sp1=(2*Θᵢʳ/π)^(1/(3*r0))
     sp=1-sp1*exp(-ksig)
 
-    rgh  = (cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
-    rgv  = (ϵ_g*cos(θ_iʳ)-sqrt(ϵ_g-sin(θ_iʳ)^2))/(ϵ_g*cos(θ_iʳ)+sqrt(ϵ_g-sin(θ_iʳ)^2))
+    rgh  = (cos(Θᵢʳ)-sqrt(ϵ_g-sin(Θᵢʳ)^2))/(cos(Θᵢʳ)+sqrt(ϵ_g-sin(Θᵢʳ)^2))
+    rgv  = (ϵ_g*cos(Θᵢʳ)-sqrt(ϵ_g-sin(Θᵢʳ)^2))/(ϵ_g*cos(Θᵢʳ)+sqrt(ϵ_g-sin(Θᵢʳ)^2))
 
     rh0, rv0 = abs.([rgh rgv]).^2
 
-    sighh=g*sp*cos(θ_iʳ)^3*(rh0+rv0)
-    sigvv=g*cos(θ_iʳ)^3*(rh0+rv0)/sp
+    sighh=g*sp*cos(Θᵢʳ)^3*(rh0+rv0)
+    sigvv=g*cos(Θᵢʳ)^3*(rh0+rv0)/sp
     sigvh=q*sigvv	
 
     # 3.1.5
