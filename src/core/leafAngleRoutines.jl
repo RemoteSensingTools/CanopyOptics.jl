@@ -1,6 +1,6 @@
 
 "Integrated projection of leaf area for a single leaf inclination of θₗ, assumes azimuthally uniform distribution"
-function A(θ::FT, θₗ::FT) where FT<:Real
+function A(θ::FT, θₗ::FT) where FT<:Real # Suniti: why not use the expressions in Eq 35-36 from Schultis & Myneni (1987)?
     a = cos(θ) * cos(θₗ)
     # Eq. 14.24 in Bonan et al.
     if θₗ ≤ FT(π/2) - θ
@@ -11,6 +11,20 @@ function A(θ::FT, θₗ::FT) where FT<:Real
         return FT(2/π)*(c + a * asin(a/b))
     end
 end
+
+"Integrated projection of leaf area for a single leaf inclination of θₗ, assumes azimuthally uniform distribution"
+function Asm(θ::FT, θₗ::FT) where FT<:Real # Suniti: Eq 35-36 from Schultis & Myneni (1987)
+    a = cos(θ) * cos(θₗ)
+    # Eq. 14.24 in Bonan et al.
+    if θₗ ≤ FT(π/2) - θ
+        return a
+    else
+        b = sin(θ) * sin(θₗ)
+        c = sqrt(FT(1)-(a/b)^2)
+        return FT(2/π)*(a * (acos(-a/b)-π/2) + b * c) # (1/π) * (cosθ.cosθₗ.cos⁻¹(cotθ.cotθₗ) + sinθ.sinθₗ.√(1-cot²θ.cot²θₗ))
+    end
+end
+
 
 
 """
