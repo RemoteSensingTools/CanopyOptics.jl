@@ -73,3 +73,8 @@ function flat_leaves(FT=Float64)
     α, β =  βparameters(deg2rad(θ), deg2rad(s));
     return LeafDistribution(Beta(FT(α), FT(β)), FT(2/π));
 end
+
+# Beta function as leaf angular distribution (see RAMI, ν=α, μ=β)
+function beta_leaves(α::FT,β::FT) where FT
+    return LeafDistribution(Beta(α, β), FT(2/π));
+end

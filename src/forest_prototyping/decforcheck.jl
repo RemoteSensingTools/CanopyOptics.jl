@@ -19,7 +19,7 @@ include("output_check.jl")
 ## 
 
 const INPUT_FILE = "deccheckin.yaml"
-const input_params = CanopyOptics.parameters_from_yaml(INPUT_FILE)
+const input_params = parameters_from_yaml(INPUT_FILE)
 
 @unpack bfrghz, leaf, branch_1, branch_2, trunk, 
 d_c, d_t, ϵ_g, l, sig = input_params
