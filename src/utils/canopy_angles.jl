@@ -21,7 +21,7 @@ function H(μ::FT,μₗ::FT) where FT
 end
 
 "Eq 45 in Shultis and Myneni, fixed grid in μ for both μ and μ' "
-function compute_Ψ(μ::Array{FT,1}, μₗ::FT) where FT
+function compute_Ψ(μ::AbstractArray{FT,1}, μₗ::FT) where FT
     H⁺ = H.(μ,μₗ)
     H⁻ = H.(-μ,μₗ)
     Ψ⁺ = H⁺ * H⁺' + H⁻ * H⁻'
@@ -30,7 +30,7 @@ function compute_Ψ(μ::Array{FT,1}, μₗ::FT) where FT
 end
 
 "Eq 45 in Shultis and Myneni, fixed grid in μ for both μ and μ' "
-function compute_Ψ(μ::Array{FT,1},μꜛ::Array{FT,1}, μₗ::FT) where FT
+function compute_Ψ(μ::AbstractArray{FT,1},μꜛ::AbstractArray{FT,1}, μₗ::FT) where FT
     Ψ⁺ = H.(μ,μₗ) * H.(μꜛ,μₗ)'  + H.(-μ,μₗ) * H.(-μꜛ,μₗ)'
     Ψ⁻ = H.(μ,μₗ) * H.(-μꜛ,μₗ)' + H.(-μ,μₗ) * H.(+μꜛ,μₗ)'
     return Ψ⁺, Ψ⁻
