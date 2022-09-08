@@ -15,4 +15,4 @@
   </a>
 </p>
 
-Tools for the computation of canopy optical parameters
+Tools for the computation of canopy optical parameters, see docs for details (works in concert with vSmartMOM.jl)
