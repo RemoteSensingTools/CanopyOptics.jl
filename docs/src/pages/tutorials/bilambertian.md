@@ -13,7 +13,7 @@ Using packages:
 
 ````@example bilambertian
 using Plots, Distributions
-using ...CanopyOptics
+using CanopyOptics
 theme(:ggplot2)
 ````
 
@@ -54,7 +54,7 @@ plot!(size=(900,350))
 ### Animation over different Beta leaf distributions
 
 ````@example bilambertian
-steps = 0.5:0.1:5
+steps = 0.1:0.1:5
 α = [collect(steps); 5*ones(length(steps))]
 β = [ 5*ones(length(steps)); reverse(collect(steps));]
 x = 0:0.01:1
@@ -64,8 +64,8 @@ anim = @animate for i ∈ eachindex(α)
     Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(BiLambMod, μ, LD, 0)
     l = @layout [a  b  c]
     p0 = plot(rad2deg.(π * x/2), pdf.(LD.LD,x), legend=false, ylim=(0,3), title="Leaf angle distribution", xlabel="Θ (degrees)")
-    p1 = contourf(μ, μ, Z⁻⁺, title="Z⁻⁺ (Reflection)", xlabel="μꜜ", ylabel="μꜛ",zlims=(0.2,3))
-    p2 = contourf(μ, μ, Z⁺⁺, title="Z⁺⁺ (Transmission)", xlabel="μꜛ", ylabel="μꜛ",zlims=(0.2,3))
+    p1 = contourf(μ, μ, Z⁻⁺, title="Z⁻⁺ (Reflection)", xlabel="μꜜ", ylabel="μꜛ",clims=(0.5,2))
+    p2 = contourf(μ, μ, Z⁺⁺, title="Z⁺⁺ (Transmission)", xlabel="μꜛ", ylabel="μꜛ",clims=(0.5,2))
     plot(p0, p1, p2,  layout = l, margin=5Plots.mm)
     plot!(size=(1100,300))
 end
