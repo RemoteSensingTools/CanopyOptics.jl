@@ -26,4 +26,5 @@ YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
 Distributions = "0.25"
+DocStringExtensions = "0.9"
 UnicodePlots = "3"
