@@ -17,7 +17,7 @@ julia> CanopyOptics.dielectric(w,283.0,10.0)
 ```
 """
 function dielectric(mod::LiquidSaltWater, T::FT,f::FT) where FT<:Real
-    @unpack S  = mod
+    (;S)  = mod
     @assert 0 ≤ S ≤ 45 "Salinity should be ∈ [0,45] PSU"
     @assert 265 ≤ T ≤ 310 "Temperature should be ∈ [265,310] K"
     # Equations were tuned for ⁰C but want K input!
@@ -119,7 +119,7 @@ julia> dielectric(w,283.0,10.0)
 ```
 """
 function dielectric(mod::SoilMW{FT}, T::FT,f::FT) where FT
-    @unpack sand_frac, clay_frac, mᵥ, ρ = mod 
+    (;sand_frac, clay_frac, mᵥ, ρ) = mod 
     # T = Tk - FT(273)
     f_hz = f * FT(1e9);    #  transform from GHz to Hz
 

@@ -138,7 +138,7 @@ Returns 𝐙⁺⁺, 𝐙⁻⁺
 - `m`: Fourier moment (for azimuthally uniform leave distributions such as here, only m=0 returns non-zero matrices)
 """
 function compute_Z_matrices(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
-    @unpack R,T,nQuad = mod
+    (;R,T,nQuad) = mod
     # Transmission (same direction)
     𝐙⁺⁺ = zeros(length(μ), length(μ))
     # Reflection (change direction)
@@ -170,7 +170,7 @@ end
 # dirs = [dirVector(a,b) for a in θ, b in ϕ];
 # R = CanopyOptics.compute_specular_reflection.([dirs[10,1]],dirs, [1.5], [0.3], [LD])
 function compute_reflection(mod::SpecularCanopyScattering, Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}, LD) where FT
-    @unpack nᵣ,κ = mod
+    (;nᵣ,κ) = mod
     Ωstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
     #θstar = min(abs(Ωstar.θ), (π-abs(Ωstar.θ))) # min(abs(Ωstar.θ), abs(π+Ωstar.θ))
     θstar = Ωstar.θ;
@@ -189,7 +189,7 @@ function compute_reflection(mod::SpecularCanopyScattering, Ωⁱⁿ::dirVector{F
 end
 
 function compute_reflection(mod::SpecularCanopyScattering,Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD) where FT
-    @unpack nᵣ,κ = mod
+    (;nᵣ,κ) = mod
     Ωstar, αstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
     # Can change this later as well do have the pdf in μ, not theta!
     θstar = acos(abs(Ωstar.μ));
@@ -198,7 +198,7 @@ function compute_reflection(mod::SpecularCanopyScattering,Ωⁱⁿ::dirVector_μ
 end
 
 function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
-    @unpack nᵣ, κ,nQuad = mod
+    (;nᵣ, κ, nQuad) = mod
     # Transmission (same direction)
     𝐙⁺⁺ = zeros(length(μ), length(μ))
     # Reflection (change direction)

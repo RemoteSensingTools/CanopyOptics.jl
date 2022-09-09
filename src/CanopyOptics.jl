@@ -8,12 +8,11 @@ using UnitfulEquivalences      # Spectral conversions
 using SpecialFunctions:expint  # expint in Prospect
 using DelimitedFiles           # File IO (Prospect csv File)
 using DocStringExtensions      # Documentation
-using UnPack                   # @unpack and stuff
 using LazyArtifacts            # Artifacts
 using LinearAlgebra            # Well, guess...
 using Polynomials              # Polynomials for some empirical functions
-using YAML
-using QuadGK
+using YAML                     # YAML input files 
+using QuadGK                   # Numerical Integration
 
 # Filename for ProspectPro optical properties
 const OPTI_2021 = artifact"Prospect" * "/dataSpec_PRO.csv";
