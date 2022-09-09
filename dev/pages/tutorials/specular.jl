@@ -1,10 +1,10 @@
 # # Specular Canopy Scattering
 
 # Using packages:
-using Plots, Distributions#, PyPlot
+using Plots, Distributions
 using CanopyOptics
 pyplot()
-theme(:ggplot2)
+# theme(:ggplot2)
 
 # Create a specular model with refractive index and "roughness" κ
 specularMod = CanopyOptics.SpecularCanopyScattering(nᵣ=1.5, κ=0.2)
