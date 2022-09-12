@@ -1,5 +1,3 @@
-push!(LOAD_PATH,"src/")
-
 using Documenter, CanopyOptics
 using Literate, UnitfulEquivalences, Distributions, Plots
 pyplot()
