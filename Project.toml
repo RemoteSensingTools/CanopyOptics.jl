@@ -1,7 +1,7 @@
 name = "CanopyOptics"
 uuid = "a18e34a6-5dbe-4f38-a44b-e5141852e7a7"
 authors = ["cfranken "]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
