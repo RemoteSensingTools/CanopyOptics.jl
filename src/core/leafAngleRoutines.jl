@@ -59,7 +59,7 @@ julia> G   = CanopyOptics.G(μ, LD)                  # Compute G(μ)
 function G(μ::Array{FT}, LD::AbstractLeafDistribution; nLeg=20) where FT
     θₗ,w = gauleg(nLeg,FT(0),FT(π/2))
     Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling
-    @show Fᵢ' * w
+    # @show Fᵢ' * w
     res = similar(μ);
     θ = acos.(μ)
     for i in eachindex(μ)
@@ -160,7 +160,7 @@ function compute_Z_matrices(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, 
         Ψ⁺, Ψ⁻ = compute_Ψ(μ,-μ, cos(θₗ[i]));
         𝐙⁻⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻) 
     end
-    return 4𝐙⁺⁺ ./(G*ϖ), 4𝐙⁻⁺ ./(G*ϖ)
+    return 4𝐙⁺⁺ ./(G'*ϖ), 4𝐙⁻⁺ ./(G'*ϖ)
 end
 
 # Page 20, top of Knyazikhin and Marshak
@@ -188,7 +188,51 @@ function compute_reflection(mod::SpecularCanopyScattering, Ωⁱⁿ::dirVector{F
     
 end
 
-function compute_reflection(mod::SpecularCanopyScattering,Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD) where FT
+function compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD::AbstractLeafDistribution) where FT
+    (;R,T, nQuad) = mod
+    nQuad = 30
+    μ_l, w = gauleg(nQuad,0.0,1.0);
+    # Quadrature points in the azimuth:
+    ϕ, w_azi = gauleg(nQuad+10,FT(0),FT(2π));
+    θₗ = acos.(μ_l)
+    # Have to divide by sin(θ) again to get ∂θ/∂μ for integration (weights won't work)
+    Fᵢ = pdf.(LD.LD,2θₗ/π)  * LD.scaling ./ abs.(sin.(θₗ))
+    
+    Ω_l  = [dirVector_μ(a,b) for a in μ_l, b in ϕ];
+    # Double integration here over μ and ϕ
+    integrand = ((Ωⁱⁿ,) .⋅ Ω_l) .* ((Ωᵒᵘᵗ,) .⋅ Ω_l)
+    iPos = (integrand+abs.(integrand))./2
+    iNeg = (integrand-abs.(integrand))./2
+    # Eq 39 in Shultis and Myneni
+    Γ⁻ = -1/2π * (Fᵢ .* w)' * (iNeg * w_azi)
+    Γ⁺ =  1/2π * (Fᵢ .* w)' * (iPos * w_azi)
+    # Eq 38 in Shultis and Myneni
+    return R * Γ⁻ + T * Γ⁺ 
+end
+
+function compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, μ_l::FT) where FT
+    (;R,T, nQuad) = mod
+    nQuad = 30
+    
+    # Quadrature points in the azimuth:
+    ϕ, w_azi = gauleg(nQuad+10,FT(0),FT(2π));
+    θₗ = acos(μ_l)
+    # Have to divide by sin(θ) again to get ∂θ/∂μ for integration (weights won't work)
+    Fᵢ = 1.0
+    
+    Ω_l  = [dirVector_μ(a,b) for a in μ_l, b in ϕ];
+    # Double integration here over μ and ϕ
+    integrand = ((Ωⁱⁿ,) .⋅ Ω_l) .* ((Ωᵒᵘᵗ,) .⋅ Ω_l)
+    iPos = (integrand+abs.(integrand))./2
+    iNeg = (integrand-abs.(integrand))./2
+    # Eq 39 in Shultis and Myneni
+    Γ⁻ = -1/2π *  (iNeg * w_azi)
+    Γ⁺ =  1/2π *  (iPos * w_azi)
+    # Eq 38 in Shultis and Myneni
+    return R * Γ⁻ + T * Γ⁺ 
+end
+
+function compute_reflection(mod::SpecularCanopyScattering,Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD::AbstractLeafDistribution) where FT
     (;nᵣ,κ) = mod
     Ωstar, αstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
     # Can change this later as well do have the pdf in μ, not theta!
@@ -208,6 +252,7 @@ function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::
     ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
     # Fourier weights (cosine decomposition)
     f_weights = cos.(m*ϕ)
+    
     for i in eachindex(μ)
         # Incoming beam at ϕ = 0
         Ωⁱⁿ = dirVector_μ(μ[i], FT(0));
@@ -222,6 +267,74 @@ function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::
         𝐙⁺⁺[i,:] = Zdown * (w_azi .* f_weights)
     end
     return 𝐙⁺⁺, 𝐙⁻⁺
+end
+
+function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
+    (;R,T, nQuad) = mod
+    # Ross kernel
+    G = CanopyOptics.G(μ, LD)
+    # Single Scattering Albedo (should make this a vector too)
+    ϖ = R+T
+
+    # Transmission (same direction)
+    𝐙⁺⁺ = zeros(length(μ), length(μ))
+    # Reflection (change direction)
+    𝐙⁻⁺ = zeros(length(μ), length(μ))
+    
+    # Quadrature points in the azimuth:
+    ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
+    # Fourier weights (cosine decomposition)
+    f_weights = cos.(m*ϕ)
+    
+    # Create outgoing vectors in θ and ϕ
+    dirOutꜛ = [dirVector_μ(a,b) for a in μ, b in ϕ];
+    dirOutꜜ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
+
+    for i in eachindex(μ)
+        # Incoming beam at ϕ = 0
+        Ωⁱⁿ = dirVector_μ(μ[i], FT(0));
+        # Compute over μ and μ_azi:
+        Zup   = compute_Γ.((mod,),(Ωⁱⁿ,),dirOutꜛ, (LD,));
+        Zdown = compute_Γ.((mod,),(Ωⁱⁿ,),dirOutꜜ, (LD,));
+        # integrate over the azimuth:
+        𝐙⁻⁺[i,:] = Zdown   * (w_azi .* f_weights)
+        𝐙⁺⁺[i,:] = Zup     * (w_azi .* f_weights)
+    end
+    return 4𝐙⁺⁺ ./(G'*ϖ)/2π, 4𝐙⁻⁺ ./(G'*ϖ)/2π
+end
+
+function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, μ_l::FT, m::Int) where FT
+    (;R,T, nQuad) = mod
+    # Ross kernel
+    G = 1.0 #CanopyOptics.G(μ, LD)
+    # Single Scattering Albedo (should make this a vector too)
+    ϖ = R+T
+
+    # Transmission (same direction)
+    𝐙⁺⁺ = zeros(length(μ), length(μ))
+    # Reflection (change direction)
+    𝐙⁻⁺ = zeros(length(μ), length(μ))
+    
+    # Quadrature points in the azimuth:
+    ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
+    # Fourier weights (cosine decomposition)
+    f_weights = cos.(m*ϕ)
+    
+    # Create outgoing vectors in θ and ϕ
+    dirOutꜛ = [dirVector_μ(a,b) for a in μ, b in ϕ];
+    dirOutꜜ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
+
+    for i in eachindex(μ)
+        # Incoming beam at ϕ = 0
+        Ωⁱⁿ = dirVector_μ(μ[i], FT(0));
+        # Compute over μ and μ_azi:
+        Zup   = compute_Γ.((mod,),(Ωⁱⁿ,),dirOutꜛ, (μ_l,));
+        Zdown = compute_Γ.((mod,),(Ωⁱⁿ,),dirOutꜜ, (μ_l,));
+        # integrate over the azimuth:
+        𝐙⁻⁺[i,:] = Zdown   * (w_azi .* f_weights)
+        𝐙⁺⁺[i,:] = Zup     * (w_azi .* f_weights)
+    end
+    return 4𝐙⁺⁺ ./(ϖ)/2π, 4𝐙⁻⁺ ./(ϖ)/2π
 end
 
 "The reduction factor proposed by Nilson and Kuusk, κ ≈ 0.1-0.3, returns exp(-κ * tan(abs(α))"

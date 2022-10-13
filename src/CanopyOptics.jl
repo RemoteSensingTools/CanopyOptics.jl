@@ -13,6 +13,8 @@ using LinearAlgebra            # Well, guess...
 using Polynomials              # Polynomials for some empirical functions
 using YAML                     # YAML input files 
 using QuadGK                   # Numerical Integration
+#"Definition of Stokes vector types:"
+#using vSmartMOM.Scattering: Stokes_I, Stokes_IQU, Stokes_IQUV
 
 # Filename for ProspectPro optical properties
 const OPTI_2021 = artifact"Prospect" * "/dataSpec_PRO.csv";
@@ -22,8 +24,6 @@ FT = Float64
 ###### Own files to include #################
 include("initialization/constants.jl")
 
-
-
 include("types/canopy_types.jl")
 include("types/angle_types.jl")
 include("types/material_types.jl")
@@ -31,7 +31,6 @@ include("types/material_types.jl")
 include("utils/quadrature.jl")
 include("utils/canopy_angles.jl")
 include("utils/fresnel.jl")
-
 
 include("core/prospect.jl")
 include("core/leafAngleRoutines.jl")
@@ -44,7 +43,6 @@ include("forest_prototyping/parameters_from_yaml.jl")
 include("forest_prototyping/probabilities.jl")
 include("forest_prototyping/subroutines.jl")
 #include("forest_prototyping/output_check.jl")
-
 
 include("utils/dielectric.jl")
 
