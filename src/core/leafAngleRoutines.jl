@@ -60,7 +60,8 @@ function G(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=20) where F
     θₗ,w = gauleg(nLeg,FT(0),FT(π/2))
     Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling
     θ = acos.(μ)
-    (w .* Fᵢ)' * A.(θ',θₗ)
+    G = (w .* Fᵢ)' * A.(θ',θₗ)
+    return G'
 end
 
 "Brute Force G calculation (for testing"
@@ -155,7 +156,7 @@ function compute_Z_matrices(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, 
         Ψ⁺, Ψ⁻ = compute_Ψ(μ,-μ, cos(θₗ[i]));
         𝐙⁻⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻) 
     end
-    return 4𝐙⁺⁺ ./(G*ϖ), 4𝐙⁻⁺ ./(G*ϖ)
+    return 4𝐙⁺⁺ ./(G'*ϖ), 4𝐙⁻⁺ ./(G'*ϖ)
 end
 
 # Page 20, top of Knyazikhin and Marshak
@@ -185,13 +186,16 @@ end
 
 function compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD::AbstractLeafDistribution) where FT
     (;R,T, nQuad) = mod
-    nQuad = 40
-    μ_l, w = gauleg(nQuad,0.0,1.0);
+    nQuad = 60
+    #μ_l, w = gauleg(nQuad,0.0,1.0);
+    θₗ, w = gauleg(nQuad,FT(0),FT(π/2));
+    μ_l = cos.(θₗ)
     # Quadrature points in the azimuth:
-    ϕ, w_azi = gauleg(nQuad+1,FT(0),FT(2π));
-    θₗ = acos.(μ_l)
+    ϕ, w_azi = gauleg(nQuad+1,FT(0),FT(π));
+    w_azi *=2
+    #θₗ = acos.(μ_l)
     # Have to divide by sin(θ) again to get ∂θ/∂μ for integration (weights won't work)
-    Fᵢ = pdf.(LD.LD,2θₗ/π)  * LD.scaling ./ abs.(sin.(θₗ))
+    Fᵢ = π/2 * pdf.(LD.LD,2θₗ/π)  * LD.scaling .* abs.(sin.(θₗ))
     
     Ω_l  = [dirVector_μ(a,b) for a in μ_l, b in ϕ];
     # Double integration here over μ and ϕ
@@ -247,7 +251,7 @@ end
 function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
     (;R,T, nQuad) = mod
     # Ross kernel
-    G = CanopyOptics.G(Array(μ), LD)
+    #G = CanopyOptics.G(Array(μ), LD)
     # Single Scattering Albedo (should make this a vector too)
     ϖ = R+T
 
@@ -258,24 +262,37 @@ function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::Abstrac
     
     # Quadrature points in the azimuth:
     ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
+    w_azi /= FT(π)
     # Fourier weights (cosine decomposition)
     f_weights = cos.(m*ϕ)
     
     # Create outgoing vectors in θ and ϕ
-    dirOutꜛ = [dirVector_μ(a,b) for a in μ, b in ϕ];
-    dirOutꜜ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
+    dirOutꜛ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
+    dirOutꜜ = [dirVector_μ(a,b) for a in  μ, b in ϕ];
 
-    Threads.@threads for i in eachindex(μ)
+    for i in eachindex(μ)
         # Incoming beam at ϕ = 0
         Ωⁱⁿ = dirVector_μ(μ[i], FT(0));
         # Compute over μ and μ_azi:
         Zup   = compute_Γ.((mod,),(Ωⁱⁿ,),dirOutꜛ, (LD,));
         Zdown = compute_Γ.((mod,),(Ωⁱⁿ,),dirOutꜜ, (LD,));
+        #Zup   = compute_Γ_isotropic.((mod,),(Ωⁱⁿ,),dirOutꜛ);
+        #Zdown = compute_Γ_isotropic.((mod,),(Ωⁱⁿ,),dirOutꜜ);
         # integrate over the azimuth:
-        𝐙⁻⁺[i,:] = Zdown   * (w_azi .* f_weights)
-        𝐙⁺⁺[i,:] = Zup     * (w_azi .* f_weights)
+        𝐙⁻⁺[:,i] = 4Zup/ϖ   * (w_azi .* f_weights)
+        𝐙⁺⁺[:,i] = 4Zdown/ϖ * (w_azi .* f_weights)
     end
-    return 4𝐙⁺⁺ ./(G*ϖ)/2π, 4𝐙⁻⁺ ./(G*ϖ)/2π
+    return 𝐙⁺⁺, 𝐙⁻⁺
+end
+
+function compute_Γ_isotropic(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
+    (;R,T, nQuad) = mod
+    β = acos( Ωᵒᵘᵗ ⋅ Ωⁱⁿ)
+    ω = R + T
+    
+    # Eq 40 in Shultis and Myneni
+    Γ = (ω/3π) * (sin(β) - β * cos(β)) + T/3*cos(β)
+    return Γ
 end
 
 function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,μ::AbstractArray{FT,1},LD::AbstractLeafDistribution, Zup, Zdown, m::Int) where FT
@@ -292,15 +309,18 @@ function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,μ::Abstract
 
     # Quadrature points in the azimuth:
     ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
+    w_azi /= FT(π)
     # Fourier weights (cosine decomposition)
     f_weights = cos.(m*ϕ)
 
     for i in eachindex(μ)
         # integrate over the azimuth:
-        @views 𝐙⁻⁺[i,:] = Zdown[:,:,i]   * (w_azi .* f_weights)
-        @views 𝐙⁺⁺[i,:] = Zup[:,:,i]     * (w_azi .* f_weights)
+        @views 𝐙⁻⁺[:,i] = 4Zup[:,:,i]/ϖ   * (w_azi .* f_weights)
+        @views 𝐙⁺⁺[:,i] = 4Zdown[:,:,i]/ϖ  * (w_azi .* f_weights)
+        #@views 𝐙⁻⁺[i,:] = 4Zdown[:,:,i]./(G*ϖ)   * (w_azi .* f_weights)
+        #@views 𝐙⁺⁺[i,:] = 4Zup[:,:,i]./(G*ϖ)     * (w_azi .* f_weights)
     end
-    return 4𝐙⁺⁺ ./(G*ϖ)/2π, 4𝐙⁻⁺ ./(G*ϖ)/2π
+    return 𝐙⁺⁺, 𝐙⁻⁺
 end
 
 
@@ -317,8 +337,8 @@ function precompute_Zazi(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT
     Zdown = zeros(length(μ), nQuad,length(μ))
     
     # Create outgoing vectors in θ and ϕ
-    dirOutꜛ = [dirVector_μ(a,b) for a in μ, b in ϕ];
-    dirOutꜜ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
+    dirOutꜛ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
+    dirOutꜜ = [dirVector_μ(a,b) for a in μ, b in ϕ];
 
     Threads.@threads for i in eachindex(μ)
         # Incoming beam at ϕ = 0
