@@ -2,12 +2,17 @@
 "Integrated projection of leaf area for a single leaf inclination of θₗ, assumes azimuthally uniform distribution"
 function A(θ::FT, θₗ::FT) where FT<:Real # Suniti: why not use the expressions in Eq 35-36 from Schultis & Myneni (1987)?
     a = cos(θ) * cos(θₗ)
+    #@show θ
     # Eq. 14.24 in Bonan et al.
-    if θₗ ≤ FT(π/2) - θ
+    if θₗ ≤ (FT(π/2) - θ)
+    #@show "<"
+    #@show θₗ, a
         return a
     else
+    #@show ">"
         b = sin(θ) * sin(θₗ)
         c = sqrt(sin(θₗ)^2  - cos(θ)^2)
+     #   @show θₗ, FT(2/π)*(c + a * asin(a/b))
         return FT(2/π)*(c + a * asin(a/b))
     end
 end
@@ -16,7 +21,7 @@ end
 function Asm(θ::FT, θₗ::FT) where FT<:Real # Suniti: Eq 35-36 from Schultis & Myneni (1987)
     a = cos(θ) * cos(θₗ)
     # Eq. 14.24 in Bonan et al.
-    if θₗ ≤ FT(π/2) - θ
+    if θₗ ≤ (FT(π/2) - θ)
         return a
     else
         b = sin(θ) * sin(θₗ)
@@ -56,9 +61,29 @@ julia> G   = CanopyOptics.G(μ, LD)                  # Compute G(μ)
  0.49936166823681594
 ```
 """
-function G(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=20) where FT
+function G(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=40) where FT
     θₗ,w = gauleg(nLeg,FT(0),FT(π/2))
-    Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling .*sin.(θₗ) * π/2
+    b = range(FT(0),FT(π/2), length=nLeg)
+    θₗ = (b[1:end-1] + b[2:end])/2
+    #@show length(θₗ )
+    w = π / 2 / (nLeg-1)
+    Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling #.* sin.(θₗ) * π/2
+    #Fᵢ = 2/π * (1.0 .+ cos.(2θₗ)) 
+    # renormalize (needed if quadrature doesn't work)
+    #@show sum(w' * Fᵢ)
+    Fᵢ = Fᵢ / sum(w * Fᵢ)
+    θ = acos.(μ)
+    #@show size(A.(θ',θₗ))
+    #@show size(w * Fᵢ)
+    G = (w * Fᵢ)' * A.(θ',θₗ)
+    return G'
+end
+
+function G2(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=40) where FT
+    μl,w = gauleg(nLeg,FT(0),FT(1))
+    θₗ = acos.(μl)
+    Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling * π/2 
+    Fᵢ = Fᵢ ./ (w'*Fᵢ)
     θ = acos.(μ)
     G = (w .* Fᵢ)' * A.(θ',θₗ)
     return G'
@@ -66,7 +91,7 @@ end
 
 "Brute Force G calculation (for testing"
 function bfG(μ::Array{FT}, LD::AbstractLeafDistribution; nLeg=20) where FT
-    nQuad = 580
+    nQuad = 100
     ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
     # Reference angles to integrate over in both ϕ and μ
     
@@ -74,9 +99,9 @@ function bfG(μ::Array{FT}, LD::AbstractLeafDistribution; nLeg=20) where FT
     Ω_l  = [dirVector_μ(a,b) for a in μ_l, b in ϕ];
     θₗ = acos.(μ_l)
     # Have to divide by sin(θ) again to get ∂θ/∂μ for integration (weights won't work)
-    Fᵢ = pdf.(LD.LD,2θₗ/π)  * LD.scaling ./ abs.(sin.(θₗ))
-    #@show Fᵢ' * w 
-    #Fᵢ = Fᵢ ./ (Fᵢ' * w)
+    Fᵢ = pdf.(LD.LD,2θₗ/π)  * LD.scaling * π/2#./ abs.(sin.(θₗ))
+    @show Fᵢ' * w 
+    Fᵢ = Fᵢ ./ (Fᵢ' * w)
     #@show Fᵢ' * w
     res = similar(μ);
     
@@ -186,29 +211,62 @@ end
 
 function compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD::AbstractLeafDistribution) where FT
     (;R,T, nQuad) = mod
-    nQuad = 60
+    #nQuad = 80
     #μ_l, w = gauleg(nQuad,0.0,1.0);
     θₗ, w = gauleg(nQuad,FT(0),FT(π/2));
     μ_l = cos.(θₗ)
-    # Quadrature points in the azimuth:
-    ϕ, w_azi = gauleg(nQuad+1,FT(0),FT(π));
-    w_azi *=2
+    # Quadrature points in the azimuth (this has to go over 2π):
+    ϕ, w_azi = gauleg(nQuad+1,FT(0),FT(2π));
+    #w_azi *=2
     #θₗ = acos.(μ_l)
     # Have to divide by sin(θ) again to get ∂θ/∂μ for integration (weights won't work)
-    Fᵢ = pdf.(LD.LD,2θₗ/π)  * LD.scaling .* sin.(θₗ)
+    Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling  # .* sin.(θₗ) * π/2
+    #@show Fᵢ[1], μ_l[1]
     #@show sum(pdf.(LD.LD,2θₗ/π)  * LD.scaling .* w)
-    #Fᵢ = π/2 *  2/π * (1.0 .+ cos.(2θₗ)) #.* sin.(θₗ)
+    #Fᵢ = 2/π * (1.0 .+ cos.(2θₗ)) .* sin.(θₗ)
     # s = sin.(θₗ)
     #@show sum(Fᵢ .* w)
-    #Fᵢ  .= Fᵢ / sum(Fᵢ .* w) * 2/π
+    #Fᵢ  .= Fᵢ / sum(Fᵢ .* w) #* 2/π
     Ω_l  = [dirVector_μ(a,b) for a in μ_l, b in ϕ];
     # Double integration here over μ and ϕ
     integrand = ((Ωⁱⁿ,) .⋅ Ω_l) .* ((Ωᵒᵘᵗ,) .⋅ Ω_l)
     iPos = (integrand+abs.(integrand))./2
     iNeg = (integrand-abs.(integrand))./2
     # Eq 39 in Shultis and Myneni
-    Γ⁻ = -1/2π * (Fᵢ .* w)' * (iNeg * w_azi)
-    Γ⁺ =  1/2π * (Fᵢ .* w)' * (iPos * w_azi)
+    Γ⁻ = -1/2π * (Fᵢ .* w)' * (iNeg * w_azi) 
+    Γ⁺ =  1/2π * (Fᵢ .* w)' * (iPos * w_azi) 
+    @show 
+    # Eq 38 in Shultis and Myneni
+    return R * Γ⁻ + T * Γ⁺ 
+end
+
+function compute_Γ2(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD::AbstractLeafDistribution) where FT
+    (;R,T, nQuad) = mod
+    #nQuad = 80
+    μ_l, w = gauleg(nQuad,0.0,1.0);
+    #θₗ, w = gauleg(nQuad,FT(0),FT(π/2));
+    #μ_l = cos.(θₗ)
+    θₗ = acos.(μ_l)
+    # Quadrature points in the azimuth (this has to go over 2π):
+    ϕ, w_azi = gauleg(nQuad+1,FT(0),FT(2π));
+    #w_azi *=2
+    #θₗ = acos.(μ_l)
+    # Have to divide by sin(θ) again to get ∂θ/∂μ for integration (weights won't work)
+    Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling #   .* sin.(θₗ) * π/2
+    #@show Fᵢ[1], μ_l[1]
+    #@show sum(pdf.(LD.LD,2θₗ/π)  * LD.scaling .* w)
+    #Fᵢ = 2/π * (1.0 .+ cos.(2θₗ)) .* sin.(θₗ)
+    # s = sin.(θₗ)
+    @show sum(Fᵢ .* w)
+    #Fᵢ  .= Fᵢ / sum(Fᵢ .* w) #* 2/π
+    Ω_l  = [dirVector_μ(a,b) for a in μ_l, b in ϕ];
+    # Double integration here over μ and ϕ
+    integrand = ((Ωⁱⁿ,) .⋅ Ω_l) .* ((Ωᵒᵘᵗ,) .⋅ Ω_l)
+    iPos = (integrand+abs.(integrand))./2
+    iNeg = (integrand-abs.(integrand))./2
+    # Eq 39 in Shultis and Myneni
+    Γ⁻ = -1/2π * (Fᵢ .* w)' * (iNeg * w_azi) 
+    Γ⁺ =  1/2π * (Fᵢ .* w)' * (iPos * w_azi) 
     @show 
     # Eq 38 in Shultis and Myneni
     return R * Γ⁻ + T * Γ⁺ 
@@ -267,8 +325,13 @@ function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::Abstrac
     𝐙⁻⁺ = zeros(length(μ), length(μ))
     
     # Quadrature points in the azimuth:
-    ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
-    w_azi /= FT(π)
+    # Y. Knyazikhin and A. Marshak, eq. A.9a
+    ϕ, w_azi = gauleg(nQuad,FT(0),FT(π));
+    w_azi *= 2/FT(π)
+    ff = m==0 ? FT(2) : FT(4)
+    #if m>0
+    #     w_azi /= 2
+    #end
     # Fourier weights (cosine decomposition)
     f_weights = cos.(m*ϕ)
     
@@ -285,8 +348,8 @@ function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::Abstrac
         #Zup   = compute_Γ_isotropic.((mod,),(Ωⁱⁿ,),dirOutꜛ);
         #Zdown = compute_Γ_isotropic.((mod,),(Ωⁱⁿ,),dirOutꜜ);
         # integrate over the azimuth:
-        𝐙⁻⁺[:,i] = 2π * Zup   / ϖ   * (w_azi .* f_weights)
-        𝐙⁺⁺[:,i] = 2π * Zdown / ϖ   * (w_azi .* f_weights)
+        𝐙⁻⁺[:,i] = ff * Zup   / ϖ   * (w_azi .* f_weights)
+        𝐙⁺⁺[:,i] = ff * Zdown / ϖ   * (w_azi .* f_weights)
     end
     return 𝐙⁺⁺, 𝐙⁻⁺
 end
@@ -304,7 +367,7 @@ end
 function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,μ::AbstractArray{FT,1},LD::AbstractLeafDistribution, Zup, Zdown, m::Int) where FT
     (;R,T, nQuad) = mod
     # Ross kernel
-    G = CanopyOptics.G(Array(μ), LD)
+    
     # Single Scattering Albedo (should make this a vector too)
     ϖ = R+T
 
@@ -314,15 +377,18 @@ function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,μ::Abstract
     𝐙⁻⁺ = zeros(length(μ), length(μ))
 
     # Quadrature points in the azimuth:
-    ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
-    w_azi /= FT(π)
+    ϕ, w_azi = gauleg(nQuad,FT(0),FT(π));
+    w_azi *= 2/FT(π)
+    ff = m==0 ? FT(2) : FT(4)
+    
     # Fourier weights (cosine decomposition)
     f_weights = cos.(m*ϕ)
 
     for i in eachindex(μ)
         # integrate over the azimuth:
-        @views 𝐙⁻⁺[:,i] = 2π * Zup[:,:,i]   /ϖ   * (w_azi .* f_weights)
-        @views 𝐙⁺⁺[:,i] = 2π * Zdown[:,:,i] /ϖ   * (w_azi .* f_weights)
+        @views 𝐙⁻⁺[i,:] = ff * Zup[:,:,i]   /ϖ   * (w_azi .* f_weights)
+        @views 𝐙⁺⁺[i,:] = ff * Zdown[:,:,i] /ϖ   * (w_azi .* f_weights)
+
         #@views 𝐙⁻⁺[i,:] = 4Zdown[:,:,i]./(G*ϖ)   * (w_azi .* f_weights)
         #@views 𝐙⁺⁺[i,:] = 4Zup[:,:,i]./(G*ϖ)     * (w_azi .* f_weights)
     end
@@ -334,7 +400,7 @@ function precompute_Zazi(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT
     (;R,T, nQuad) = mod
 
     # Quadrature points in the azimuth:
-    ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
+    ϕ, w_azi = gauleg(nQuad,FT(0),FT(π));
     # Fourier weights (cosine decomposition)
     
     # Transmission (same direction)

@@ -8,7 +8,7 @@ Base.@kwdef struct BiLambertianCanopyScattering{FT<:AbstractFloat} <: AbstractCa
     "Lambertian Transmission"
     T::FT  = FT(0.1)
     "Number of quadrature points in inclination angle"
-    nQuad::Int = 10
+    nQuad::Int = 30
 end
 
 "Model for specular canopy leaf scattering"
