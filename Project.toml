@@ -4,6 +4,7 @@ authors = ["cfranken "]
 version = "0.1.1"
 
 [deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
@@ -21,14 +22,14 @@ YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
 Distributions = "0.25"
+DocStringExtensions = "0.8, 0.9"
+FastGaussQuadrature = "0.4"
+Parameters = "0.12"
 Polynomials = "2, 3"
 QuadGK = "2"
+SpecialFunctions = "2"
 UnicodePlots = "3"
-julia = "1.7, 1.8"
+Unitful = "1"
 UnitfulEquivalences = "0.2"
 YAML = "0.4"
-SpecialFunctions = "2"
-FastGaussQuadrature = "0.4"
-DocStringExtensions = "0.8, 0.9"
-Unitful = "1"
-Parameters = "0.12"
+julia = "1.7, 1.8"

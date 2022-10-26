@@ -13,6 +13,9 @@ using LinearAlgebra            # Well, guess...
 using Polynomials              # Polynomials for some empirical functions
 using YAML                     # YAML input files 
 using QuadGK                   # Numerical Integration
+using CUDA 
+
+
 #"Definition of Stokes vector types:"
 #using vSmartMOM.Scattering: Stokes_I, Stokes_IQU, Stokes_IQUV
 
