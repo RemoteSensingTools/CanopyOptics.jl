@@ -21,6 +21,7 @@ UnitfulEquivalences = "da9c4bc3-91c8-4f02-8a40-6b990d2a7e0c"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
+CUDA = "3"
 Distributions = "0.25"
 DocStringExtensions = "0.8, 0.9"
 FastGaussQuadrature = "0.4"
