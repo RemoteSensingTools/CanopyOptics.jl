@@ -408,7 +408,7 @@ function precompute_Zazi_(mod::BiLambertianCanopyScattering, μ::AbstractArray{F
     _μᴸ   = reshape(arr_type(μᴸ), 1,    1,     1,   nQuad,   1   );
     _dϕᴸ  = reshape(arr_type(dϕᴸ),1,    1,     1,     1,   nQuad+1 );
 
-    # Quadrature points:
+    # Quadrature points
     wᴸ  = wᴸ .*  Fᵢ
     #_w_azi  = reshape(arr_type(w_azi),  1,  1,   nQuad,   1,     1   );
     _wᴸ     = reshape(arr_type(wᴸ),     1,  1,    1,    nQuad,   1   );

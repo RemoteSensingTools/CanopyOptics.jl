@@ -1,7 +1,7 @@
 name = "CanopyOptics"
 uuid = "a18e34a6-5dbe-4f38-a44b-e5141852e7a7"
 authors = ["cfranken "]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
