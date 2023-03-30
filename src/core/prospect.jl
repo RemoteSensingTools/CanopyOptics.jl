@@ -16,7 +16,7 @@ julia> T,R = prospect(leaf,opti);
 function prospect(
             leaf::LeafProspectProProperties{FT},
             optis
-) where {FT<:AbstractFloat}
+) where {FT}
     # ***********************************************************************
     # Jacquemoud S., Baret F. (1990), PROSPECT: a model of leaf optical
     # properties spectra; Remote Sens. Environ.; 34:75-91.
@@ -117,7 +117,7 @@ From calctav.m in PROSPECT-D
 - `α` angle of incidence [degrees]
 - `nr` Index of refraction
 """
-function calctav(α::FT, nr::FT) where {FT<:AbstractFloat}
+function calctav(α::FT, nr::FT2) where {FT,FT2}
     a   = ((nr+1) ^ 2) / 2;
     a3  = a  ^ 3;
     n2  = nr ^ 2;
@@ -145,4 +145,12 @@ function calctav(α::FT, nr::FT) where {FT<:AbstractFloat}
     tav = (ts + tp) / (2 * sa2);
 
     return tav
+end
+
+function expint(x::ForwardDiff.Dual{T,V,N}) where {T,V,N}
+    # Extract values:
+    A = ForwardDiff.value(x)
+    dAdx = [-exp(-A)/A * ForwardDiff.partials(x,i) for i=1:N];
+    dAdx = ForwardDiff.Partials(tuple(dAdx...));
+    return eltype(x)(expint(A),dAdx);
 end
