@@ -65,16 +65,10 @@ function G(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=40) where F
     θₗ,w = gauleg(nLeg,FT(0),FT(π/2))
     b = range(FT(0),FT(π/2), length=nLeg)
     θₗ = (b[1:end-1] + b[2:end])/2
-    #@show length(θₗ )
     w = π / 2 / (nLeg-1)
-    Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling #.* sin.(θₗ) * π/2
-    #Fᵢ = 2/π * (1.0 .+ cos.(2θₗ)) 
-    # renormalize (needed if quadrature doesn't work)
-    #@show sum(w' * Fᵢ)
+    Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling 
     Fᵢ = Fᵢ / sum(w * Fᵢ)
     θ = acos.(μ)
-    #@show size(A.(θ',θₗ))
-    #@show size(w * Fᵢ)
     G = (w * Fᵢ)' * A.(θ',θₗ)
     return G'
 end

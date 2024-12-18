@@ -326,7 +326,7 @@ end
 
 function precompute_Zazi(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution) where FT
     (;R,T, nQuad) = mod
-    nQuad = 40
+    nQuad = 20
     # Quadrature points in the azimuth:
     ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
     # Fourier weights (cosine decomposition)
