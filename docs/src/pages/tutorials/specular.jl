@@ -1,7 +1,7 @@
 # # Specular Canopy Scattering
 
 # Using packages:
-using CairoMakie, Distributions
+using CairoMakie, Distributions, Base64
 using CanopyOptics
 
 # Create a specular model with refractive index and "roughness" κ
@@ -37,21 +37,26 @@ Colorbar(fig[1, 2], hm)
 fig
 
 # ### Animation over different Beta leaf distributions
+# Use a coarser angular grid for the animation to keep the GIF size small.
+ϕ_a     = range(0.0, 2π, length=60)
+μ_a, _  = CanopyOptics.gauleg(40, 0.0, 1.0)
+dirs_a  = [CanopyOptics.dirVector_μ(a, b) for a in μ_a, b in ϕ_a]
+θ_a     = sort(acos.(μ_a))
+
 steps  = 0.1:0.2:5
 α_vals = [collect(steps); 5 * ones(length(steps))]
 β_vals = [5 * ones(length(steps)); reverse(collect(steps))]
 x      = collect(0:0.01:1)
 
 # Observables: updating LD_obs propagates to all derived plots reactively.
-# R has shape (nμ=180, nϕ=200); for heatmap(ϕ, θ, z) Makie needs z of shape (nϕ, nθ).
 LD_obs  = Observable(LD)
 pdf_obs = @lift pdf.($LD_obs.LD, x)
 R_obs   = @lift reverse(
-    CanopyOptics.compute_reflection.([specularMod], [dirs[120,1]], dirs, [$LD_obs]),
+    CanopyOptics.compute_reflection.([specularMod], [dirs_a[20,1]], dirs_a, [$LD_obs]),
     dims=1)'
 # Use map to properly capture m in each iteration (avoids closure-in-loop)
 Zpm_obs = map(0:3) do m
-    @lift CanopyOptics.compute_Z_matrices(specularMod, μ, $LD_obs, m)[2]
+    @lift CanopyOptics.compute_Z_matrices(specularMod, μ_a, $LD_obs, m)[2]
 end
 
 fig2 = Figure(size=(700, 700))
@@ -63,12 +68,12 @@ ax_Z = [Axis(fig2[i+1, j], title="Z⁻⁺ m=$(2(i-1)+(j-1))",
              xlabel="μꜜ", ylabel="μꜛ") for i in 1:2, j in 1:2]
 
 lines!(ax0, rad2deg.(π * x / 2), pdf_obs)
-heatmap!(ax1, rad2deg.(collect(ϕ)), rad2deg.(θ), R_obs, colorrange=(0, 0.02))
+heatmap!(ax1, rad2deg.(collect(ϕ_a)), rad2deg.(θ_a), R_obs, colorrange=(0, 0.02))
 for (k, ax) in enumerate(ax_Z)
-    heatmap!(ax, μ, μ, Zpm_obs[k], colorrange=(0, 0.3))
+    heatmap!(ax, μ_a, μ_a, Zpm_obs[k], colorrange=(0, 0.3))
 end
 
-record(fig2, "anim_fps10.gif", eachindex(α_vals); framerate=10) do i
+path = record(fig2, "anim_specular.gif", eachindex(α_vals); framerate=10) do i
     LD_obs[] = CanopyOptics.LeafDistribution(Beta(α_vals[i], β_vals[i]), 2/π)
 end
-fig2
+HTML("<img src=\"data:image/gif;base64,$(base64encode(read(path)))\" />")

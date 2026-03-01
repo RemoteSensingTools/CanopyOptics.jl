@@ -30,6 +30,7 @@ function build()
         prettyurls = get(ENV, "CI", nothing) == "true",
         mathengine = mathengine,
         collapselevel = 1,
+        size_threshold = nothing,
         )
     makedocs(
             sitename = "Canopy Optics",

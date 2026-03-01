@@ -1,7 +1,7 @@
 # # Bilambertian Canopy Scattering
 
 # Using packages:
-using CairoMakie, Distributions
+using CairoMakie, Distributions, Base64
 using CanopyOptics
 
 # Compute quadrature points:
@@ -48,7 +48,7 @@ lines!(ax0, rad2deg.(π * x / 2), pdf_obs)
 heatmap!(ax1, μ, μ, Zpm_obs, colorrange=(0.5, 2))
 heatmap!(ax2, μ, μ, Zpp_obs, colorrange=(0.5, 2))
 
-record(fig2, "anim_fps10.gif", eachindex(α_vals); framerate=10) do i
+path = record(fig2, "anim_bilambertian.gif", eachindex(α_vals); framerate=10) do i
     LD_obs[] = CanopyOptics.LeafDistribution(Beta(α_vals[i], β_vals[i]), 2/π)
 end
-fig2
+HTML("<img src=\"data:image/gif;base64,$(base64encode(read(path)))\" />")
