@@ -12,6 +12,13 @@ function planophile_leaves(FT=Float64)
     return LeafDistribution(Beta(FT(α), FT(β)), FT(2/π));
 end
 
+"""
+    $(FUNCTIONNAME)(FT=Float64)
+
+Creates a `LeafDistribution` following a planophile distribution using Beta(1, 2.768),
+an analytically convenient approximation to Bunnik's planophile distribution.
+See Shultis & Myneni (1988) Eq. (59): g_L(θ_L) = (2/π)(1 + cos 2θ_L).
+"""
 function planophile_leaves2(FT=Float64)
     return LeafDistribution(Beta(FT(1), FT(2.768)), FT(2/π));
 end
@@ -67,14 +74,23 @@ function spherical_leaves(FT=Float64)
     return LeafDistribution(Beta(FT(α), FT(β)), FT(2/π));
 end
 
+"""
+    $(FUNCTIONNAME)(FT=Float64)
+
+Creates a `LeafDistribution` representing nearly horizontal (flat) leaves using a
+strongly planophile Beta(1, 100) distribution, which peaks sharply near θ_L ≈ 0.
+"""
 function flat_leaves(FT=Float64)
-    θ = FT(57.3)
-    s = FT(21.55)
-    α, β =  βparameters(deg2rad(θ), deg2rad(s));
-    return LeafDistribution(Beta(FT(α), FT(β)), FT(2/π));
+    return LeafDistribution(Beta(FT(1), FT(100)), FT(2/π));
 end
 
-# Beta function as leaf angular distribution (see RAMI, ν=α, μ=β)
+"""
+    $(FUNCTIONNAME)(α::FT, β::FT) where FT
+
+Creates a `LeafDistribution` from an arbitrary Beta(α, β) distribution over [0, π/2].
+The parameters α and β correspond to ν and μ in the RAMI benchmark convention.
+Use `planophile_leaves`, `spherical_leaves`, etc. for standard named distributions.
+"""
 function beta_leaves(α::FT,β::FT) where FT
     return LeafDistribution(Beta(α, β), FT(2/π));
 end

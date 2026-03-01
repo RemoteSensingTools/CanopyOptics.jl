@@ -1,5 +1,21 @@
 
-"Integrated projection of leaf area for a single leaf inclination of θₗ, assumes azimuthally uniform distribution"
+"""
+    A(θ::FT, θₗ::FT) where FT<:Real
+
+Returns the azimuthally-integrated projected leaf area function for beam direction `θ`
+and leaf inclination `θₗ` (both in radians), assuming azimuthal uniformity.
+Follows Bonan, *Modeling Earth's Climate*, Eq. 14.24:
+
+``A(θ, θₗ) = \\begin{cases}
+  \\cos θ\\,\\cos θₗ & θₗ \\le π/2 - θ \\\\
+  \\frac{2}{π}\\!\\left[\\sqrt{\\sin^2 θₗ - \\cos^2 θ} + \\cos θ\\,\\cos θₗ\\,
+    \\arcsin\\!\\left(\\frac{\\cos θ\\,\\cos θₗ}{\\sin θ\\,\\sin θₗ}\\right)\\right]
+  & \\text{otherwise}
+\\end{cases}``
+
+Used by [`G`](@ref) to compute the Ross G-function.
+See also [`Asm`](@ref) for the algebraically equivalent Shultis & Myneni form.
+"""
 function A(θ::FT, θₗ::FT) where FT<:Real # Suniti: why not use the expressions in Eq 35-36 from Schultis & Myneni (1987)?
     a = cos(θ) * cos(θₗ)
     #@show θ
@@ -17,7 +33,12 @@ function A(θ::FT, θₗ::FT) where FT<:Real # Suniti: why not use the expressio
     end
 end
 
-"Integrated projection of leaf area for a single leaf inclination of θₗ, assumes azimuthally uniform distribution"
+"""
+    Asm(θ::FT, θₗ::FT) where FT<:Real
+
+Algebraically equivalent form of [`A`](@ref) following Shultis & Myneni (1987)
+Eqs. 35–36.  Used for cross-validation; production code uses [`A`](@ref).
+"""
 function Asm(θ::FT, θₗ::FT) where FT<:Real # Suniti: Eq 35-36 from Schultis & Myneni (1987)
     a = cos(θ) * cos(θₗ)
     # Eq. 14.24 in Bonan et al.
@@ -62,14 +83,11 @@ julia> G   = CanopyOptics.G(μ, LD)                  # Compute G(μ)
 ```
 """
 function G(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=40) where FT
-    θₗ,w = gauleg(nLeg,FT(0),FT(π/2))
-    b = range(FT(0),FT(π/2), length=nLeg)
-    θₗ = (b[1:end-1] + b[2:end])/2
-    w = π / 2 / (nLeg-1)
-    Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling 
-    Fᵢ = Fᵢ / sum(w * Fᵢ)
-    θ = acos.(μ)
-    G = (w * Fᵢ)' * A.(θ',θₗ)
+    θₗ, w = gauleg(nLeg, FT(0), FT(π/2))
+    Fᵢ = pdf.(LD.LD, 2θₗ/π) * LD.scaling
+    Fᵢ = Fᵢ / (w' * Fᵢ)   # normalize leaf angle distribution
+    θ  = acos.(μ)
+    G  = (w .* Fᵢ)' * A.(θ', θₗ)
     return G'
 end
 
@@ -94,7 +112,6 @@ function bfG(μ::Array{FT}, LD::AbstractLeafDistribution; nLeg=20) where FT
     θₗ = acos.(μ_l)
     # Have to divide by sin(θ) again to get ∂θ/∂μ for integration (weights won't work)
     Fᵢ = pdf.(LD.LD,2θₗ/π)  * LD.scaling * π/2#./ abs.(sin.(θₗ))
-    @show Fᵢ' * w 
     Fᵢ = Fᵢ ./ (Fᵢ' * w)
     #@show Fᵢ' * w
     res = similar(μ);
@@ -203,6 +220,22 @@ function compute_reflection(mod::SpecularCanopyScattering, Ωⁱⁿ::dirVector{F
     
 end
 
+"""
+    compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT},
+              LD::AbstractLeafDistribution) where FT
+
+Computes the azimuthally-resolved area scattering transfer function
+`Γ(Ωⁱⁿ → Ωᵒᵘᵗ)` for a specific direction pair by direct double integration over
+leaf polar and azimuthal angles, following Shultis & Myneni (1988) Eqs. (38)–(39):
+
+``Γ = R\\,Γ^- + T\\,Γ^+``
+
+where `Γ⁻` integrates the negative (reflection) part and `Γ⁺` the positive
+(transmission) part of `(Ωⁱⁿ ⋅ Ωᴸ)(Ωᵒᵘᵗ ⋅ Ωᴸ)` over all leaf orientations.
+
+Used by [`compute_Z_matrices_aniso`](@ref) to build Fourier-decomposed Z matrices.
+See [`compute_lambertian_Γ`](@ref) for the azimuthally-averaged (m=0 only) equivalent.
+"""
 function compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD::AbstractLeafDistribution) where FT
     (;R,T, nQuad) = mod
     #nQuad = 80
@@ -225,13 +258,33 @@ function compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT
     iNeg = (integrand-abs.(integrand))./2
     
     # Eq 39 in Shultis and Myneni, double integration here
-    Γ⁻ = -1/2π * (Fᵢ .* w)' * (iNeg * w_azi) 
-    Γ⁺ =  1/2π * (Fᵢ .* w)' * (iPos * w_azi) 
-    @show 
+    Γ⁻ = -1/2π * (Fᵢ .* w)' * (iNeg * w_azi)
+    Γ⁺ =  1/2π * (Fᵢ .* w)' * (iPos * w_azi)
     # Eq 38 in Shultis and Myneni
     return R * Γ⁻ + T * Γ⁺ 
 end
 
+"""
+    compute_reflection(mod::SpecularCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT},
+                       LD::AbstractLeafDistribution) where FT
+
+Returns the specular bidirectional scattering coefficient for direction pair
+`(Ωⁱⁿ, Ωᵒᵘᵗ)`, following Knyazikhin & Marshak, *Discrete Ordinates Method for
+Photon Transport in Leaf Canopies*, Eq. 2.39:
+
+``f_s(Ω' \\to Ω) = \\frac{1}{8}\\,g_L(θ^*)\\,K(κ, α^*)\\,F_r(n_r, α^*)``
+
+where:
+- `θ*` = polar angle of the specular leaf normal (from [`getSpecularΩ`](@ref))
+- `α*` = incidence half-angle = `arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ) / 2`
+- `K(κ, α*)` = Nilson–Kuusk roughness factor (from [`K`](@ref))
+- `Fᵣ(nᵣ, α*)` = unpolarized Fresnel reflectance (from [`Fᵣ`](@ref))
+
+For full Stokes-vector propagation (vSmartMOM.jl), use [`fresnel_components`](@ref)
+to obtain `r_s, r_p` and construct the 4×4 Mueller reflection matrix directly.
+
+Note: only reflection is currently modelled; specular transmission is not yet implemented.
+"""
 function compute_reflection(mod::SpecularCanopyScattering,Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD::AbstractLeafDistribution) where FT
     (;nᵣ,κ) = mod
     Ωstar, αstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
@@ -241,6 +294,20 @@ function compute_reflection(mod::SpecularCanopyScattering,Ωⁱⁿ::dirVector_μ
     return FT(1/8) * pdf(LD.LD,2θstar/π) * LD.scaling * K(κ, αstar) * Fᵣ(nᵣ,αstar)
 end
 
+"""
+    compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1},
+                       LD::AbstractLeafDistribution, m::Int) where FT
+
+Computes the Fourier-`m` component of the single-scattering phase matrices
+`(𝐙⁺⁺, 𝐙⁻⁺)` for a specular leaf surface by integrating
+[`compute_reflection`](@ref) over the azimuthal quadrature grid.
+
+- `𝐙⁺⁺[i,j]`: same-hemisphere scattering (μ>0 → μ>0, forward scatter)
+- `𝐙⁻⁺[i,j]`: opposite-hemisphere scattering (μ>0 → μ<0, backscatter)
+
+Azimuth integration uses `nQuad` Gauss-Legendre points over `[0, 2π]` from `mod`;
+Fourier weights are `cos(m ϕ)`.
+"""
 function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
     (;nᵣ, κ, nQuad) = mod
     # Transmission (same direction)
@@ -263,8 +330,10 @@ function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::
         Zup   = compute_reflection.((mod,),(Ωⁱⁿ,),dirOutꜛ, (LD,));
         Zdown = compute_reflection.((mod,),(Ωⁱⁿ,),dirOutꜜ, (LD,));
         # integrate over the azimuth:
-        𝐙⁻⁺[i,:] = Zup   * (w_azi .* f_weights)
-        𝐙⁺⁺[i,:] = Zdown * (w_azi .* f_weights)
+        # dirOutꜛ (same hemisphere, μ>0) → forward scatter → 𝐙⁺⁺
+        # dirOutꜜ (opposite hemisphere, μ<0) → back scatter  → 𝐙⁻⁺
+        𝐙⁺⁺[i,:] = Zup   * (w_azi .* f_weights)
+        𝐙⁻⁺[i,:] = Zdown * (w_azi .* f_weights)
     end
     return 𝐙⁺⁺, 𝐙⁻⁺
 end
@@ -273,7 +342,6 @@ function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::Abstrac
     (;R,T, nQuad) = mod
     # Ross kernel
     G = CanopyOptics.G(Array(μ), LD)
-    @show G
     # Single Scattering Albedo (should make this a vector too)
     ϖ = R+T
 
@@ -312,6 +380,19 @@ function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::Abstrac
     return 𝐙⁺⁺, 𝐙⁻⁺
 end
 
+"""
+    compute_Γ_isotropic(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT},
+                        Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
+
+Analytic area scattering transfer function assuming an isotropic (spherical) leaf
+angle distribution, following Shultis & Myneni (1988) Eq. (40):
+
+``Γ_{\\mathrm{iso}}(β) = \\frac{ω}{3π}(\\sin β - β \\cos β) + \\frac{T}{3}\\cos β``
+
+where `β = arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ)` is the scattering angle and `ω = R + T`.
+
+Used for validation against the general anisotropic [`compute_Γ`](@ref).
+"""
 function compute_Γ_isotropic(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
     (;R,T, nQuad) = mod
     β = acos( Ωᵒᵘᵗ ⋅ Ωⁱⁿ)
@@ -394,7 +475,6 @@ function precompute_Zazi_(mod::BiLambertianCanopyScattering, μ::AbstractArray{F
     
     μᴸ = cos.(θᴸ)
     Fᵢ = pdf.(LD.LD,2θᴸ/π) * LD.scaling
-    @show sum(wᴸ .* Fᵢ)
     # Reshape stuff:
     μⁱⁿ   = reshape(arr_type(μ),  n_μ,  1,     1,     1,     1   );
     μᵒᵘᵗ  = reshape(arr_type(deepcopy(μ)), 1,   n_μ,    1,     1,     1   );
@@ -429,8 +509,19 @@ function precompute_Zazi_(mod::BiLambertianCanopyScattering, μ::AbstractArray{F
 end
 
 
-"The reduction factor proposed by Nilson and Kuusk, κ ≈ 0.1-0.3, returns exp(-κ * tan(abs(α))"
-function K(κ::FT, α::FT) where FT 
+"""
+    K(κ::FT, α::FT) where FT
+
+Returns the Nilson–Kuusk leaf-surface roughness reduction factor:
+
+``K(κ, α) = e^{-κ \\tan |α|}``
+
+- `κ ≈ 0.1–0.3` controls surface roughness (`κ = 0` → smooth Fresnel surface)
+- `α` is the incidence half-angle in radians
+
+Used in [`compute_reflection`](@ref) to attenuate specular reflectance for rough leaves.
+"""
+function K(κ::FT, α::FT) where FT
     exp(-κ * tan(abs(α)));
 end
 

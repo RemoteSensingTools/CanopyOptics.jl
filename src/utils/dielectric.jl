@@ -73,17 +73,18 @@ end
 """
 $(FUNCTIONNAME)(mod::PureIce, T::FT,f::FT)
 
-Computes the complex dieletric of liquid pure walter (Ulaby & Long book)
+Computes the complex dielectric constant of pure ice (Ulaby & Long book, Eqs. 4.22–4.25).
+Valid temperature range: 233–273.15 K.
 # Arguments
-- `mod` an [`PureIce`](@ref) type struct
-- `T`  Temperature in `[⁰K]`
+- `mod` a [`PureIce`](@ref) type struct
+- `T`  Temperature in `[K]`, must be ∈ [233, 273.15]
 - `f`  Frequency in `[GHz]`
 
 # Examples
 ```julia-repl
-julia> w = CanopyOptics.PureIce()     # Create struct for salty seawater
-julia> CanopyOptics.dielectric(w,283.0,10.0)
-53.45306674215052 + 38.068642430090044im
+julia> w = CanopyOptics.PureIce()
+julia> CanopyOptics.dielectric(w, 253.0, 10.0)   # T = -20°C, f = 10 GHz
+# Real part ≈ 3.17 (ice has low imaginary dielectric compared to liquid water)
 ```
 """
 function dielectric(mod::PureIce, T::FT, f::FT) where FT
@@ -105,17 +106,16 @@ end
 """
 $(FUNCTIONNAME)(mod::SoilMW, T::FT,f::FT)
 
-Computes the complex dieletric of soil (Ulaby & Long book)
+Computes the complex dielectric constant of moist soil (Ulaby & Long book, Eqs. 4.66–4.70).
 # Arguments
-- `mod` an [`SoilMW`](@ref) type struct (includes sand_frac, clay_frac, water_frac, ρ)
-- `T`  Temperature in `[⁰K]`
+- `mod` a [`SoilMW`](@ref) type struct (fields: `sand_frac`, `clay_frac`, `mᵥ`, `ρ`)
+- `T`  Temperature in `[K]`
 - `f`  Frequency in `[GHz]`
 
 # Examples
 ```julia-repl
-julia> w = SoilMW(sand_frac=0.2,clay_frac=0.2, water_frac = 0.3, ρ=1.7 )     # Create struct for salty seawater
-julia> dielectric(w,283.0,10.0)
-53.45306674215052 + 38.068642430090044im
+julia> w = SoilMW(sand_frac=0.2, clay_frac=0.2, mᵥ=0.3, ρ=1.7)
+julia> dielectric(w, 283.0, 10.0)
 ```
 """
 function dielectric(mod::SoilMW{FT}, T::FT,f::FT) where FT

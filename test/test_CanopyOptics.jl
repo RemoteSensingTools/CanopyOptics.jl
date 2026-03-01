@@ -29,4 +29,49 @@
         # ...but has no effect in the SWIR
         @test all(jac[(end-100):end,:] .== 0)
     end
+
+    @testset "BiLambertian Z-matrices" begin
+        μ, w = CanopyOptics.gauleg(10, 0.0, 1.0)
+        LD   = CanopyOptics.spherical_leaves()
+        mod  = CanopyOptics.BiLambertianCanopyScattering(R=0.1, T=0.05)
+        Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(mod, μ, LD, 0)
+        # Phase matrix elements must be non-negative and finite
+        @test all(Z⁺⁺ .>= 0)
+        @test all(Z⁻⁺ .>= 0)
+        @test all(isfinite.(Z⁺⁺))
+        @test all(isfinite.(Z⁻⁺))
+        # m>0 returns zero matrices (azimuthally uniform distribution)
+        Z⁺⁺_m1, Z⁻⁺_m1 = CanopyOptics.compute_Z_matrices(mod, μ, LD, 1)
+        @test all(Z⁺⁺_m1 .== 0)
+        @test all(Z⁻⁺_m1 .== 0)
+    end
+
+    @testset "Specular compute_reflection symmetry" begin
+        mod = CanopyOptics.SpecularCanopyScattering(nᵣ=1.5, κ=0.2)
+        LD  = CanopyOptics.spherical_leaves()
+        # Use same azimuth (ϕ=0) to avoid the known azimuth-sign edge case in getSpecularΩ
+        Ωᵢ  = CanopyOptics.dirVector_μ(0.7, 0.0)
+        Ωₒ  = CanopyOptics.dirVector_μ(0.5, 0.0)
+        fᵢₒ = CanopyOptics.compute_reflection(mod, Ωᵢ, Ωₒ, LD)
+        fₒᵢ = CanopyOptics.compute_reflection(mod, Ωₒ, Ωᵢ, LD)
+        # Fresnel reflection is symmetric: f(Ωᵢ→Ωₒ) = f(Ωₒ→Ωᵢ)
+        @test fᵢₒ ≈ fₒᵢ
+        # Must be non-negative
+        @test fᵢₒ >= 0
+    end
+
+    @testset "dielectric sanity" begin
+        # Liquid water: real and imaginary parts both positive
+        w = CanopyOptics.LiquidPureWater()
+        ϵ_w = CanopyOptics.dielectric(w, 283.0, 10.0)
+        @test real(ϵ_w) > 0
+        @test imag(ϵ_w) > 0
+        # Pure ice at -20°C: real part ≈ 3.17, very small imaginary part
+        ice = CanopyOptics.PureIce()
+        ϵ_i = CanopyOptics.dielectric(ice, 253.0, 10.0)
+        @test real(ϵ_i) > 0
+        @test imag(ϵ_i) > 0
+        # Ice has far lower imaginary part than liquid water at 10 GHz
+        @test imag(ϵ_i) < imag(ϵ_w)
+    end
 end

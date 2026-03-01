@@ -57,7 +57,7 @@ export AbstractCanopyScatteringType, BiLambertianCanopyScattering, SpecularCanop
 export PureIce, LiquidPureWater, LiquidSaltWater
 export LeafProspectProProperties, LeafOpticalProperties, dielectric
 # Functions:
-export compute_Z_matrices, prospect, compute_specular_reflection
+export compute_Z_matrices, prospect, compute_reflection
 # MW stuff
 export wood_forward, wood_backward, afsal, asal, abs_components 
 

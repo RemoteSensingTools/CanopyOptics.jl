@@ -1,11 +1,6 @@
 ```@meta
-EditURL = "<unknown>/docs/src/pages/tutorials/bilambertian.jl"
+EditURL = "bilambertian.jl"
 ```
-
-````@example bilambertian
-push!(LOAD_PATH,"../../../../src/");
-nothing #hide
-````
 
 # Bilambertian Canopy Scattering
 
