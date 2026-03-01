@@ -45,5 +45,6 @@ build()
 deploydocs(
     repo = "github.com/RemoteSensingTools/CanopyOptics.jl.git",
     target = "build",
+    devbranch = "main",
     push_preview = true,
 )

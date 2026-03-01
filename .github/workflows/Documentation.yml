@@ -6,15 +6,18 @@ on:
     tags: '*'
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v4
       - name: Set up Julia
-        uses: julia-actions/setup-julia@v1
+        uses: julia-actions/setup-julia@v2
         with:
-          version: '1.7'
+          version: '1.10'
       - name: Install Dependencies
         run: julia --project=docs/ -e 'ENV["PYTHON"]="";using Pkg; Pkg.instantiate();'
       - name: Build and deploy
