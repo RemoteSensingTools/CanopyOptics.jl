@@ -1,7 +1,5 @@
 using Documenter, CanopyOptics
-using Literate, UnitfulEquivalences, Distributions, Plots
-pyplot()
-ENV["PYTHON"]=""
+using Literate, UnitfulEquivalences, Distributions
 
 function build()
     tutorials = ["bilambertian.jl", "specular.jl"] # , 
@@ -38,7 +36,8 @@ function build()
             format = format,
             clean = false,
             modules = [CanopyOptics],
-            pages = pages)
+            pages = pages,
+            warnonly = [:missing_docs, :cross_references])
 end
 build()
 
