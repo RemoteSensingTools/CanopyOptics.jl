@@ -27,7 +27,8 @@ Build the leaf scattering model. The single-scattering albedo is
 so downstream layer solvers can apply `ϖ` explicitly.
 
 ````@example bilambertian
-leaf = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2, nQuad = 64)
+leaf = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2)
+quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 64)
 ````
 
 ## Closed-form Fourier stack
@@ -38,7 +39,7 @@ common `0:m_max` range.
 
 ````@example bilambertian
 m_max = 8
-Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:m_max)
+Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:m_max; quadrature)
 size(Z⁺⁺)
 ````
 
@@ -54,16 +55,14 @@ extrema(column_flux)
 Single-moment calls slice the same analytic closure.
 
 ````@example bilambertian
-Z⁺⁺₂, Z⁻⁺₂ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 2)
+Z⁺⁺₂, Z⁻⁺₂ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 2; quadrature)
 maximum(abs.(Z⁺⁺₂ .- Z⁺⁺[:, :, 3]))
 ````
 
-The older `compute_Z_matrices` function is the azimuthally averaged `m = 0`
-Shultis-Myneni assembly. It is retained for compatibility and should match
-the analytic stack's first moment.
+A single `m = 0` call slices the same analytic stack.
 
 ````@example bilambertian
-Z⁺⁺₀, Z⁻⁺₀ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0)
+Z⁺⁺₀, Z⁻⁺₀ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0; quadrature)
 maximum(abs.(Z⁻⁺₀ .- Z⁻⁺[:, :, 1]))
 ````
 
@@ -76,7 +75,7 @@ normalized interval.
 ````@example bilambertian
 erectophile = CanopyOptics.LeafDistribution(Beta(5, 2), 2 / π)
 Z_erect⁺⁺, Z_erect⁻⁺ =
-    CanopyOptics.compute_Z_matrices(leaf, μ, erectophile, 0:m_max)
+    CanopyOptics.compute_Z_matrices(leaf, μ, erectophile, 0:m_max; quadrature)
 
 maximum(abs.(Z_erect⁻⁺[:, :, 1] .- Z⁻⁺[:, :, 1]))
 ````
@@ -89,7 +88,7 @@ of beta leaf-angle distributions and updates the `m = 0` reflection matrix.
 ````@example bilambertian
 function reflection_matrix_for_beta(a, b)
     LD = CanopyOptics.LeafDistribution(Beta(a, b), 2 / π)
-    _, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:0)
+    _, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:0; quadrature)
     return Z⁻⁺[:, :, 1]
 end
 

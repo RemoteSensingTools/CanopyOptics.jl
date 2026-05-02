@@ -153,10 +153,15 @@ function compute_lambertian_Γ(μ::Array{FT,1},μꜛ::Array{FT,1}, r,t, LD::Abst
     return Γ
 end
 
+function _resolve_quadrature(quadrature::CanopyQuadrature, nQuad)
+    nQuad === nothing && return quadrature
+    return CanopyQuadrature(nQuad, nQuad)
+end
+
 """
     compute_Z_matrices(mod::BiLambertianCanopyScattering,
                        μ::AbstractVector, LD::AbstractLeafDistribution,
-                       m::Integer) -> (Z⁺⁺, Z⁻⁺)
+                       m::Integer; quadrature = CanopyQuadrature()) -> (Z⁺⁺, Z⁻⁺)
 
 Compute one cosine Fourier moment of the bi-Lambertian canopy scattering
 matrices.  Rows are outgoing streams and columns are incoming streams:
@@ -169,8 +174,12 @@ a range such as `0:m_max`.
 function compute_Z_matrices(mod::BiLambertianCanopyScattering,
                             μ::AbstractVector{FT},
                             LD::AbstractLeafDistribution,
-                            m::Integer) where FT
-    Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, Int(m))
+                            m::Integer;
+                            quadrature::CanopyQuadrature = CanopyQuadrature(),
+                            nQuad = nothing) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, Int(m);
+                                                 quadrature = q)
     return Z⁺⁺[:, :, m + 1], Z⁻⁺[:, :, m + 1]
 end
 
@@ -215,14 +224,19 @@ where `Γ⁻` integrates the negative (reflection) part and `Γ⁺` the positive
 Used by [`compute_Z_matrices_aniso`](@ref) to build Fourier-decomposed Z matrices.
 See [`compute_lambertian_Γ`](@ref) for the azimuthally-averaged (m=0 only) equivalent.
 """
-function compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD::AbstractLeafDistribution) where FT
-    (;R,T, nQuad) = mod
-    #nQuad = 80
+function compute_Γ(mod::BiLambertianCanopyScattering,
+                   Ωⁱⁿ::dirVector_μ{FT},
+                   Ωᵒᵘᵗ::dirVector_μ{FT},
+                   LD::AbstractLeafDistribution;
+                   quadrature::CanopyQuadrature = CanopyQuadrature()) where FT
+    (;R,T) = mod
+    n_leaf = quadrature.n_leaf
+    n_azimuth = quadrature.n_azimuth
     #μ_l, w = gauleg(nQuad,0.0,1.0);
-    θₗ, w = gauleg(nQuad,FT(0),FT(π/2));
+    θₗ, w = gauleg(n_leaf,FT(0),FT(π/2));
     μ_l = cos.(θₗ)
     # Quadrature points in the azimuth (this has to go over 2π):
-    ϕ, w_azi = gauleg(nQuad+1,FT(0),FT(2π));
+    ϕ, w_azi = gauleg(n_azimuth,FT(0),FT(2π));
     
     Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling  
     
@@ -275,7 +289,8 @@ end
 
 """
     compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1},
-                       LD::AbstractLeafDistribution, m::Int) where FT
+                       LD::AbstractLeafDistribution, m::Int;
+                       quadrature = CanopyQuadrature()) where FT
 
 Computes the Fourier-`m` component of the single-scattering phase matrices
 `(𝐙⁺⁺, 𝐙⁻⁺)` for a specular leaf surface by integrating
@@ -284,11 +299,17 @@ Computes the Fourier-`m` component of the single-scattering phase matrices
 - `𝐙⁺⁺[i,j]`: same-hemisphere scattering (μ>0 → μ>0, forward scatter)
 - `𝐙⁻⁺[i,j]`: opposite-hemisphere scattering (μ>0 → μ<0, backscatter)
 
-Azimuth integration uses `nQuad` Gauss-Legendre points over `[0, 2π]` from `mod`;
+Azimuth integration uses `quadrature.n_azimuth` Gauss-Legendre points over `[0, 2π]`;
 Fourier weights are `cos(m ϕ)`.
 """
-function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
-    (;nᵣ, κ, nQuad) = mod
+function compute_Z_matrices(mod::SpecularCanopyScattering,
+                            μ::Array{FT,1},
+                            LD::AbstractLeafDistribution,
+                            m::Int;
+                            quadrature::CanopyQuadrature = CanopyQuadrature(),
+                            nQuad = nothing) where FT
+    (;nᵣ, κ) = mod
+    q = _resolve_quadrature(quadrature, nQuad)
     ZFT = promote_type(FT, typeof(nᵣ), typeof(κ))
     # Transmission (same direction)
     𝐙⁺⁺ = zeros(ZFT, length(μ), length(μ))
@@ -296,7 +317,7 @@ function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::
     𝐙⁻⁺ = zeros(ZFT, length(μ), length(μ))
     
     # Quadrature points in the azimuth:
-    ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
+    ϕ, w_azi = gauleg(q.n_azimuth,FT(0),FT(2π));
     # Fourier weights (cosine decomposition)
     f_weights = cos.(m*ϕ)
     
@@ -321,8 +342,11 @@ end
 function compute_Z_matrices(mod::SpecularCanopyScattering,
                             μ::AbstractVector{FT},
                             LD::AbstractLeafDistribution,
-                            m::Integer) where FT
-    return compute_Z_matrices(mod, Array(μ), LD, Int(m))
+                            m::Integer;
+                            quadrature::CanopyQuadrature = CanopyQuadrature(),
+                            nQuad = nothing) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    return compute_Z_matrices(mod, Array(μ), LD, Int(m); quadrature = q)
 end
 
 function _check_m_range(m_range::AbstractUnitRange{<:Integer})
@@ -332,9 +356,11 @@ function _check_m_range(m_range::AbstractUnitRange{<:Integer})
 end
 
 function _stack_Z_moments(compute_component_Z, mod, μ, LD,
-                          m_range::AbstractUnitRange{<:Integer})
+                          m_range::AbstractUnitRange{<:Integer};
+                          quadrature::CanopyQuadrature = CanopyQuadrature())
     _check_m_range(m_range)
-    Z⁺⁺₀, Z⁻⁺₀ = compute_component_Z(mod, μ, LD, first(m_range))
+    Z⁺⁺₀, Z⁻⁺₀ = compute_component_Z(mod, μ, LD, first(m_range);
+                                      quadrature = quadrature)
     nμ_out, nμ_in = size(Z⁺⁺₀)
     nm = length(m_range)
     Z⁺⁺ = similar(Z⁺⁺₀, nμ_out, nμ_in, nm)
@@ -344,7 +370,8 @@ function _stack_Z_moments(compute_component_Z, mod, μ, LD,
 
     k = 2
     for m in Iterators.drop(m_range, 1)
-        Z⁺⁺ₘ, Z⁻⁺ₘ = compute_component_Z(mod, μ, LD, m)
+        Z⁺⁺ₘ, Z⁻⁺ₘ = compute_component_Z(mod, μ, LD, m;
+                                          quadrature = quadrature)
         Z⁺⁺[:, :, k] .= Z⁺⁺ₘ
         Z⁻⁺[:, :, k] .= Z⁻⁺ₘ
         k += 1
@@ -355,51 +382,76 @@ end
 function compute_Z_matrices(mod::BiLambertianCanopyScattering,
                             μ::AbstractVector{FT},
                             LD::AbstractLeafDistribution,
-                            m_range::AbstractUnitRange{<:Integer}) where FT
+                            m_range::AbstractUnitRange{<:Integer};
+                            quadrature::CanopyQuadrature = CanopyQuadrature(),
+                            nQuad = nothing) where FT
     _check_m_range(m_range)
-    Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, last(m_range))
+    q = _resolve_quadrature(quadrature, nQuad)
+    Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, last(m_range);
+                                                 quadrature = q)
     return Z⁺⁺[:, :, m_range .+ 1], Z⁻⁺[:, :, m_range .+ 1]
 end
 
 function compute_Z_matrices(mod::SpecularCanopyScattering,
                             μ::AbstractVector{FT},
                             LD::AbstractLeafDistribution,
-                            m_range::AbstractUnitRange{<:Integer}) where FT
-    return _stack_Z_moments(compute_Z_matrices, mod, μ, LD, m_range)
+                            m_range::AbstractUnitRange{<:Integer};
+                            quadrature::CanopyQuadrature = CanopyQuadrature(),
+                            nQuad = nothing) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    return _stack_Z_moments(compute_Z_matrices, mod, μ, LD, m_range;
+                            quadrature = q)
 end
 
-function _sum_component_Z(compute_component_Z, components::Tuple, μ, LD, m::Int)
-    Z⁺⁺, Z⁻⁺ = compute_component_Z(components[1], μ, LD, m)
+function _sum_component_Z(compute_component_Z, components::Tuple, μ, LD, m::Int;
+                          quadrature::CanopyQuadrature = CanopyQuadrature())
+    Z⁺⁺, Z⁻⁺ = compute_component_Z(components[1], μ, LD, m;
+                                    quadrature = quadrature)
     Z⁺⁺_sum = copy(Z⁺⁺)
     Z⁻⁺_sum = copy(Z⁻⁺)
 
     for i in 2:length(components)
-        Z⁺⁺ᵢ, Z⁻⁺ᵢ = compute_component_Z(components[i], μ, LD, m)
+        Z⁺⁺ᵢ, Z⁻⁺ᵢ = compute_component_Z(components[i], μ, LD, m;
+                                          quadrature = quadrature)
         Z⁺⁺_sum = Z⁺⁺_sum .+ Z⁺⁺ᵢ
         Z⁻⁺_sum = Z⁻⁺_sum .+ Z⁻⁺ᵢ
     end
     return Z⁺⁺_sum, Z⁻⁺_sum
 end
 
-function compute_Z_matrices(mod::CompositeCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
-    return _sum_component_Z(compute_Z_matrices, mod.components, μ, LD, m)
+function compute_Z_matrices(mod::CompositeCanopyScattering,
+                            μ::Array{FT,1},
+                            LD::AbstractLeafDistribution,
+                            m::Int;
+                            quadrature::CanopyQuadrature = CanopyQuadrature(),
+                            nQuad = nothing) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    return _sum_component_Z(compute_Z_matrices, mod.components, μ, LD, m;
+                            quadrature = q)
 end
 
 function compute_Z_matrices(mod::CompositeCanopyScattering,
                             μ::AbstractVector{FT},
                             LD::AbstractLeafDistribution,
-                            m::Integer) where FT
-    return _sum_component_Z(compute_Z_matrices, mod.components, μ, LD, Int(m))
+                            m::Integer;
+                            quadrature::CanopyQuadrature = CanopyQuadrature(),
+                            nQuad = nothing) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    return _sum_component_Z(compute_Z_matrices, mod.components, μ, LD, Int(m);
+                            quadrature = q)
 end
 
 function _sum_component_Z_stack(components::Tuple, μ, LD,
-                                m_range::AbstractUnitRange{<:Integer})
-    Z⁺⁺, Z⁻⁺ = compute_Z_matrices(components[1], μ, LD, m_range)
+                                m_range::AbstractUnitRange{<:Integer};
+                                quadrature::CanopyQuadrature = CanopyQuadrature())
+    Z⁺⁺, Z⁻⁺ = compute_Z_matrices(components[1], μ, LD, m_range;
+                                  quadrature = quadrature)
     Z⁺⁺_sum = copy(Z⁺⁺)
     Z⁻⁺_sum = copy(Z⁻⁺)
 
     for i in 2:length(components)
-        Z⁺⁺ᵢ, Z⁻⁺ᵢ = compute_Z_matrices(components[i], μ, LD, m_range)
+        Z⁺⁺ᵢ, Z⁻⁺ᵢ = compute_Z_matrices(components[i], μ, LD, m_range;
+                                          quadrature = quadrature)
         Z⁺⁺_sum = Z⁺⁺_sum .+ Z⁺⁺ᵢ
         Z⁻⁺_sum = Z⁻⁺_sum .+ Z⁻⁺ᵢ
     end
@@ -409,21 +461,44 @@ end
 function compute_Z_matrices(mod::CompositeCanopyScattering,
                             μ::AbstractVector{FT},
                             LD::AbstractLeafDistribution,
-                            m_range::AbstractUnitRange{<:Integer}) where FT
+                            m_range::AbstractUnitRange{<:Integer};
+                            quadrature::CanopyQuadrature = CanopyQuadrature(),
+                            nQuad = nothing) where FT
     _check_m_range(m_range)
-    return _sum_component_Z_stack(mod.components, μ, LD, m_range)
+    q = _resolve_quadrature(quadrature, nQuad)
+    return _sum_component_Z_stack(mod.components, μ, LD, m_range;
+                                  quadrature = q)
 end
 
-function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
-    return compute_Z_matrices(mod, μ, LD, m)
+function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,
+                                  μ::AbstractArray{FT,1},
+                                  LD::AbstractLeafDistribution,
+                                  m::Int;
+                                  quadrature::CanopyQuadrature = CanopyQuadrature(),
+                                  nQuad = nothing) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    return compute_Z_matrices(mod, μ, LD, m; quadrature = q)
 end
 
-function compute_Z_matrices_aniso(mod::SpecularCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
-    return compute_Z_matrices(mod, Array(μ), LD, m)
+function compute_Z_matrices_aniso(mod::SpecularCanopyScattering,
+                                  μ::AbstractArray{FT,1},
+                                  LD::AbstractLeafDistribution,
+                                  m::Int;
+                                  quadrature::CanopyQuadrature = CanopyQuadrature(),
+                                  nQuad = nothing) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    return compute_Z_matrices(mod, Array(μ), LD, m; quadrature = q)
 end
 
-function compute_Z_matrices_aniso(mod::CompositeCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
-    return _sum_component_Z(compute_Z_matrices_aniso, mod.components, μ, LD, m)
+function compute_Z_matrices_aniso(mod::CompositeCanopyScattering,
+                                  μ::AbstractArray{FT,1},
+                                  LD::AbstractLeafDistribution,
+                                  m::Int;
+                                  quadrature::CanopyQuadrature = CanopyQuadrature(),
+                                  nQuad = nothing) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    return _sum_component_Z(compute_Z_matrices_aniso, mod.components, μ, LD, m;
+                            quadrature = q)
 end
 
 @inline function _psi_same(Pᵢ::FT, Nᵢ::FT, Pₒ::FT, Nₒ::FT) where {FT}
@@ -577,7 +652,8 @@ end
     compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
                                       μ::AbstractVector{FT},
                                       LD::AbstractLeafDistribution,
-                                      m_max::Int) -> (Z⁺⁺, Z⁻⁺)
+                                      m_max::Int;
+                                      quadrature = CanopyQuadrature()) -> (Z⁺⁺, Z⁻⁺)
 
 Compute all scalar Fourier moments `m = 0:m_max` of the bi-Lambertian
 canopy phase matrices without azimuthal quadrature.
@@ -622,10 +698,13 @@ vSmartMOM's elemental kernels, where `ϖ` is applied outside `Z`.
 function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
                                            μ::AbstractVector{FT},
                                            LD::AbstractLeafDistribution,
-                                           m_max::Int) where {FT<:Real}
+                                           m_max::Int;
+                                           quadrature::CanopyQuadrature = CanopyQuadrature(),
+                                           nQuad = nothing) where {FT<:Real}
     m_max < 0 && throw(ArgumentError("m_max must be non-negative"))
 
-    (; R, T, nQuad) = mod
+    (; R, T) = mod
+    q = _resolve_quadrature(quadrature, nQuad)
     ZFT = promote_type(FT, typeof(R), typeof(T))
     R_leaf = ZFT(R)
     T_leaf = ZFT(T)
@@ -637,7 +716,7 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
     Z⁻⁺ = zeros(ZFT, nμ, nμ, nm)
     ϖ <= zero(ZFT) && return Z⁺⁺, Z⁻⁺
 
-    leaf_quad = _leaf_inclination_quadrature(LD, nQuad, FT)
+    leaf_quad = _leaf_inclination_quadrature(LD, q.n_leaf, FT)
     θₗ = leaf_quad.θ
     w_measure = leaf_quad.w_measure
     G = vec(CanopyOptics.G(Array(μ), LD))
@@ -689,8 +768,11 @@ end
 function compute_Z_matrices_aniso_analytic(mod::CompositeCanopyScattering,
                                            μ::AbstractVector{FT},
                                            LD::AbstractLeafDistribution,
-                                           m_max::Int) where {FT<:Real}
-    return compute_Z_matrices(mod, μ, LD, 0:m_max)
+                                           m_max::Int;
+                                           quadrature::CanopyQuadrature = CanopyQuadrature(),
+                                           nQuad = nothing) where {FT<:Real}
+    q = _resolve_quadrature(quadrature, nQuad)
+    return compute_Z_matrices(mod, μ, LD, 0:m_max; quadrature = q)
 end
 
 """
@@ -707,7 +789,7 @@ where `β = arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ)` is the scattering angle and `ω = 
 Used for validation against the general anisotropic [`compute_Γ`](@ref).
 """
 function compute_Γ_isotropic(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
-    (;R,T, nQuad) = mod
+    (;R,T) = mod
     β = acos( Ωᵒᵘᵗ ⋅ Ωⁱⁿ)
     ω = R + T
     
@@ -716,24 +798,34 @@ function compute_Γ_isotropic(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVe
     return Γ
 end
 
-function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,μ::AbstractArray{FT,1},LD::AbstractLeafDistribution, Zup, Zdown, m::Int) where FT
+function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,
+                                  μ::AbstractArray{FT,1},
+                                  LD::AbstractLeafDistribution,
+                                  Zup, Zdown, m::Int;
+                                  quadrature::CanopyQuadrature = CanopyQuadrature(),
+                                  nQuad = nothing) where FT
     # Zup/Zdown are retained only for API compatibility with callers that
     # previously used the brute-force precomputed-azimuth path.
-    return compute_Z_matrices_aniso(mod, μ, LD, m)
+    q = _resolve_quadrature(quadrature, nQuad)
+    return compute_Z_matrices_aniso(mod, μ, LD, m; quadrature = q)
 end
 
 
-function precompute_Zazi(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution) where FT
-    (;R,T, nQuad) = mod
-    nQuad = nQuad
+function precompute_Zazi(mod::BiLambertianCanopyScattering,
+                         μ::AbstractArray{FT,1},
+                         LD::AbstractLeafDistribution;
+                         quadrature::CanopyQuadrature = CanopyQuadrature(),
+                         nQuad = nothing) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    n_azimuth = q.n_azimuth
     # Quadrature points in the azimuth:
-    ϕ, w_azi = gauleg(nQuad,FT(0),FT(π));
+    ϕ, w_azi = gauleg(n_azimuth,FT(0),FT(π));
     # Fourier weights (cosine decomposition)
     
     # Transmission (same direction)
-    Zup = zeros(length(μ),length(μ), nQuad)
+    Zup = zeros(length(μ),length(μ), n_azimuth)
     # Reflection (change direction)
-    Zdown = zeros(length(μ),length(μ), nQuad)
+    Zdown = zeros(length(μ),length(μ), n_azimuth)
     
     # Create outgoing vectors in θ and ϕ
     dirOutꜛ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
@@ -743,39 +835,48 @@ function precompute_Zazi(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT
         # Incoming beam at ϕ = 0
         Ωⁱⁿ = dirVector_μ(μ[i], FT(0));
         # Compute over μ and μ_azi:
-        Zup[i,:,:]   = compute_Γ.((mod,),(Ωⁱⁿ,),dirOutꜛ, (LD,));
-        Zdown[i,:,:] = compute_Γ.((mod,),(Ωⁱⁿ,),dirOutꜜ, (LD,));
+        Zup[i,:,:]   = [compute_Γ(mod, Ωⁱⁿ, dirOutꜛ[j, k], LD; quadrature = q)
+                        for j in axes(dirOutꜛ, 1), k in axes(dirOutꜛ, 2)]
+        Zdown[i,:,:] = [compute_Γ(mod, Ωⁱⁿ, dirOutꜜ[j, k], LD; quadrature = q)
+                        for j in axes(dirOutꜜ, 1), k in axes(dirOutꜜ, 2)]
         #Zup[:,:,i]   = compute_Γ_isotropic.((mod,),(Ωⁱⁿ,),dirOutꜛ);
         #Zdown[:,:,i] = compute_Γ_isotropic.((mod,),(Ωⁱⁿ,),dirOutꜜ);
     end
     return Zup, Zdown
 end
 
-function precompute_Zazi_(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution) where FT
-    (;R,T, nQuad) = mod
+function precompute_Zazi_(mod::BiLambertianCanopyScattering,
+                          μ::AbstractArray{FT,1},
+                          LD::AbstractLeafDistribution;
+                          quadrature::CanopyQuadrature = CanopyQuadrature(),
+                          nQuad = nothing) where FT
+    (;R,T) = mod
+    q = _resolve_quadrature(quadrature, nQuad)
+    n_leaf = q.n_leaf
+    n_azimuth = q.n_azimuth
     # Quadrature points in μ
     n_μ  = length(μ);
     arr_type = typeof(μ);
 
     #μ,w         = CanopyOptics.gauleg(n_μ,   FT(0),  FT(1.0));
-    dϕ,  w_azi  = CanopyOptics.gauleg(nQuad, FT(0),  FT(π));
-    dϕᴸ, w_aziᴸ = CanopyOptics.gauleg(nQuad+1, FT(0),  FT(2π));
-    θᴸ,wᴸ       = CanopyOptics.gauleg(nQuad, FT(0),FT(π/2));
+    dϕ,  w_azi  = CanopyOptics.gauleg(n_azimuth, FT(0),  FT(π));
+    dϕᴸ, w_aziᴸ = CanopyOptics.gauleg(n_azimuth+1, FT(0),  FT(2π));
+    θᴸ,wᴸ       = CanopyOptics.gauleg(n_leaf, FT(0),FT(π/2));
     
     μᴸ = cos.(θᴸ)
     Fᵢ = pdf.(LD.LD,2θᴸ/π) * LD.scaling
     # Reshape stuff:
     μⁱⁿ   = reshape(arr_type(μ),  n_μ,  1,     1,     1,     1   );
     μᵒᵘᵗ  = reshape(arr_type(deepcopy(μ)), 1,   n_μ,    1,     1,     1   );
-    _dϕ   = reshape(arr_type(dϕ), 1,    1,   nQuad,   1,     1   );
-    _μᴸ   = reshape(arr_type(μᴸ), 1,    1,     1,   nQuad,   1   );
-    _dϕᴸ  = reshape(arr_type(dϕᴸ),1,    1,     1,     1,   nQuad+1 );
+    _dϕ   = reshape(arr_type(dϕ), 1,    1,   n_azimuth,   1,     1   );
+    _μᴸ   = reshape(arr_type(μᴸ), 1,    1,     1,   n_leaf,   1   );
+    _dϕᴸ  = reshape(arr_type(dϕᴸ),1,    1,     1,     1,   n_azimuth+1 );
 
     # Quadrature points
     wᴸ  = wᴸ .*  Fᵢ
-    #_w_azi  = reshape(arr_type(w_azi),  1,  1,   nQuad,   1,     1   );
-    _wᴸ     = reshape(arr_type(wᴸ),     1,  1,    1,    nQuad,   1   );
-    _w_aziᴸ = reshape(arr_type(w_aziᴸ), 1,  1,    1,      1,    nQuad+1);
+    #_w_azi  = reshape(arr_type(w_azi),  1,  1,   n_azimuth,   1,     1   );
+    _wᴸ     = reshape(arr_type(wᴸ),     1,  1,    1,    n_leaf,   1   );
+    _w_aziᴸ = reshape(arr_type(w_aziᴸ), 1,  1,    1,      1,    n_azimuth+1);
 
     integrand  =  CanopyOptics.leaf_dot_products.(μⁱⁿ, -μᵒᵘᵗ, _dϕ,_μᴸ, _dϕᴸ);
     iPos       = (integrand+abs.(integrand))./2;
@@ -784,7 +885,7 @@ function precompute_Zazi_(mod::BiLambertianCanopyScattering, μ::AbstractArray{F
     Γ⁺         =  1/2π * sum(sum(iPos.*_w_aziᴸ, dims=5).*_wᴸ,dims=4);
 
     Γ = R .* Γ⁻ .+ T .* Γ⁺; 
-    Γup = reshape(Γ, n_μ,n_μ, nQuad);
+    Γup = reshape(Γ, n_μ,n_μ, n_azimuth);
     
     integrand  =  CanopyOptics.leaf_dot_products.(μⁱⁿ, μᵒᵘᵗ, _dϕ,_μᴸ, _dϕᴸ);
     iPos       = (integrand+abs.(integrand))./2;
@@ -793,7 +894,7 @@ function precompute_Zazi_(mod::BiLambertianCanopyScattering, μ::AbstractArray{F
     Γ⁺         =  1/2π * sum(sum(iPos.*_w_aziᴸ, dims=5).*_wᴸ,dims=4);
     
     Γ = R .* Γ⁻ .+ T .* Γ⁺; 
-    Γdown = reshape(Γ, n_μ,n_μ, nQuad);
+    Γdown = reshape(Γ, n_μ,n_μ, n_azimuth);
     return Γup,Γdown
 end
 

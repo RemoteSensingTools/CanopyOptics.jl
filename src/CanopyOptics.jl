@@ -71,7 +71,7 @@ include("utils/dielectric.jl")
 
 export prospect
 export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties, dirVector, dirVector_μ
-export AbstractCanopyScatteringType, BiLambertianCanopyScattering,
+export AbstractCanopyScatteringType, CanopyQuadrature, BiLambertianCanopyScattering,
        CompositeCanopyScattering, SpecularCanopyScattering
 export PureIce, LiquidPureWater, LiquidSaltWater
 export LeafProspectProProperties, LeafOpticalProperties, dielectric

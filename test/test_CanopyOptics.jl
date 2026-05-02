@@ -57,6 +57,20 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test_throws ArgumentError CanopyOptics.compute_Z_matrices(mod, μ, LD, 2:1)
     end
 
+    @testset "Canopy quadrature controls" begin
+        quad = CanopyOptics.CanopyQuadrature(n_leaf = 32, n_azimuth = 12)
+        @test quad.n_leaf == 32
+        @test quad.n_azimuth == 12
+        @test CanopyOptics.CanopyQuadrature(nQuad = 7) == CanopyOptics.CanopyQuadrature(7, 7)
+        @test_throws ArgumentError CanopyOptics.CanopyQuadrature(n_leaf = 0)
+        @test_throws ArgumentError CanopyOptics.CanopyQuadrature(n_azimuth = 0)
+
+        diffuse = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2, nQuad = 32)
+        specular = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2, nQuad = 12)
+        @test !hasproperty(diffuse, :nQuad)
+        @test !hasproperty(specular, :nQuad)
+    end
+
     @testset "Specular compute_reflection symmetry" begin
         mod = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2)
         LD = CanopyOptics.spherical_leaves()
@@ -72,31 +86,34 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
     @testset "Composite canopy scattering" begin
         μ, w = CanopyOptics.gauleg(5, 0.0, 1.0)
         LD = CanopyOptics.planophile_leaves2()
-        diffuse = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2, nQuad = 32)
-        specular = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2, nQuad = 12)
+        diffuse = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2)
+        specular = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2)
+        quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 32, n_azimuth = 12)
         composite = diffuse + specular
 
         @test composite isa CanopyOptics.CompositeCanopyScattering
         @test composite.components == (diffuse, specular)
         @test (diffuse + (specular + diffuse)).components == (diffuse, specular, diffuse)
 
-        Zpp, Zmp = CanopyOptics.compute_Z_matrices(composite, μ, LD, 0)
-        Zpp_d, Zmp_d = CanopyOptics.compute_Z_matrices(diffuse, μ, LD, 0)
-        Zpp_s, Zmp_s = CanopyOptics.compute_Z_matrices(specular, μ, LD, 0)
+        Zpp, Zmp = CanopyOptics.compute_Z_matrices(composite, μ, LD, 0; quadrature)
+        Zpp_d, Zmp_d = CanopyOptics.compute_Z_matrices(diffuse, μ, LD, 0; quadrature)
+        Zpp_s, Zmp_s = CanopyOptics.compute_Z_matrices(specular, μ, LD, 0; quadrature)
         @test Zpp ≈ Zpp_d .+ Zpp_s
         @test Zmp ≈ Zmp_d .+ Zmp_s
 
-        Zpp_a, Zmp_a = CanopyOptics.compute_Z_matrices_aniso(composite, μ, LD, 2)
-        Zpp_ad, Zmp_ad = CanopyOptics.compute_Z_matrices_aniso(diffuse, μ, LD, 2)
-        Zpp_as, Zmp_as = CanopyOptics.compute_Z_matrices_aniso(specular, μ, LD, 2)
+        Zpp_a, Zmp_a = CanopyOptics.compute_Z_matrices_aniso(composite, μ, LD, 2; quadrature)
+        Zpp_ad, Zmp_ad = CanopyOptics.compute_Z_matrices_aniso(diffuse, μ, LD, 2; quadrature)
+        Zpp_as, Zmp_as = CanopyOptics.compute_Z_matrices_aniso(specular, μ, LD, 2; quadrature)
         @test Zpp_a ≈ Zpp_ad .+ Zpp_as
         @test Zmp_a ≈ Zmp_ad .+ Zmp_as
 
-        Zpp_stack, Zmp_stack = CanopyOptics.compute_Z_matrices_aniso_analytic(composite, μ, LD, 3)
+        Zpp_stack, Zmp_stack = CanopyOptics.compute_Z_matrices_aniso_analytic(
+            composite, μ, LD, 3; quadrature)
         @test Zpp_stack[:, :, 3] ≈ Zpp_a
         @test Zmp_stack[:, :, 3] ≈ Zmp_a
 
-        Zpp_public_stack, Zmp_public_stack = CanopyOptics.compute_Z_matrices(composite, μ, LD, 0:3)
+        Zpp_public_stack, Zmp_public_stack = CanopyOptics.compute_Z_matrices(
+            composite, μ, LD, 0:3; quadrature)
         @test Zpp_public_stack == Zpp_stack
         @test Zmp_public_stack == Zmp_stack
     end
@@ -106,16 +123,18 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         LD = CanopyOptics.spherical_leaves()
 
         diffuse_sum(x) = begin
-            mod = CanopyOptics.BiLambertianCanopyScattering(R = x[1], T = x[2], nQuad = 12)
-            Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(mod, μ, LD, 0:2)
+            mod = CanopyOptics.BiLambertianCanopyScattering(R = x[1], T = x[2])
+            Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(
+                mod, μ, LD, 0:2; quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 12))
             sum(Z⁺⁺) + sum(Z⁻⁺)
         end
         diffuse_grad = ForwardDiff.gradient(diffuse_sum, [0.4, 0.2])
         @test all(isfinite, diffuse_grad)
 
         specular_sum(x) = begin
-            mod = CanopyOptics.SpecularCanopyScattering(nᵣ = x[1], κ = x[2], nQuad = 8)
-            Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(mod, μ, LD, 0:1)
+            mod = CanopyOptics.SpecularCanopyScattering(nᵣ = x[1], κ = x[2])
+            Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(
+                mod, μ, LD, 0:1; quadrature = CanopyOptics.CanopyQuadrature(n_azimuth = 8))
             sum(Z⁺⁺) + sum(Z⁻⁺)
         end
         specular_grad = ForwardDiff.gradient(specular_sum, [1.5, 0.2])
@@ -164,9 +183,12 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
 
         @testset "m=0 matches Shultis-Myneni Eq. 45 assembly" begin
             for LD in LADs, (R, T) in RTs
-                mod = CanopyOptics.BiLambertianCanopyScattering(R = R, T = T, nQuad = 64)
-                Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(mod, μ, LD, 0)
-                Zpp_ref, Zmp_ref = CanopyOptics.compute_Z_matrices(mod, μ, LD, 0)
+                mod = CanopyOptics.BiLambertianCanopyScattering(R = R, T = T)
+                quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 64)
+                Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(
+                    mod, μ, LD, 0; quadrature)
+                Zpp_ref, Zmp_ref = CanopyOptics.compute_Z_matrices(
+                    mod, μ, LD, 0; quadrature)
 
                 @test _relerr(Zpp[:, :, 1], Zpp_ref) ≤ 1e-12
                 @test _relerr(Zmp[:, :, 1], Zmp_ref) ≤ 1e-12
@@ -176,19 +198,22 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @testset "legacy aniso signatures delegate to analytic closure" begin
             μb, _ = CanopyOptics.gauleg(4, 0.0, 1.0)
             for LD in LADs, (R, T) in RTs
-                mod = CanopyOptics.BiLambertianCanopyScattering(R = R, T = T, nQuad = 64)
-                Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(mod, μb, LD, 4)
-                Zpp_public, Zmp_public = CanopyOptics.compute_Z_matrices(mod, μb, LD, 0:4)
+                mod = CanopyOptics.BiLambertianCanopyScattering(R = R, T = T)
+                quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 64)
+                Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(
+                    mod, μb, LD, 4; quadrature)
+                Zpp_public, Zmp_public = CanopyOptics.compute_Z_matrices(
+                    mod, μb, LD, 0:4; quadrature)
                 @test Zpp_public == Zpp
                 @test Zmp_public == Zmp
 
                 for m in 0:4
                     Zpp_single, Zmp_single = CanopyOptics.compute_Z_matrices(
-                        mod, μb, LD, m)
+                        mod, μb, LD, m; quadrature)
                     Zpp_aniso, Zmp_aniso = CanopyOptics.compute_Z_matrices_aniso(
-                        mod, μb, LD, m)
+                        mod, μb, LD, m; quadrature)
                     Zpp_compat, Zmp_compat = CanopyOptics.compute_Z_matrices_aniso(
-                        mod, μb, LD, nothing, nothing, m)
+                        mod, μb, LD, nothing, nothing, m; quadrature)
 
                     @test Zpp[:, :, m + 1] == Zpp_single == Zpp_aniso == Zpp_compat
                     @test Zmp[:, :, m + 1] == Zmp_single == Zmp_aniso == Zmp_compat
@@ -197,16 +222,19 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         end
 
         @testset "vSmartMOM normalization and reciprocity" begin
-            mod = CanopyOptics.BiLambertianCanopyScattering(R = 0.5, T = 0.5, nQuad = 64)
+            mod = CanopyOptics.BiLambertianCanopyScattering(R = 0.5, T = 0.5)
             LD = CanopyOptics.spherical_leaves()
-            Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(mod, μ, LD, 32)
+            quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 64)
+            Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(
+                mod, μ, LD, 32; quadrature)
 
             flux = vec(sum(w .* (Zpp[:, :, 1] .+ Zmp[:, :, 1]), dims = 1))
             @test all(abs.(flux .- 2) .≤ 2e-3)
 
             for LD in LADs
-                mod = CanopyOptics.BiLambertianCanopyScattering(R = 0.45, T = 0.05, nQuad = 64)
-                Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(mod, μ, LD, 32)
+                mod = CanopyOptics.BiLambertianCanopyScattering(R = 0.45, T = 0.05)
+                Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(
+                    mod, μ, LD, 32; quadrature)
                 G = vec(CanopyOptics.G(Array(μ), LD))
 
                 for m in 0:32
@@ -219,9 +247,10 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         end
 
         @testset "high-order smoke" begin
-            mod = CanopyOptics.BiLambertianCanopyScattering(R = 0.45, T = 0.05, nQuad = 48)
+            mod = CanopyOptics.BiLambertianCanopyScattering(R = 0.45, T = 0.05)
             Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(
-                mod, μ, CanopyOptics.spherical_leaves(), 64)
+                mod, μ, CanopyOptics.spherical_leaves(), 64;
+                quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 48))
 
             @test all(isfinite, Zpp)
             @test all(isfinite, Zmp)
@@ -232,9 +261,10 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         end
 
         @testset "fully absorbing leaf limit" begin
-            mod = CanopyOptics.BiLambertianCanopyScattering(R = 0.0, T = 0.0, nQuad = 16)
+            mod = CanopyOptics.BiLambertianCanopyScattering(R = 0.0, T = 0.0)
             Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(
-                mod, μ, CanopyOptics.spherical_leaves(), 4)
+                mod, μ, CanopyOptics.spherical_leaves(), 4;
+                quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 16))
 
             @test all(iszero, Zpp)
             @test all(iszero, Zmp)

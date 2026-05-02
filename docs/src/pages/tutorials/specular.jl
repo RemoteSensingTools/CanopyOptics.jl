@@ -8,7 +8,8 @@ using CairoMakie
 using Distributions
 using Base64
 
-specular = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2, nQuad = 48)
+specular = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2)
+quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 64, n_azimuth = 48)
 LD = CanopyOptics.planophile_leaves2()
 
 # Compute a directional reflection value for one incoming and one outgoing
@@ -23,12 +24,12 @@ CanopyOptics.compute_reflection(specular, incoming, outgoing, LD)
 # azimuth quadrature and should be treated as a separate component until a
 # mixed diffuse/specular leaf model is introduced.
 μ, w = CanopyOptics.gauleg(8, 0.0, 1.0)
-Z⁺⁺₀, Z⁻⁺₀ = CanopyOptics.compute_Z_matrices(specular, μ, LD, 0)
+Z⁺⁺₀, Z⁻⁺₀ = CanopyOptics.compute_Z_matrices(specular, μ, LD, 0; quadrature)
 size(Z⁻⁺₀)
 
 # Higher moments are available, but sharp specular lobes generally require
 # more Fourier moments than diffuse bi-Lambertian scattering.
-Z⁺⁺₃, Z⁻⁺₃ = CanopyOptics.compute_Z_matrices(specular, μ, LD, 3)
+Z⁺⁺₃, Z⁻⁺₃ = CanopyOptics.compute_Z_matrices(specular, μ, LD, 3; quadrature)
 maximum(abs.(Z⁻⁺₃))
 
 # ## Adding diffuse and specular terms
@@ -37,9 +38,9 @@ maximum(abs.(Z⁻⁺₃))
 # model dispatches each component through its own implementation: closed-form
 # Fourier moments for the diffuse bi-Lambertian term and azimuth quadrature for
 # the specular term.
-diffuse = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2, nQuad = 64)
+diffuse = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2)
 mixed_leaf = diffuse + specular
-Z_mix⁺⁺, Z_mix⁻⁺ = CanopyOptics.compute_Z_matrices(mixed_leaf, μ, LD, 0:3)
+Z_mix⁺⁺, Z_mix⁻⁺ = CanopyOptics.compute_Z_matrices(mixed_leaf, μ, LD, 0:3; quadrature)
 size(Z_mix⁻⁺)
 
 # ## Lightweight animation

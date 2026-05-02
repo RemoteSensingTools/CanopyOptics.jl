@@ -1,24 +1,97 @@
 "Abstract Type for canopy scattering"
 abstract type AbstractCanopyScatteringType{FT<:Real} end
 
+"""
+    CanopyQuadrature(; n_leaf = 64, n_azimuth = 48)
+
+Integration controls used when projecting canopy scattering models onto
+Fourier Z matrices.
+
+`n_leaf` controls the leaf-inclination quadrature used by the bi-Lambertian
+kernel. `n_azimuth` controls the outgoing-azimuth quadrature used by the
+specular kernel and legacy brute-force reference paths.
+"""
+struct CanopyQuadrature
+    n_leaf::Int
+    n_azimuth::Int
+
+    function CanopyQuadrature(n_leaf::Integer, n_azimuth::Integer)
+        n_leaf > 0 || throw(ArgumentError("n_leaf must be positive"))
+        n_azimuth > 0 || throw(ArgumentError("n_azimuth must be positive"))
+        return new(Int(n_leaf), Int(n_azimuth))
+    end
+end
+
+CanopyQuadrature(n_leaf::Integer) = CanopyQuadrature(n_leaf, 48)
+
+function CanopyQuadrature(; n_leaf::Integer = 64,
+                          n_azimuth::Integer = 48,
+                          nQuad = nothing)
+    if nQuad !== nothing
+        n_leaf = nQuad
+        n_azimuth = nQuad
+    end
+    return CanopyQuadrature(n_leaf, n_azimuth)
+end
+
+_canopy_parameter_type(args...) = float(promote_type(map(typeof, args)...))
+
+function _bilambertian_canopy_scattering(R::Real, T::Real)
+    R_prom, T_prom = promote(R, T)
+    FT = _canopy_parameter_type(R_prom, T_prom)
+    return BiLambertianCanopyScattering{FT}(FT(R_prom), FT(T_prom))
+end
+
+function _specular_canopy_scattering(nᵣ::Real, κ::Real)
+    nᵣ_prom, κ_prom = promote(nᵣ, κ)
+    FT = _canopy_parameter_type(nᵣ_prom, κ_prom)
+    return SpecularCanopyScattering{FT}(FT(nᵣ_prom), FT(κ_prom))
+end
+
 "Model for bi-lambertian canopy leaf scattering"
-Base.@kwdef struct BiLambertianCanopyScattering{FT<:Real} <: AbstractCanopyScatteringType{FT}
+struct BiLambertianCanopyScattering{FT<:Real} <: AbstractCanopyScatteringType{FT}
     "Lambertian Reflectance"
-    R::FT = FT(0.3)
+    R::FT
     "Lambertian Transmission"
-    T::FT  = FT(0.1)
-    "Number of quadrature points in inclination angle"
-    nQuad::Int = 30
+    T::FT
+end
+
+BiLambertianCanopyScattering(R::Real, T::Real) =
+    _bilambertian_canopy_scattering(R, T)
+
+BiLambertianCanopyScattering(R::Integer, T::Integer) =
+    _bilambertian_canopy_scattering(R, T)
+
+function BiLambertianCanopyScattering(; R = 0.3, T = 0.1, nQuad = nothing)
+    return _bilambertian_canopy_scattering(R, T)
+end
+
+function BiLambertianCanopyScattering{FT}(; R = FT(0.3), T = FT(0.1),
+                                          nQuad = nothing) where {FT<:Real}
+    return BiLambertianCanopyScattering{FT}(FT(R), FT(T))
 end
 
 "Model for specular canopy leaf scattering"
-Base.@kwdef struct SpecularCanopyScattering{FT<:Real} <: AbstractCanopyScatteringType{FT}
+struct SpecularCanopyScattering{FT<:Real} <: AbstractCanopyScatteringType{FT}
     "Refractive index"
-    nᵣ::FT = FT(1.5)
+    nᵣ::FT
     "Roughness parameter"
-    κ::FT  = FT(0.5)
-    "Number of quadrature points in azimuth"
-    nQuad::Int = 20
+    κ::FT
+end
+
+SpecularCanopyScattering(nᵣ::Real, κ::Real) =
+    _specular_canopy_scattering(nᵣ, κ)
+
+SpecularCanopyScattering(nᵣ::Integer, κ::Integer) =
+    _specular_canopy_scattering(nᵣ, κ)
+
+function SpecularCanopyScattering(; nᵣ = 1.5, κ = 0.5, nQuad = nothing)
+    return _specular_canopy_scattering(nᵣ, κ)
+end
+
+function SpecularCanopyScattering{FT}(; nᵣ = FT(1.5), κ = FT(0.5),
+                                      nQuad = nothing) where {FT<:Real}
+    return SpecularCanopyScattering{FT}(FT(nᵣ), FT(κ))
 end
 
 """

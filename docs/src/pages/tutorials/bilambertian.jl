@@ -15,7 +15,8 @@ LD = CanopyOptics.planophile_leaves2()
 # Build the leaf scattering model. The single-scattering albedo is
 # `ϖ = R + T`; CanopyOptics divides that factor out of the returned Z matrices
 # so downstream layer solvers can apply `ϖ` explicitly.
-leaf = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2, nQuad = 64)
+leaf = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2)
+quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 64)
 
 # ## Closed-form Fourier stack
 
@@ -23,7 +24,7 @@ leaf = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2, nQuad = 64)
 # moments in one call. The array layout is `Z[i_out, j_in, m+1]` for the
 # common `0:m_max` range.
 m_max = 8
-Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:m_max)
+Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:m_max; quadrature)
 size(Z⁺⁺)
 
 # `Z⁺⁺` is same-sign transmission and `Z⁻⁺` is sign-change reflection. For
@@ -33,13 +34,11 @@ column_flux = vec(sum(w .* (Z⁺⁺[:, :, 1] .+ Z⁻⁺[:, :, 1]), dims = 1))
 extrema(column_flux)
 
 # Single-moment calls slice the same analytic closure.
-Z⁺⁺₂, Z⁻⁺₂ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 2)
+Z⁺⁺₂, Z⁻⁺₂ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 2; quadrature)
 maximum(abs.(Z⁺⁺₂ .- Z⁺⁺[:, :, 3]))
 
-# The older `compute_Z_matrices` function is the azimuthally averaged `m = 0`
-# Shultis-Myneni assembly. It is retained for compatibility and should match
-# the analytic stack's first moment.
-Z⁺⁺₀, Z⁻⁺₀ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0)
+# A single `m = 0` call slices the same analytic stack.
+Z⁺⁺₀, Z⁻⁺₀ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0; quadrature)
 maximum(abs.(Z⁻⁺₀ .- Z⁻⁺[:, :, 1]))
 
 # ## Changing the leaf-angle distribution
@@ -49,7 +48,7 @@ maximum(abs.(Z⁻⁺₀ .- Z⁻⁺[:, :, 1]))
 # normalized interval.
 erectophile = CanopyOptics.LeafDistribution(Beta(5, 2), 2 / π)
 Z_erect⁺⁺, Z_erect⁻⁺ =
-    CanopyOptics.compute_Z_matrices(leaf, μ, erectophile, 0:m_max)
+    CanopyOptics.compute_Z_matrices(leaf, μ, erectophile, 0:m_max; quadrature)
 
 maximum(abs.(Z_erect⁻⁺[:, :, 1] .- Z⁻⁺[:, :, 1]))
 
@@ -59,7 +58,7 @@ maximum(abs.(Z_erect⁻⁺[:, :, 1] .- Z⁻⁺[:, :, 1]))
 # of beta leaf-angle distributions and updates the `m = 0` reflection matrix.
 function reflection_matrix_for_beta(a, b)
     LD = CanopyOptics.LeafDistribution(Beta(a, b), 2 / π)
-    _, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:0)
+    _, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:0; quadrature)
     return Z⁻⁺[:, :, 1]
 end
 
