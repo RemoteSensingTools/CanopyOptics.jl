@@ -272,13 +272,19 @@ _clipped_projection_moments(μ::FT, μ_L::FT, m_max::Int) where {FT<:Real} =
                                       μ::AbstractVector{FT},
                                       LD::AbstractLeafDistribution,
                                       m_max::Int;
-                                      quadrature = CanopyQuadrature()) -> (Z⁺⁺, Z⁻⁺)
+                                      quadrature = CanopyQuadrature(),
+                                      npol = 1) -> (Z⁺⁺, Z⁻⁺)
 
 Compute all scalar Fourier moments `m = 0:m_max` of the bi-Lambertian
 canopy phase matrices without azimuthal quadrature.
 
-The returned arrays have shape `(length(μ), length(μ), m_max + 1)` and
-use the vSmartMOM convention
+The scalar default returns arrays of shape `(length(μ), length(μ), m_max + 1)`.
+Passing `npol = 3` or `npol = 4` expands those scalar moments into
+Stokes-block matrices of shape `(npol*length(μ), npol*length(μ), m_max + 1)`.
+Because bi-Lambertian scattering is unpolarized here, only the I→I entry of
+each stream block is populated.
+
+All cases use the vSmartMOM convention
 
 ```math
 Z[i_{out}, j_{in}, m+1],
@@ -319,8 +325,10 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
                                            LD::AbstractLeafDistribution,
                                            m_max::Int;
                                            quadrature::CanopyQuadrature = CanopyQuadrature(),
-                                           nQuad = nothing) where {FT<:Real}
+                                           nQuad = nothing,
+                                           npol::Integer = 1) where {FT<:Real}
     m_max < 0 && throw(ArgumentError("m_max must be non-negative"))
+    n = _validate_npol(npol)
 
     (; R, T) = mod
     q = _resolve_quadrature(quadrature, nQuad)
@@ -333,7 +341,7 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
     nm = m_max + 1
     Z⁺⁺ = zeros(ZFT, nμ, nμ, nm)
     Z⁻⁺ = zeros(ZFT, nμ, nμ, nm)
-    ϖ <= zero(ZFT) && return Z⁺⁺, Z⁻⁺
+    ϖ <= zero(ZFT) && return _expand_intensity_Z_pair(Z⁺⁺, Z⁻⁺, n)
 
     μ_vec = collect(μ)
     μ_work = ZFT.(μ_vec)
@@ -384,5 +392,6 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
         end
     end
 
-    return _normalise_Z!(Z⁺⁺, Z⁻⁺, G, ϖ)
+    _normalise_Z!(Z⁺⁺, Z⁻⁺, G, ϖ)
+    return _expand_intensity_Z_pair(Z⁺⁺, Z⁻⁺, n)
 end

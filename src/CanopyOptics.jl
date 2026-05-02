@@ -60,6 +60,7 @@ include("canopy_structure/clumping.jl")
 
 include("canopy_scattering/projection_geometry.jl")
 include("canopy_scattering/quadrature_controls.jl")
+include("canopy_scattering/stokes.jl")
 include("canopy_scattering/specular.jl")
 include("canopy_scattering/bilambertian_fourier.jl")
 include("canopy_scattering/z_matrices.jl")
@@ -90,7 +91,7 @@ export PureIce, LiquidPureWater, LiquidSaltWater
 export LeafProspectProProperties, LeafOpticalProperties, dielectric
 # Functions:
 export compute_Z_matrices, compute_Z_matrices_aniso_analytic,
-       prospect, compute_reflection
+       prospect, compute_reflection, compute_reflection_mueller
 # MW stuff
 export wood_forward, wood_backward, afsal, asal, abs_components 
 

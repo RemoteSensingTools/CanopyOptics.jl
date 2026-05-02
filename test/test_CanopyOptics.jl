@@ -145,6 +145,51 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test Zmp_public_stack == Zmp_stack
     end
 
+    @testset "Canopy Stokes expansion" begin
+        μ = [0.35, 0.7]
+        LD = CanopyOptics.spherical_leaves()
+        quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 24, n_azimuth = 12)
+        diffuse = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2)
+        specular = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2)
+
+        Zpp_I, Zmp_I = CanopyOptics.compute_Z_matrices(
+            diffuse, μ, LD, 0:1; quadrature)
+        Zpp_4, Zmp_4 = CanopyOptics.compute_Z_matrices(
+            diffuse, μ, LD, 0:1; quadrature, npol = 4)
+
+        @test size(Zpp_4) == (4 * length(μ), 4 * length(μ), 2)
+        @test Zpp_4[1:4:end, 1:4:end, :] == Zpp_I
+        @test Zmp_4[1:4:end, 1:4:end, :] == Zmp_I
+        for si in 1:4, sj in 1:4
+            (si, sj) == (1, 1) && continue
+            @test all(iszero, Zpp_4[si:4:end, sj:4:end, :])
+            @test all(iszero, Zmp_4[si:4:end, sj:4:end, :])
+        end
+
+        Ωin = CanopyOptics.dirVector_μ(0.7, 0.0)
+        Ωout = CanopyOptics.dirVector_μ(-0.4, 0.5)
+        M = CanopyOptics.compute_reflection_mueller(specular, Ωin, Ωout, LD, 4)
+        @test M[1, 1] ≈ CanopyOptics.compute_reflection(specular, Ωin, Ωout, LD)
+        @test abs(M[2, 1]) > 1e-12
+
+        Zpp_s1, Zmp_s1 = CanopyOptics.compute_Z_matrices(
+            specular, μ, LD, 0; quadrature)
+        Zpp_s4, Zmp_s4 = CanopyOptics.compute_Z_matrices(
+            specular, μ, LD, 0; quadrature, npol = 4)
+        @test Zpp_s4[1:4:end, 1:4:end] ≈ Zpp_s1
+        @test Zmp_s4[1:4:end, 1:4:end] ≈ Zmp_s1
+        @test any(abs.(Zpp_s4[2:4:end, 1:4:end]) .> 1e-12) ||
+              any(abs.(Zmp_s4[2:4:end, 1:4:end]) .> 1e-12)
+
+        composite = diffuse + specular
+        Zpp_c4, Zmp_c4 = CanopyOptics.compute_Z_matrices(
+            composite, μ, LD, 0; quadrature, npol = 4)
+        Zpp_d4, Zmp_d4 = CanopyOptics.compute_Z_matrices(
+            diffuse, μ, LD, 0; quadrature, npol = 4)
+        @test Zpp_c4 ≈ Zpp_d4 .+ Zpp_s4
+        @test Zmp_c4 ≈ Zmp_d4 .+ Zmp_s4
+    end
+
     @testset "Wood reflectance and Lambertian wood scattering" begin
         μ, _ = CanopyOptics.gauleg(5, 0.0, 1.0)
         LD = CanopyOptics.spherical_leaves()

@@ -44,8 +44,9 @@ where:
 - `K(κ, α*)` = Nilson–Kuusk roughness factor (from `K`)
 - `Fᵣ(nᵣ, α*)` = unpolarized Fresnel reflectance (from `Fᵣ`)
 
-For full Stokes-vector propagation (vSmartMOM.jl), use `fresnel_components`
-to obtain `r_s, r_p` and construct the 4×4 Mueller reflection matrix directly.
+For Stokes-vector propagation, use [`compute_reflection_mueller`](@ref), which
+constructs the Fresnel Mueller matrix and rotates it into the scattering-plane
+basis used by the canopy Fourier Z matrices.
 
 Note: only reflection is currently modelled; specular transmission is not yet implemented.
 """
@@ -61,51 +62,81 @@ end
 """
     compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1},
                        LD::AbstractLeafDistribution, m::Int;
-                       quadrature = CanopyQuadrature()) where FT
+                       quadrature = CanopyQuadrature(), npol = 1) where FT
 
 Computes the Fourier-`m` component of the single-scattering phase matrices
 `(𝐙⁺⁺, 𝐙⁻⁺)` for a specular leaf surface by integrating
-[`compute_reflection`](@ref) over the azimuthal quadrature grid.
+[`compute_reflection`](@ref), or [`compute_reflection_mueller`](@ref) when
+`npol > 1`, over the azimuthal quadrature grid.
 
 - `𝐙⁺⁺[i,j]`: same-hemisphere scattering (μ>0 → μ>0, forward scatter)
 - `𝐙⁻⁺[i,j]`: opposite-hemisphere scattering (μ>0 → μ<0, backscatter)
 
 Azimuth integration uses `quadrature.n_azimuth` Gauss-Legendre points over `[0, 2π]`;
-Fourier weights are `cos(m ϕ)`.
+Fourier weights are `cos(m ϕ)` for scalar I and the vSmartMOM Stokes
+cos/sin kernel for vector cases. `npol = 1` is the scalar default;
+`npol = 3` and `npol = 4` return Stokes-block matrices.
 """
 function compute_Z_matrices(mod::SpecularCanopyScattering,
                             μ::Array{FT,1},
                             LD::AbstractLeafDistribution,
                             m::Int;
                             quadrature::CanopyQuadrature = CanopyQuadrature(),
-                            nQuad = nothing) where FT
+                            nQuad = nothing,
+                            npol::Integer = 1) where FT
     (;nᵣ, κ) = mod
     q = _resolve_quadrature(quadrature, nQuad)
+    n = _validate_npol(npol)
     ZFT = promote_type(FT, typeof(nᵣ), typeof(κ))
-    # Transmission (same direction)
-    𝐙⁺⁺ = zeros(ZFT, length(μ), length(μ))
-    # Reflection (change direction)
-    𝐙⁻⁺ = zeros(ZFT, length(μ), length(μ))
-    
+
     # Quadrature points in the azimuth:
-    ϕ, w_azi = gauleg(q.n_azimuth,FT(0),FT(2π));
-    # Fourier weights (cosine decomposition)
-    f_weights = cos.(m*ϕ)
-    
-    for i in eachindex(μ)
-        # Incoming beam at ϕ = 0
-        Ωⁱⁿ = dirVector_μ(μ[i], FT(0));
-        # Create outgoing vectors in θ and ϕ
-        dirOutꜛ = [dirVector_μ(a,b) for a in μ, b in ϕ];
-        dirOutꜜ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
-        # Compute over μ and μ_azi:
-        Zup   = compute_reflection.((mod,),(Ωⁱⁿ,),dirOutꜛ, (LD,));
-        Zdown = compute_reflection.((mod,),(Ωⁱⁿ,),dirOutꜜ, (LD,));
-        # integrate over the azimuth:
-        # dirOutꜛ (same hemisphere, μ>0) → forward scatter → 𝐙⁺⁺
-        # dirOutꜜ (opposite hemisphere, μ<0) → back scatter  → 𝐙⁻⁺
-        𝐙⁺⁺[i,:] = Zup   * (w_azi .* f_weights)
-        𝐙⁻⁺[i,:] = Zdown * (w_azi .* f_weights)
+    ϕ, w_azi = gauleg(q.n_azimuth, FT(0), FT(2π))
+
+    if n == 1
+        𝐙⁺⁺ = zeros(ZFT, length(μ), length(μ))
+        𝐙⁻⁺ = zeros(ZFT, length(μ), length(μ))
+
+        for j in eachindex(μ)
+            Ωⁱⁿ = dirVector_μ(μ[j], FT(0))
+            for i in eachindex(μ)
+                acc_pp = zero(ZFT)
+                acc_mp = zero(ZFT)
+                for ia in eachindex(ϕ)
+                    weight = ZFT(w_azi[ia]) * ZFT(cos(m * ϕ[ia]))
+                    acc_pp += weight * compute_reflection(mod, Ωⁱⁿ,
+                                                          dirVector_μ(μ[i], ϕ[ia]), LD)
+                    acc_mp += weight * compute_reflection(mod, Ωⁱⁿ,
+                                                          dirVector_μ(-μ[i], ϕ[ia]), LD)
+                end
+                𝐙⁺⁺[i, j] = acc_pp
+                𝐙⁻⁺[i, j] = acc_mp
+            end
+        end
+        return 𝐙⁺⁺, 𝐙⁻⁺
+    end
+
+    nμ = length(μ)
+    𝐙⁺⁺ = zeros(ZFT, n * nμ, n * nμ)
+    𝐙⁻⁺ = zeros(ZFT, n * nμ, n * nμ)
+
+    for j in eachindex(μ)
+        Ωⁱⁿ = dirVector_μ(μ[j], FT(0))
+        for i in eachindex(μ)
+            for ia in eachindex(ϕ)
+                dϕ = ϕ[ia]
+                wϕ = ZFT(w_azi[ia])
+                Mpp = compute_reflection_mueller(mod, Ωⁱⁿ, dirVector_μ(μ[i], dϕ), LD, n)
+                Mmp = compute_reflection_mueller(mod, Ωⁱⁿ, dirVector_μ(-μ[i], dϕ), LD, n)
+
+                @inbounds for sj in 1:n, si in 1:n
+                    az = ZFT(_azimuthal_kernel(si, sj, m, dϕ))
+                    row = _stokes_index(i, si, n)
+                    col = _stokes_index(j, sj, n)
+                    𝐙⁺⁺[row, col] += wϕ * az * Mpp[si, sj]
+                    𝐙⁻⁺[row, col] += wϕ * az * Mmp[si, sj]
+                end
+            end
+        end
     end
     return 𝐙⁺⁺, 𝐙⁻⁺
 end
@@ -123,9 +154,11 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
                             LD::AbstractLeafDistribution,
                             m::Integer;
                             quadrature::CanopyQuadrature = CanopyQuadrature(),
-                            nQuad = nothing) where FT
+                            nQuad = nothing,
+                            npol::Integer = 1) where FT
     q = _resolve_quadrature(quadrature, nQuad)
-    return compute_Z_matrices(mod, collect(μ), LD, Int(m); quadrature = q)
+    return compute_Z_matrices(mod, collect(μ), LD, Int(m);
+                              quadrature = q, npol = npol)
 end
 """
     K(κ::FT, α::FT) where FT
