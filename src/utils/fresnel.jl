@@ -23,11 +23,14 @@ individual components to form the Mueller reflection matrix:
                        0 & 0 & r_s r_p & 0 \\\\
                        0 & 0 & 0 & r_s r_p \\end{pmatrix}``
 """
-function fresnel_components(n::FT, θᵢ::FT) where FT
+function fresnel_components(n::FTN, θᵢ::FTθ) where {FTN<:Real,FTθ<:Real}
+    FT = promote_type(FTN, FTθ)
+    n_medium = FT(n)
+    θ = FT(θᵢ)
     nᵢ = FT(1)
-    θₜ = asin(nᵢ * sin(θᵢ) / n)
-    r_s = (nᵢ * cos(θᵢ) - n * cos(θₜ)) / (nᵢ * cos(θᵢ) + n * cos(θₜ))
-    r_p = (n  * cos(θᵢ) - nᵢ * cos(θₜ)) / (n  * cos(θᵢ) + nᵢ * cos(θₜ))
+    θₜ = asin(nᵢ * sin(θ) / n_medium)
+    r_s = (nᵢ * cos(θ) - n_medium * cos(θₜ)) / (nᵢ * cos(θ) + n_medium * cos(θₜ))
+    r_p = (n_medium * cos(θ) - nᵢ * cos(θₜ)) / (n_medium * cos(θ) + nᵢ * cos(θₜ))
     return r_s, r_p
 end
 
@@ -42,7 +45,7 @@ Calls [`fresnel_components`](@ref) internally. For polarization-resolved output
 (needed for full Stokes vector propagation in vSmartMOM.jl), use `fresnel_components`
 directly to obtain `r_s` and `r_p` separately.
 """
-function Fᵣ(n::FT, θᵢ::FT) where FT
+function Fᵣ(n::FTN, θᵢ::FTθ) where {FTN<:Real,FTθ<:Real}
     r_s, r_p = fresnel_components(n, θᵢ)
     return (r_s^2 + r_p^2) / 2
 end

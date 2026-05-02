@@ -21,3 +21,6 @@ Convention note: canopy Z matrices use `Z[i_out, j_in]` and normalize
 BiLambertian leaves by `G(μ_in) * (R + T)`, matching the vSmartMOM
 phase-matrix convention. Use `compute_Z_matrices(model, μ, LD, 0:m_max)` to
 build a full Fourier stack.
+
+Canopy scattering parameters are `Real`-generic, so `ForwardDiff.Dual` leaf
+reflectance/transmittance and specular parameters can flow through Z assembly.

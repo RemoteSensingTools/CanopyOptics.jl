@@ -101,6 +101,27 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test Zmp_public_stack == Zmp_stack
     end
 
+    @testset "Canopy Z supports ForwardDiff parameters" begin
+        μ, _ = CanopyOptics.gauleg(4, 0.0, 1.0)
+        LD = CanopyOptics.spherical_leaves()
+
+        diffuse_sum(x) = begin
+            mod = CanopyOptics.BiLambertianCanopyScattering(R = x[1], T = x[2], nQuad = 12)
+            Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(mod, μ, LD, 0:2)
+            sum(Z⁺⁺) + sum(Z⁻⁺)
+        end
+        diffuse_grad = ForwardDiff.gradient(diffuse_sum, [0.4, 0.2])
+        @test all(isfinite, diffuse_grad)
+
+        specular_sum(x) = begin
+            mod = CanopyOptics.SpecularCanopyScattering(nᵣ = x[1], κ = x[2], nQuad = 8)
+            Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(mod, μ, LD, 0:1)
+            sum(Z⁺⁺) + sum(Z⁻⁺)
+        end
+        specular_grad = ForwardDiff.gradient(specular_sum, [1.5, 0.2])
+        @test all(isfinite, specular_grad)
+    end
+
     @testset "dielectric sanity" begin
         w = CanopyOptics.LiquidPureWater()
         ϵ_w = CanopyOptics.dielectric(w, 283.0, 10.0)

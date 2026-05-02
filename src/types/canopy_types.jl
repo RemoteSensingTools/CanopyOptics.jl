@@ -1,8 +1,8 @@
 "Abstract Type for canopy scattering"
-abstract type AbstractCanopyScatteringType{FT<:AbstractFloat} end
+abstract type AbstractCanopyScatteringType{FT<:Real} end
 
 "Model for bi-lambertian canopy leaf scattering"
-Base.@kwdef struct BiLambertianCanopyScattering{FT<:AbstractFloat} <: AbstractCanopyScatteringType{FT}
+Base.@kwdef struct BiLambertianCanopyScattering{FT<:Real} <: AbstractCanopyScatteringType{FT}
     "Lambertian Reflectance"
     R::FT = FT(0.3)
     "Lambertian Transmission"
@@ -12,7 +12,7 @@ Base.@kwdef struct BiLambertianCanopyScattering{FT<:AbstractFloat} <: AbstractCa
 end
 
 "Model for specular canopy leaf scattering"
-Base.@kwdef struct SpecularCanopyScattering{FT<:AbstractFloat} <: AbstractCanopyScatteringType{FT}
+Base.@kwdef struct SpecularCanopyScattering{FT<:Real} <: AbstractCanopyScatteringType{FT}
     "Refractive index"
     nᵣ::FT = FT(1.5)
     "Roughness parameter"
@@ -28,7 +28,7 @@ Additive canopy scattering model.  Components are evaluated independently and
 their Z matrices are summed, so a leaf can carry both diffuse bi-Lambertian and
 specular surface terms.
 """
-struct CompositeCanopyScattering{FT<:AbstractFloat,T<:Tuple} <: AbstractCanopyScatteringType{FT}
+struct CompositeCanopyScattering{FT<:Real,T<:Tuple} <: AbstractCanopyScatteringType{FT}
     components::T
 end
 

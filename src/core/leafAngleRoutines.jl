@@ -289,10 +289,11 @@ Fourier weights are `cos(m ϕ)`.
 """
 function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
     (;nᵣ, κ, nQuad) = mod
+    ZFT = promote_type(FT, typeof(nᵣ), typeof(κ))
     # Transmission (same direction)
-    𝐙⁺⁺ = zeros(length(μ), length(μ))
+    𝐙⁺⁺ = zeros(ZFT, length(μ), length(μ))
     # Reflection (change direction)
-    𝐙⁻⁺ = zeros(length(μ), length(μ))
+    𝐙⁻⁺ = zeros(ZFT, length(μ), length(μ))
     
     # Quadrature points in the azimuth:
     ϕ, w_azi = gauleg(nQuad,FT(0),FT(2π));
@@ -621,19 +622,20 @@ vSmartMOM's elemental kernels, where `ϖ` is applied outside `Z`.
 function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
                                            μ::AbstractVector{FT},
                                            LD::AbstractLeafDistribution,
-                                           m_max::Int) where {FT<:AbstractFloat}
+                                           m_max::Int) where {FT<:Real}
     m_max < 0 && throw(ArgumentError("m_max must be non-negative"))
 
     (; R, T, nQuad) = mod
-    R_leaf = FT(R)
-    T_leaf = FT(T)
+    ZFT = promote_type(FT, typeof(R), typeof(T))
+    R_leaf = ZFT(R)
+    T_leaf = ZFT(T)
     ϖ = R_leaf + T_leaf
 
     nμ = length(μ)
     nm = m_max + 1
-    Z⁺⁺ = zeros(FT, nμ, nμ, nm)
-    Z⁻⁺ = zeros(FT, nμ, nμ, nm)
-    ϖ <= zero(FT) && return Z⁺⁺, Z⁻⁺
+    Z⁺⁺ = zeros(ZFT, nμ, nμ, nm)
+    Z⁻⁺ = zeros(ZFT, nμ, nμ, nm)
+    ϖ <= zero(ZFT) && return Z⁺⁺, Z⁻⁺
 
     leaf_quad = _leaf_inclination_quadrature(LD, nQuad, FT)
     θₗ = leaf_quad.θ
@@ -687,7 +689,7 @@ end
 function compute_Z_matrices_aniso_analytic(mod::CompositeCanopyScattering,
                                            μ::AbstractVector{FT},
                                            LD::AbstractLeafDistribution,
-                                           m_max::Int) where {FT<:AbstractFloat}
+                                           m_max::Int) where {FT<:Real}
     return compute_Z_matrices(mod, μ, LD, 0:m_max)
 end
 
@@ -808,8 +810,9 @@ Returns the Nilson–Kuusk leaf-surface roughness reduction factor:
 
 Used in [`compute_reflection`](@ref) to attenuate specular reflectance for rough leaves.
 """
-function K(κ::FT, α::FT) where FT
-    exp(-κ * tan(abs(α)));
+function K(κ::FTκ, α::FTα) where {FTκ<:Real,FTα<:Real}
+    FT = promote_type(FTκ, FTα)
+    exp(-FT(κ) * tan(abs(FT(α))))
 end
 
 function leaf_dot_products(μⁱⁿ::FT, μᵒᵘᵗ::FT, dϕᵒᵘᵗ::FT, μᴸ::FT, dϕᴸ::FT) where FT

@@ -4,6 +4,7 @@
 - Use leaf angle distributions to compute bi-Lambertian canopy scattering matrices
 - Compute closed-form cosine Fourier moments for the bi-Lambertian canopy kernel
 - Compose diffuse and specular leaf-surface scattering models additively
+- Differentiate canopy Z matrices with ForwardDiff leaf optical parameters
 - Compute experimental specular leaf-surface reflection terms
 - Compute leaf reflectance and transmittance based on Prospect-PRO
 
