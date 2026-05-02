@@ -4,6 +4,13 @@ using ForwardDiff
 _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
 
 @testset "CanopyOptics" begin
+    @testset "Public canopy API exports" begin
+        LD = spherical_leaves()
+        @test LD isa AbstractLeafDistribution
+        @test G([0.5], LD)[1] > 0
+        @test planophile_leaves2() isa LeafDistribution
+    end
+
     @info "Testing spherical leaf G factor calculation ...";
     @testset "G function" begin
         for FT in [Float32, Float64]
@@ -11,6 +18,7 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             LD = CanopyOptics.spherical_leaves(FT)
             G = CanopyOptics.G(μ, LD)
             @test eltype(G) == FT
+            @test CanopyOptics.G(-μ, LD) ≈ G
             # The default G quadrature (nLeg=40) is accurate to about
             # 1.3e-3 for this 10-point μ grid.
             tol = FT == Float32 ? FT(2e-3) : FT(1.5e-3)
@@ -84,10 +92,14 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test CanopyOptics.clumping_index(constant, μ) == fill(0.7, length(μ))
         @test CanopyOptics.effective_G(constant, G, μ) == 0.7 .* G
 
-        angular = CanopyOptics.ChenLeblancClumping(Ω₀ = 0.7, c = 2.0, e = 2.0)
+        angular = CanopyOptics.EmpiricalDirectionalClumping(Ω₀ = 0.7, c = 2.0, e = 2.0)
+        @test (CanopyOptics.ChenLeblancClumping(Ω₀ = 0.7, c = 2.0, e = 2.0) isa
+               CanopyOptics.EmpiricalDirectionalClumping)
         Ω = CanopyOptics.clumping_index(angular, [1.0, 0.5, 0.0])
         @test Ω[1] ≈ 0.7
         @test Ω[1] < Ω[2] < Ω[3] <= 1
+        @test CanopyOptics.clumping_index(angular, -0.5) ≈
+              CanopyOptics.clumping_index(angular, 0.5)
 
         μ_grad = [0.2, 0.6, 0.9]
         G_grad = [0.45, 0.50, 0.55]
@@ -149,25 +161,26 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         μ, w = CanopyOptics.gauleg(5, 0.0, 1.0)
         LD = CanopyOptics.planophile_leaves2()
         diffuse = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2)
+        diffuse2 = CanopyOptics.BiLambertianCanopyScattering(R = 0.1, T = 0.1)
         specular = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2)
         quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 32, n_azimuth = 12)
-        composite = diffuse + specular
+        composite = diffuse + diffuse2
 
         @test composite isa CanopyOptics.CompositeCanopyScattering
-        @test composite.components == (diffuse, specular)
-        @test (diffuse + (specular + diffuse)).components == (diffuse, specular, diffuse)
+        @test composite.components == (diffuse, diffuse2)
+        @test (diffuse + (diffuse2 + diffuse)).components == (diffuse, diffuse2, diffuse)
 
         Zpp, Zmp = CanopyOptics.compute_Z_matrices(composite, μ, LD, 0; quadrature)
         Zpp_d, Zmp_d = CanopyOptics.compute_Z_matrices(diffuse, μ, LD, 0; quadrature)
-        Zpp_s, Zmp_s = CanopyOptics.compute_Z_matrices(specular, μ, LD, 0; quadrature)
-        @test Zpp ≈ Zpp_d .+ Zpp_s
-        @test Zmp ≈ Zmp_d .+ Zmp_s
+        Zpp_d2, Zmp_d2 = CanopyOptics.compute_Z_matrices(diffuse2, μ, LD, 0; quadrature)
+        @test Zpp ≈ Zpp_d .+ Zpp_d2
+        @test Zmp ≈ Zmp_d .+ Zmp_d2
 
         Zpp_a, Zmp_a = CanopyOptics.compute_Z_matrices_aniso(composite, μ, LD, 2; quadrature)
         Zpp_ad, Zmp_ad = CanopyOptics.compute_Z_matrices_aniso(diffuse, μ, LD, 2; quadrature)
-        Zpp_as, Zmp_as = CanopyOptics.compute_Z_matrices_aniso(specular, μ, LD, 2; quadrature)
-        @test Zpp_a ≈ Zpp_ad .+ Zpp_as
-        @test Zmp_a ≈ Zmp_ad .+ Zmp_as
+        Zpp_ad2, Zmp_ad2 = CanopyOptics.compute_Z_matrices_aniso(diffuse2, μ, LD, 2; quadrature)
+        @test Zpp_a ≈ Zpp_ad .+ Zpp_ad2
+        @test Zmp_a ≈ Zmp_ad .+ Zmp_ad2
 
         Zpp_stack, Zmp_stack = CanopyOptics.compute_Z_matrices_aniso_analytic(
             composite, μ, LD, 3; quadrature)
@@ -178,6 +191,10 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             composite, μ, LD, 0:3; quadrature)
         @test Zpp_public_stack == Zpp_stack
         @test Zmp_public_stack == Zmp_stack
+
+        mixed_convention = diffuse + specular
+        @test_throws ArgumentError CanopyOptics.compute_Z_matrices(
+            mixed_convention, μ, LD, 0; quadrature)
     end
 
     @testset "Canopy Stokes expansion" begin
@@ -211,18 +228,18 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             specular, μ, LD, 0; quadrature)
         Zpp_s4, Zmp_s4 = CanopyOptics.compute_Z_matrices(
             specular, μ, LD, 0; quadrature, npol = 4)
+        Zpp_sstack, Zmp_sstack = CanopyOptics.compute_Z_matrices_aniso_analytic(
+            specular, μ, LD, 1; quadrature)
+        @test Zpp_sstack[:, :, 1] ≈ Zpp_s1
+        @test Zmp_sstack[:, :, 1] ≈ Zmp_s1
         @test Zpp_s4[1:4:end, 1:4:end] ≈ Zpp_s1
         @test Zmp_s4[1:4:end, 1:4:end] ≈ Zmp_s1
         @test any(abs.(Zpp_s4[2:4:end, 1:4:end]) .> 1e-12) ||
               any(abs.(Zmp_s4[2:4:end, 1:4:end]) .> 1e-12)
 
         composite = diffuse + specular
-        Zpp_c4, Zmp_c4 = CanopyOptics.compute_Z_matrices(
+        @test_throws ArgumentError CanopyOptics.compute_Z_matrices(
             composite, μ, LD, 0; quadrature, npol = 4)
-        Zpp_d4, Zmp_d4 = CanopyOptics.compute_Z_matrices(
-            diffuse, μ, LD, 0; quadrature, npol = 4)
-        @test Zpp_c4 ≈ Zpp_d4 .+ Zpp_s4
-        @test Zmp_c4 ≈ Zmp_d4 .+ Zmp_s4
     end
 
     @testset "Wood reflectance and Lambertian wood scattering" begin

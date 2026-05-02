@@ -41,8 +41,6 @@ import SpecialFunctions.expint
 # Filename for ProspectPro optical properties
 const OPTI_2021 = artifact"Prospect" * "/dataSpec_PRO.csv";
 
-# Needs to be more modular later:
-FT = Float64 
 ###### Own files to include #################
 include("initialization/constants.jl")
 
@@ -84,10 +82,15 @@ export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties
 export AbstractCanopyScatteringType, CanopyQuadrature, BiLambertianCanopyScattering,
        CompositeCanopyScattering, SpecularCanopyScattering,
        LambertianWoodCanopyScattering, LambertianWood
+export AbstractLeafDistribution, LeafDistribution,
+       planophile_leaves, planophile_leaves2, uniform_leaves,
+       plagiophile_leaves, erectophile_leaves, spherical_leaves,
+       flat_leaves, beta_leaves, βparameters
 export AbstractWoodReflectance, AbstractLUTWoodReflectance,
        ConstantWoodReflectance, LUTWoodReflectance, PolynomialWoodReflectance,
        wood_reflectance
-export AbstractClumping, NoClumping, ConstantClumping, ChenLeblancClumping,
+export AbstractClumping, NoClumping, ConstantClumping,
+       EmpiricalDirectionalClumping, ChenLeblancClumping,
        clumping_index, effective_G
 export AbstractHotSpot, NoHotSpot, KuuskHotSpot, canopy_extinction,
        hotspot_separation, hotspot_correction, joint_gap_probability
@@ -96,7 +99,8 @@ export PureIce, LiquidPureWater, LiquidSaltWater
 export LeafProspectProProperties, LeafOpticalProperties, dielectric
 # Functions:
 export compute_Z_matrices, compute_Z_matrices_aniso_analytic,
-       prospect, compute_reflection, compute_reflection_mueller
+       prospect, compute_reflection, compute_reflection_mueller,
+       G, G2, bfG
 # MW stuff
 export wood_forward, wood_backward, afsal, asal, abs_components 
 

@@ -27,7 +27,7 @@ function A(θ::FT, θₗ::FT) where FT<:Real # Suniti: why not use the expressio
     else
     #@show ">"
         b = sin(θ) * sin(θₗ)
-        c = sqrt(sin(θₗ)^2  - cos(θ)^2)
+        c = sqrt(max(zero(FT), sin(θₗ)^2 - cos(θ)^2))
      #   @show θₗ, FT(2/π)*(c + a * asin(a/b))
         return FT(2/π)*(c + a * asin(a/b))
     end
@@ -86,7 +86,7 @@ function G(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=40) where F
     θₗ, w = gauleg(nLeg, FT(0), FT(π/2))
     Fᵢ = FT.(pdf.(LD.LD, FT(2) .* θₗ ./ FT(π))) .* FT(LD.scaling)
     Fᵢ = Fᵢ / (w' * Fᵢ)   # normalize leaf angle distribution
-    θ  = acos.(μ)
+    θ  = acos.(abs.(μ))
     G  = (w .* Fᵢ)' * A.(θ', θₗ)
     return FT.(G')
 end
@@ -105,7 +105,7 @@ function G2(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=40) where 
     θₗ = acos.(μl)
     Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling * π/2 
     Fᵢ = Fᵢ ./ (w'*Fᵢ)
-    θ = acos.(μ)
+    θ = acos.(abs.(μ))
     G = (w .* Fᵢ)' * A.(θ',θₗ)
     return G'
 end
@@ -134,7 +134,7 @@ function bfG(μ::Array{FT}, LD::AbstractLeafDistribution; nLeg=20) where FT
     res = similar(μ);
     
     for i in eachindex(μ)
-        Ω = dirVector_μ(μ[i],0.0);
+        Ω = dirVector_μ(abs(μ[i]),0.0);
         #res[i] =  sum(w .* Fᵢ .* A.(θ[i],θₗ))
         # Double integration here:
         res[i] =  ((Fᵢ .* abs.(dot.((Ω,),Ω_l)))' * w)' * w_azi /(2π)

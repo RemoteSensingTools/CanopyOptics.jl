@@ -161,6 +161,25 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
                             quadrature = q, npol = npol)
 end
 
+_is_specular_component(::SpecularCanopyScattering) = true
+_is_specular_component(::AbstractCanopyScatteringType) = false
+_is_specular_component(component::CanopyComponent) =
+    _is_specular_component(component.scatterer)
+
+function _check_composite_specular_convention(components::Tuple)
+    has_specular = any(_is_specular_component, components)
+    all_specular = all(_is_specular_component, components)
+    if has_specular && !all_specular
+        throw(ArgumentError(
+            "Canopy scattering mixtures cannot yet combine SpecularCanopyScattering " *
+            "with diffuse or Lambertian components. The specular Fresnel " *
+            "strength is still folded into its Z kernel, while diffuse kernels " *
+            "divide out a scalar single-scattering albedo. Add an albedo-aware " *
+            "composite path before enabling diffuse + specular leaves."))
+    end
+    return nothing
+end
+
 """
     _sum_component_Z(compute_component_Z, components, μ, LD, m; quadrature)
 
@@ -170,6 +189,7 @@ Fourier moment and add the resulting Z matrices elementwise.
 function _sum_component_Z(compute_component_Z, components::Tuple, μ, LD, m::Int;
                           quadrature::CanopyQuadrature = CanopyQuadrature(),
                           npol::Integer = 1)
+    _check_composite_specular_convention(components)
     Z⁺⁺, Z⁻⁺ = compute_component_Z(components[1], μ, LD, m;
                                     quadrature = quadrature, npol = npol)
     Z⁺⁺_sum = copy(Z⁺⁺)
@@ -190,8 +210,12 @@ end
 Compute one Fourier moment for an additive canopy-scattering model.
 
 Each component is evaluated independently and the resulting `(Z⁺⁺, Z⁻⁺)`
-matrices are summed, so diffuse and specular leaf terms combine at the optical
-property level.
+matrices are summed for components that share the same albedo convention.
+
+Diffuse and Lambertian components use the vSmartMOM convention where scalar
+single-scattering albedo is divided out of `Z`. Specular kernels still carry
+their Fresnel/roughness strength in `Z`, so mixed diffuse + specular composites
+currently throw instead of silently combining incompatible conventions.
 """
 function compute_Z_matrices(mod::CompositeCanopyScattering,
                             μ::Array{FT,1},
@@ -227,6 +251,7 @@ function _sum_component_Z_stack(components::Tuple, μ, LD,
                                 m_range::AbstractUnitRange{<:Integer};
                                 quadrature::CanopyQuadrature = CanopyQuadrature(),
                                 npol::Integer = 1)
+    _check_composite_specular_convention(components)
     Z⁺⁺, Z⁻⁺ = compute_Z_matrices(components[1], μ, LD, m_range;
                                   quadrature = quadrature, npol = npol)
     Z⁺⁺_sum = copy(Z⁺⁺)
@@ -255,6 +280,8 @@ function compute_Z_matrices(mod::CompositeCanopyScattering,
 end
 
 function _component_G_weights(components::Tuple, μ::AbstractVector)
+    # Each G_c is already integrated over that component's inclination PDF;
+    # only area-index weighting remains here.
     Gs = map(component -> vec(G(μ, component.LAD)), components)
     FTG = eltype(Gs[1])
     for i in eachindex(components)
@@ -321,6 +348,7 @@ function _compute_mixed_Z(canopy::MixedCanopy, μ::AbstractVector, m;
     n = _validate_npol(npol)
     q = _resolve_quadrature(quadrature, nQuad)
     components = canopy.components
+    _check_composite_specular_convention(components)
     Gs, G_total = _component_G_weights(components, μ)
 
     first_component = components[1]
@@ -476,6 +504,17 @@ Compute all moments `0:m_max` for a composite canopy-scattering model by
 delegating to the stacked [`compute_Z_matrices`](@ref) API.
 """
 function compute_Z_matrices_aniso_analytic(mod::CompositeCanopyScattering,
+                                           μ::AbstractVector{FT},
+                                           LD::AbstractLeafDistribution,
+                                           m_max::Int;
+                                           quadrature::CanopyQuadrature = CanopyQuadrature(),
+                                           nQuad = nothing,
+                                           npol::Integer = 1) where {FT<:Real}
+    q = _resolve_quadrature(quadrature, nQuad)
+    return compute_Z_matrices(mod, μ, LD, 0:m_max; quadrature = q, npol = npol)
+end
+
+function compute_Z_matrices_aniso_analytic(mod::SpecularCanopyScattering,
                                            μ::AbstractVector{FT},
                                            LD::AbstractLeafDistribution,
                                            m_max::Int;

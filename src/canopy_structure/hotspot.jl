@@ -122,6 +122,23 @@ P_{so}(L) = \\exp[-(k_s + k_o)L] C_{hs}(L).
 ```
 
 Use [`NoHotSpot`](@ref) for the independent-path Beer-Lambert result.
+
+Hotspot corrections belong in the direct-beam source assembly of the canopy RT
+consumer, not in `compute_Z_matrices`. A typical per-layer skeleton is:
+
+```julia
+G_s = G([μ_s], LAD)[1]
+G_o = G([μ_o], LAD)[1]
+k_s = canopy_extinction(G_s, μ_s)
+k_o = canopy_extinction(G_o, μ_o)
+
+P_so = joint_gap_probability(hotspot, k_s, k_o, μ_s, μ_o, dϕ, L_cumulative)
+P_o  = exp(-k_o * L_cumulative)
+direct_source_scale = P_so / P_o
+```
+
+The consumer then applies `direct_source_scale` to the direct solar source term
+before multiplying by the canopy scattering kernel.
 """
 function joint_gap_probability(model::AbstractHotSpot, k_s, k_o,
                                μ_s, μ_o, dϕ, L)

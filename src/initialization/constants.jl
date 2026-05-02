@@ -1,4 +1,4 @@
-FT = Float64
+const FT = Float64
 # Conductivity polynomials (can be defined outside):
 const TempPoly   = Polynomial(FT.([2.903602, 8.607e-2, 4.738817e-4, -2.991e-6, 4.3041e-9]),:T)
 const SalPoly1   = Polynomial(FT.([37.5109, 5.45216, 0.014409]),:S);
@@ -14,4 +14,3 @@ const aU = FT.([0.46606917e-2, -0.26087876e-4, -0.63926782e-5,
                        0.37245044e1,   0.92609781e-2, -0.26093754e-1]
                        );
 
-                       

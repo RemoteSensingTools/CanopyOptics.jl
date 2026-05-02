@@ -123,15 +123,15 @@ Base.:+(a::AbstractCanopyScatteringType, b::AbstractCanopyScatteringType) =
     CompositeCanopyScattering(a, b)
 
 "Abstract Type for leaf distributions"
-abstract type AbstractLeafDistribution{FT<:AbstractFloat} end
+abstract type AbstractLeafDistribution{FT<:Real} end
 
 """
-    struct LeafDistribution{FT<:AbstractFloat}
+    struct LeafDistribution{FT<:Real}
 A struct that defines the leaf angular distribution in radians (from 0->π/2; here scaled to [0,1])
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct LeafDistribution{FT<:AbstractFloat} <: AbstractLeafDistribution{FT}
+struct LeafDistribution{FT<:Real} <: AbstractLeafDistribution{FT}
     "Julia Univariate Distribution from Distributions.js"
     LD::UnivariateDistribution
     "Scaling factor to normalize distribution (here mostly 2/π as Beta distribution is from [0,1])"

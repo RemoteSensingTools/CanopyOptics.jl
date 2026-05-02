@@ -76,7 +76,37 @@ Azimuth integration uses `quadrature.n_azimuth` Gauss-Legendre points over `[0, 
 Fourier weights are `cos(m ϕ)` for scalar I and the vSmartMOM Stokes
 cos/sin kernel for vector cases. `npol = 1` is the scalar default;
 `npol = 3` and `npol = 4` return Stokes-block matrices.
+
+The raw Knyazikhin-Marshak specular coefficient is divided by
+`G(μ_in)` column-by-column so it uses the same projected-area convention as the
+bi-Lambertian canopy kernels. The Fresnel/roughness strength remains folded
+into the returned kernel because a direction-independent specular
+single-scattering albedo is not yet part of the public API.
 """
+function _normalise_specular_projected_area!(Z⁺⁺::AbstractMatrix{FT},
+                                             Z⁻⁺::AbstractMatrix{FT},
+                                             G::AbstractVector,
+                                             m::Int,
+                                             npol::Int) where {FT}
+    ff = m == 0 ? FT(2) : FT(4)
+    nμ = length(G)
+    @inbounds for j in 1:nμ, sj in 1:npol
+        col = _stokes_index(j, sj, npol)
+        g = FT(G[j])
+        if _real_value(g) <= 0
+            Z⁺⁺[:, col] .= zero(FT)
+            Z⁻⁺[:, col] .= zero(FT)
+        else
+            scale = ff / g
+            for row in axes(Z⁺⁺, 1)
+                Z⁺⁺[row, col] *= scale
+                Z⁻⁺[row, col] *= scale
+            end
+        end
+    end
+    return Z⁺⁺, Z⁻⁺
+end
+
 function compute_Z_matrices(mod::SpecularCanopyScattering,
                             μ::Array{FT,1},
                             LD::AbstractLeafDistribution,
@@ -91,6 +121,7 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
 
     # Quadrature points in the azimuth:
     ϕ, w_azi = gauleg(q.n_azimuth, FT(0), FT(2π))
+    G_in = ZFT.(vec(G(μ, LD)))
 
     if n == 1
         𝐙⁺⁺ = zeros(ZFT, length(μ), length(μ))
@@ -112,7 +143,7 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
                 𝐙⁻⁺[i, j] = acc_mp
             end
         end
-        return 𝐙⁺⁺, 𝐙⁻⁺
+        return _normalise_specular_projected_area!(𝐙⁺⁺, 𝐙⁻⁺, G_in, m, n)
     end
 
     nμ = length(μ)
@@ -138,7 +169,7 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
             end
         end
     end
-    return 𝐙⁺⁺, 𝐙⁻⁺
+    return _normalise_specular_projected_area!(𝐙⁺⁺, 𝐙⁻⁺, G_in, m, n)
 end
 
 """

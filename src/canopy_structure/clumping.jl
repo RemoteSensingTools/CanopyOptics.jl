@@ -53,9 +53,9 @@ ConstantClumping{FT}(; Ω = nothing, Ω₀ = nothing) where {FT<:Real} = begin
 end
 
 """
-    ChenLeblancClumping(; Ω₀ = 0.7, c = 2, e = 2)
+    EmpiricalDirectionalClumping(; Ω₀ = 0.7, c = 2, e = 2)
 
-Angular clumping model after Chen and Leblanc-style empirical forms:
+Simple empirical angular clumping model:
 
 ```math
 Ω(θ) = \\frac{Ω_0}{Ω_0 + (1 - Ω_0)\\exp(-c θ^e)}, \\qquad θ = \\arccos μ.
@@ -63,20 +63,26 @@ Angular clumping model after Chen and Leblanc-style empirical forms:
 
 The default shape gives `Ω(0) = Ω₀` at nadir and approaches one toward the
 horizon, where clumping is visually less apparent along the slant path.
+
+This is a compact directional parameterization, not the full Chen-Leblanc
+row/crown gap-size model. `ChenLeblancClumping` remains as a compatibility
+alias for older code that used the previous name.
 """
-struct ChenLeblancClumping{FT<:Real} <: AbstractClumping{FT}
+struct EmpiricalDirectionalClumping{FT<:Real} <: AbstractClumping{FT}
     Ω₀::FT
     c::FT
     e::FT
 end
 
-function ChenLeblancClumping(; Ω₀ = 0.7, c = 2.0, e = 2.0)
+function EmpiricalDirectionalClumping(; Ω₀ = 0.7, c = 2.0, e = 2.0)
     FT = _clumping_parameter_type(Ω₀, c, e)
-    return ChenLeblancClumping{FT}(FT(Ω₀), FT(c), FT(e))
+    return EmpiricalDirectionalClumping{FT}(FT(Ω₀), FT(c), FT(e))
 end
 
-ChenLeblancClumping{FT}(; Ω₀ = FT(0.7), c = FT(2), e = FT(2)) where {FT<:Real} =
-    ChenLeblancClumping{FT}(FT(Ω₀), FT(c), FT(e))
+EmpiricalDirectionalClumping{FT}(; Ω₀ = FT(0.7), c = FT(2), e = FT(2)) where {FT<:Real} =
+    EmpiricalDirectionalClumping{FT}(FT(Ω₀), FT(c), FT(e))
+
+const ChenLeblancClumping = EmpiricalDirectionalClumping
 
 """
     clumping_index(model, μ)
@@ -88,11 +94,11 @@ clumping_index(::NoClumping, μ::Real) = one(μ)
 clumping_index(model::ConstantClumping, μ::Real) =
     model.Ω₀ + zero(μ)
 
-function clumping_index(model::ChenLeblancClumping, μ::Real)
+function clumping_index(model::EmpiricalDirectionalClumping, μ::Real)
     μₚ = μ + zero(model.Ω₀) + zero(model.c) + zero(model.e)
     oneμ = one(μₚ)
     μ_clamped = min(max(μₚ, -oneμ), oneμ)
-    θ = acos(μ_clamped)
+    θ = acos(abs(μ_clamped))
     return model.Ω₀ / (model.Ω₀ + (one(model.Ω₀) - model.Ω₀) *
                        exp(-model.c * θ^model.e))
 end

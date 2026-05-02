@@ -83,7 +83,8 @@ ray, while `N` keeps the opposite side. The leading factor of `2` matches the
 normalization documented in
 [`compute_Z_matrices_aniso_analytic`](@ref).
 """
-@inline function _psi_same(Pᵢ::FT, Nᵢ::FT, Pₒ::FT, Nₒ::FT) where {FT}
+@inline function _psi_same(Pᵢ::FTi, Nᵢ::FTn, Pₒ::FTo, Nₒ::FTm) where {FTi,FTn,FTo,FTm}
+    FT = promote_type(FTi, FTn, FTo, FTm)
     return FT(2) * (Pᵢ * Pₒ + Nᵢ * Nₒ)
 end
 
@@ -92,7 +93,8 @@ end
 
 Half-range Fourier product for sign-changing bi-Lambertian scattering.
 """
-@inline function _psi_opposite(Pᵢ::FT, Nᵢ::FT, Pₒ::FT, Nₒ::FT) where {FT}
+@inline function _psi_opposite(Pᵢ::FTi, Nᵢ::FTn, Pₒ::FTo, Nₒ::FTm) where {FTi,FTn,FTo,FTm}
+    FT = promote_type(FTi, FTn, FTo, FTm)
     return FT(2) * (Pᵢ * Nₒ + Nᵢ * Pₒ)
 end
 
@@ -115,7 +117,7 @@ function _normalise_Z!(Z⁺⁺::AbstractArray{FT,3},
     for k in 1:nm
         ff = k == 1 ? FT(2) : FT(4)
         for j in 1:nμ
-            scale = ff / (ϖ * FT(G[j]))
+            scale = ff / (ϖ * G[j])
             @inbounds for i in 1:nμ
                 Z⁺⁺[i, j, k] *= scale
                 Z⁻⁺[i, j, k] *= scale

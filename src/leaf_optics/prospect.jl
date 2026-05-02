@@ -90,10 +90,13 @@ function prospect(
     Rsub    = a.*(bN2.-1)./denom
     Tsub    = bNm1.*(a2.-1)./denom
 
-    # Case of zero absorption
-    j       = findall(r.+t .>= 1)
-    Tsub[j] = t[j]./(t[j]+(1 .-t[j])*(leaf.N-1))
-    Rsub[j] = 1 .-Tsub[j]
+    # Case of zero absorption. Keep this branch value-level so ForwardDiff
+    # derivatives are preserved for extreme SWIR inputs near r + t = 1.
+    zero_abs = r .+ t .>= 1
+    Tsub_zero = t ./ (t .+ (1 .- t) .* (N - FT(1)))
+    Rsub_zero = FT(1) .- Tsub_zero
+    Tsub = ifelse.(zero_abs, Tsub_zero, Tsub)
+    Rsub = ifelse.(zero_abs, Rsub_zero, Rsub)
 
     # Reflectance & transmittance of the leaf: combine top layer with next N-1 layers
     denom   = FT(1) .-Rsub.*r
