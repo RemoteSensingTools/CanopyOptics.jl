@@ -1,5 +1,9 @@
+pushfirst!(LOAD_PATH, dirname(@__DIR__))
+
 using Documenter, CanopyOptics
 using Literate, UnitfulEquivalences, Distributions
+
+@info "Building docs with CanopyOptics source" path=pathof(CanopyOptics)
 
 function build()
     tutorials = ["bilambertian.jl", "specular.jl"] # , 
