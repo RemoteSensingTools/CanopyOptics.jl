@@ -11,8 +11,9 @@ leaf polar and azimuthal angles, following Shultis & Myneni (1988) Eqs. (38)–(
 where `Γ⁻` integrates the negative (reflection) part and `Γ⁺` the positive
 (transmission) part of `(Ωⁱⁿ ⋅ Ωᴸ)(Ωᵒᵘᵗ ⋅ Ωᴸ)` over all leaf orientations.
 
-Retained as a direct-quadrature reference path for [`precompute_Zazi`](@ref).
-Production Z-matrix assembly uses [`compute_Z_matrices_aniso_analytic`](@ref).
+Retained as a direct-quadrature reference path for validating the analytic
+Fourier closure. Production Z-matrix assembly uses
+[`compute_Z_matrices_aniso_analytic`](@ref).
 See [`compute_lambertian_Γ`](@ref) for the azimuthally averaged (m=0 only)
 equivalent.
 """
@@ -47,6 +48,28 @@ function compute_Γ(mod::BiLambertianCanopyScattering,
     Γ⁺ =  1/2π * (Fᵢ .* w)' * (iPos * w_azi)
     # Eq 38 in Shultis and Myneni
     return R * Γ⁻ + T * Γ⁺ 
+end
+
+"""
+    compute_Γ_isotropic(mod::BiLambertianCanopyScattering, Ωⁱⁿ, Ωᵒᵘᵗ)
+
+Analytic area scattering transfer function for a spherical leaf-angle
+distribution, following Shultis and Myneni (1988), Eq. (40):
+
+```math
+Γ_{iso}(β) = \\frac{ω}{3π}(\\sin β - β\\cos β) + \\frac{T}{3}\\cos β,
+```
+
+where `β = acos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ)` and `ω = R + T`. This is a lightweight
+reference for tests of the general Fourier assembly.
+"""
+function compute_Γ_isotropic(mod::BiLambertianCanopyScattering,
+                             Ωⁱⁿ::dirVector_μ{FT},
+                             Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
+    (; R, T) = mod
+    β = acos(Ωᵒᵘᵗ ⋅ Ωⁱⁿ)
+    ω = R + T
+    return (ω / FT(3π)) * (sin(β) - β * cos(β)) + (T / FT(3)) * cos(β)
 end
 
 """

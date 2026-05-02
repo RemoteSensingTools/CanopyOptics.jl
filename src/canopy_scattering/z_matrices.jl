@@ -255,6 +255,16 @@ function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,
     return compute_Z_matrices(mod, μ, LD, m; quadrature = q)
 end
 
+function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,
+                                  μ::AbstractArray{FT,1},
+                                  LD::AbstractLeafDistribution,
+                                  Zup, Zdown, m::Int;
+                                  quadrature::CanopyQuadrature = CanopyQuadrature(),
+                                  nQuad = nothing) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    return compute_Z_matrices_aniso(mod, μ, LD, m; quadrature = q)
+end
+
 function compute_Z_matrices_aniso(mod::LambertianWoodCanopyScattering,
                                   μ::AbstractArray{FT,1},
                                   LD::AbstractLeafDistribution,
