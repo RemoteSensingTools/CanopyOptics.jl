@@ -98,6 +98,41 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test all(isfinite, ForwardDiff.gradient(clumping_sum, [0.7, 2.0, 2.0]))
     end
 
+    @testset "Canopy hotspot correction" begin
+        FT = Float64
+        k_s = FT(0.5) / FT(0.7)
+        k_o = FT(0.5) / FT(0.7)
+        L = FT(2)
+
+        no_hotspot = CanopyOptics.NoHotSpot()
+        base = exp(-(k_s + k_o) * L)
+        @test CanopyOptics.joint_gap_probability(
+            no_hotspot, k_s, k_o, 0.7, 0.7, 0.0, L) ≈ base
+
+        disabled = CanopyOptics.KuuskHotSpot(h = 0.0)
+        @test CanopyOptics.hotspot_correction(
+            disabled, k_s, k_o, 0.7, 0.7, 0.0, L) ≈ 1
+
+        hotspot = CanopyOptics.KuuskHotSpot(h = 0.1)
+        exact_backscatter = CanopyOptics.joint_gap_probability(
+            hotspot, k_s, k_o, 0.7, 0.7, 0.0, L)
+        @test exact_backscatter ≈ exp(-k_s * L)
+
+        near = CanopyOptics.hotspot_correction(
+            hotspot, k_s, k_o, 0.7, 0.7, 0.0, L)
+        far = CanopyOptics.hotspot_correction(
+            hotspot, k_s, k_o, 0.7, 0.4, π, L)
+        @test near > far > 1
+
+        @test CanopyOptics.canopy_extinction(0.5f0, 0.25f0) === 2.0f0
+
+        hs_sum(x) = begin
+            model = CanopyOptics.KuuskHotSpot(h = x[1])
+            CanopyOptics.joint_gap_probability(model, k_s, k_o, 0.7, 0.5, 0.2, L)
+        end
+        @test isfinite(ForwardDiff.derivative(h -> hs_sum([h]), 0.1))
+    end
+
     @testset "Specular compute_reflection symmetry" begin
         mod = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2)
         LD = CanopyOptics.spherical_leaves()

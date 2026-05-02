@@ -57,6 +57,7 @@ include("utils/fresnel.jl")
 include("leaf_optics/prospect.jl")
 include("wood_optics/reflectance.jl")
 include("canopy_structure/clumping.jl")
+include("canopy_structure/hotspot.jl")
 
 include("canopy_scattering/projection_geometry.jl")
 include("canopy_scattering/quadrature_controls.jl")
@@ -87,6 +88,8 @@ export AbstractWoodReflectance, AbstractLUTWoodReflectance,
        wood_reflectance
 export AbstractClumping, NoClumping, ConstantClumping, ChenLeblancClumping,
        clumping_index, effective_G
+export AbstractHotSpot, NoHotSpot, KuuskHotSpot, canopy_extinction,
+       hotspot_separation, hotspot_correction, joint_gap_probability
 export PureIce, LiquidPureWater, LiquidSaltWater
 export LeafProspectProProperties, LeafOpticalProperties, dielectric
 # Functions:
