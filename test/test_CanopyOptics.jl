@@ -62,6 +62,34 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test fᵢₒ >= 0
     end
 
+    @testset "Composite canopy scattering" begin
+        μ, w = CanopyOptics.gauleg(5, 0.0, 1.0)
+        LD = CanopyOptics.planophile_leaves2()
+        diffuse = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2, nQuad = 32)
+        specular = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2, nQuad = 12)
+        composite = diffuse + specular
+
+        @test composite isa CanopyOptics.CompositeCanopyScattering
+        @test composite.components == (diffuse, specular)
+        @test (diffuse + (specular + diffuse)).components == (diffuse, specular, diffuse)
+
+        Zpp, Zmp = CanopyOptics.compute_Z_matrices(composite, μ, LD, 0)
+        Zpp_d, Zmp_d = CanopyOptics.compute_Z_matrices(diffuse, μ, LD, 0)
+        Zpp_s, Zmp_s = CanopyOptics.compute_Z_matrices(specular, μ, LD, 0)
+        @test Zpp ≈ Zpp_d .+ Zpp_s
+        @test Zmp ≈ Zmp_d .+ Zmp_s
+
+        Zpp_a, Zmp_a = CanopyOptics.compute_Z_matrices_aniso(composite, μ, LD, 2)
+        Zpp_ad, Zmp_ad = CanopyOptics.compute_Z_matrices_aniso(diffuse, μ, LD, 2)
+        Zpp_as, Zmp_as = CanopyOptics.compute_Z_matrices_aniso(specular, μ, LD, 2)
+        @test Zpp_a ≈ Zpp_ad .+ Zpp_as
+        @test Zmp_a ≈ Zmp_ad .+ Zmp_as
+
+        Zpp_stack, Zmp_stack = CanopyOptics.compute_Z_matrices_aniso_analytic(composite, μ, LD, 3)
+        @test Zpp_stack[:, :, 3] ≈ Zpp_a
+        @test Zmp_stack[:, :, 3] ≈ Zmp_a
+    end
+
     @testset "dielectric sanity" begin
         w = CanopyOptics.LiquidPureWater()
         ϵ_w = CanopyOptics.dielectric(w, 283.0, 10.0)

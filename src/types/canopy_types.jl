@@ -21,6 +21,34 @@ Base.@kwdef struct SpecularCanopyScattering{FT<:AbstractFloat} <: AbstractCanopy
     nQuad::Int = 20
 end
 
+"""
+    CompositeCanopyScattering(components...)
+
+Additive canopy scattering model.  Components are evaluated independently and
+their Z matrices are summed, so a leaf can carry both diffuse bi-Lambertian and
+specular surface terms.
+"""
+struct CompositeCanopyScattering{FT<:AbstractFloat,T<:Tuple} <: AbstractCanopyScatteringType{FT}
+    components::T
+end
+
+_canopy_scattering_ft(::AbstractCanopyScatteringType{FT}) where {FT} = FT
+_flatten_component(c::CompositeCanopyScattering) = c.components
+_flatten_component(c::AbstractCanopyScatteringType) = (c,)
+
+function CompositeCanopyScattering(components::AbstractCanopyScatteringType...)
+    isempty(components) && throw(ArgumentError("CompositeCanopyScattering needs at least one component"))
+    flat = ()
+    for component in components
+        flat = (flat..., _flatten_component(component)...)
+    end
+    FT = promote_type(map(_canopy_scattering_ft, flat)...)
+    return CompositeCanopyScattering{FT,typeof(flat)}(flat)
+end
+
+Base.:+(a::AbstractCanopyScatteringType, b::AbstractCanopyScatteringType) =
+    CompositeCanopyScattering(a, b)
+
 "Abstract Type for leaf distributions"
 abstract type AbstractLeafDistribution{FT<:AbstractFloat} end
 

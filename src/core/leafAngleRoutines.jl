@@ -338,9 +338,34 @@ function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::
     return 𝐙⁺⁺, 𝐙⁻⁺
 end
 
+function _sum_component_Z(compute_component_Z, components::Tuple, μ, LD, m::Int)
+    Z⁺⁺, Z⁻⁺ = compute_component_Z(components[1], μ, LD, m)
+    Z⁺⁺_sum = copy(Z⁺⁺)
+    Z⁻⁺_sum = copy(Z⁻⁺)
+
+    for i in 2:length(components)
+        Z⁺⁺ᵢ, Z⁻⁺ᵢ = compute_component_Z(components[i], μ, LD, m)
+        Z⁺⁺_sum = Z⁺⁺_sum .+ Z⁺⁺ᵢ
+        Z⁻⁺_sum = Z⁻⁺_sum .+ Z⁻⁺ᵢ
+    end
+    return Z⁺⁺_sum, Z⁻⁺_sum
+end
+
+function compute_Z_matrices(mod::CompositeCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
+    return _sum_component_Z(compute_Z_matrices, mod.components, μ, LD, m)
+end
+
 function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
     Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, m)
     return Z⁺⁺[:, :, m + 1], Z⁻⁺[:, :, m + 1]
+end
+
+function compute_Z_matrices_aniso(mod::SpecularCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
+    return compute_Z_matrices(mod, Array(μ), LD, m)
+end
+
+function compute_Z_matrices_aniso(mod::CompositeCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
+    return _sum_component_Z(compute_Z_matrices_aniso, mod.components, μ, LD, m)
 end
 
 @inline function _psi_same(Pᵢ::FT, Nᵢ::FT, Pₒ::FT, Nₒ::FT) where {FT}
@@ -600,6 +625,24 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
     end
 
     return _normalise_Z!(Z⁺⁺, Z⁻⁺, G, ϖ)
+end
+
+function compute_Z_matrices_aniso_analytic(mod::CompositeCanopyScattering,
+                                           μ::AbstractVector{FT},
+                                           LD::AbstractLeafDistribution,
+                                           m_max::Int) where {FT<:AbstractFloat}
+    m_max < 0 && throw(ArgumentError("m_max must be non-negative"))
+
+    nμ = length(μ)
+    nm = m_max + 1
+    Z⁺⁺ = zeros(promote_type(FT, _canopy_scattering_ft(mod)), nμ, nμ, nm)
+    Z⁻⁺ = similar(Z⁺⁺)
+    for m in 0:m_max
+        Z⁺⁺ₘ, Z⁻⁺ₘ = compute_Z_matrices_aniso(mod, μ, LD, m)
+        Z⁺⁺[:, :, m + 1] .= Z⁺⁺ₘ
+        Z⁻⁺[:, :, m + 1] .= Z⁻⁺ₘ
+    end
+    return Z⁺⁺, Z⁻⁺
 end
 
 """

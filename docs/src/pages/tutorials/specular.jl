@@ -31,6 +31,17 @@ size(Z⁻⁺₀)
 Z⁺⁺₃, Z⁻⁺₃ = CanopyOptics.compute_Z_matrices(specular, μ, LD, 3)
 maximum(abs.(Z⁻⁺₃))
 
+# ## Adding diffuse and specular terms
+
+# Leaf scattering components are additive at the Z-matrix level. The composite
+# model dispatches each component through its own implementation: closed-form
+# Fourier moments for the diffuse bi-Lambertian term and azimuth quadrature for
+# the specular term.
+diffuse = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2, nQuad = 64)
+mixed_leaf = diffuse + specular
+Z_mix⁺⁺, Z_mix⁻⁺ = CanopyOptics.compute_Z_matrices_aniso(mixed_leaf, μ, LD, 3)
+size(Z_mix⁻⁺)
+
 # ## Lightweight animation
 
 # The animation below keeps the original visual check: the same incoming
