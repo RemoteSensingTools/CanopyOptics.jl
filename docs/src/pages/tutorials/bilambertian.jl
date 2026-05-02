@@ -19,10 +19,11 @@ leaf = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2, nQuad = 64)
 
 # ## Closed-form Fourier stack
 
-# `compute_Z_matrices_aniso_analytic` returns all cosine Fourier moments from
-# `m = 0:m_max` in one call. The array layout is `Z[i_out, j_in, m+1]`.
+# Passing a moment range to `compute_Z_matrices` returns all cosine Fourier
+# moments in one call. The array layout is `Z[i_out, j_in, m+1]` for the
+# common `0:m_max` range.
 m_max = 8
-Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices_aniso_analytic(leaf, μ, LD, m_max)
+Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:m_max)
 size(Z⁺⁺)
 
 # `Z⁺⁺` is same-sign transmission and `Z⁻⁺` is sign-change reflection. For
@@ -31,8 +32,8 @@ size(Z⁺⁺)
 column_flux = vec(sum(w .* (Z⁺⁺[:, :, 1] .+ Z⁻⁺[:, :, 1]), dims = 1))
 extrema(column_flux)
 
-# The legacy single-moment entry point delegates to the same analytic closure.
-Z⁺⁺₂, Z⁻⁺₂ = CanopyOptics.compute_Z_matrices_aniso(leaf, μ, LD, 2)
+# Single-moment calls slice the same analytic closure.
+Z⁺⁺₂, Z⁻⁺₂ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 2)
 maximum(abs.(Z⁺⁺₂ .- Z⁺⁺[:, :, 3]))
 
 # The older `compute_Z_matrices` function is the azimuthally averaged `m = 0`
@@ -48,7 +49,7 @@ maximum(abs.(Z⁻⁺₀ .- Z⁻⁺[:, :, 1]))
 # normalized interval.
 erectophile = CanopyOptics.LeafDistribution(Beta(5, 2), 2 / π)
 Z_erect⁺⁺, Z_erect⁻⁺ =
-    CanopyOptics.compute_Z_matrices_aniso_analytic(leaf, μ, erectophile, m_max)
+    CanopyOptics.compute_Z_matrices(leaf, μ, erectophile, 0:m_max)
 
 maximum(abs.(Z_erect⁻⁺[:, :, 1] .- Z⁻⁺[:, :, 1]))
 
@@ -58,7 +59,7 @@ maximum(abs.(Z_erect⁻⁺[:, :, 1] .- Z⁻⁺[:, :, 1]))
 # of beta leaf-angle distributions and updates the `m = 0` reflection matrix.
 function reflection_matrix_for_beta(a, b)
     LD = CanopyOptics.LeafDistribution(Beta(a, b), 2 / π)
-    _, Z⁻⁺ = CanopyOptics.compute_Z_matrices_aniso_analytic(leaf, μ, LD, 0)
+    _, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:0)
     return Z⁻⁺[:, :, 1]
 end
 

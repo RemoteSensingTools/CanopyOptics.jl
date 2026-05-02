@@ -154,45 +154,24 @@ function compute_lambertian_Γ(μ::Array{FT,1},μꜛ::Array{FT,1}, r,t, LD::Abst
 end
 
 """
-    $(FUNCTIONNAME)(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int)
+    compute_Z_matrices(mod::BiLambertianCanopyScattering,
+                       μ::AbstractVector, LD::AbstractLeafDistribution,
+                       m::Integer) -> (Z⁺⁺, Z⁻⁺)
 
-Computes the single scattering Z matrices (𝐙⁺⁺ for same incoming and outgoing sign of μ, 𝐙⁻⁺ for a change in direction). Internally computes the azimuthally-averaged area scattering transfer function following Shultis and Myneni (https://doi.org/10.1016/0022-4073(88)90079-9), Eq 43::
+Compute one cosine Fourier moment of the bi-Lambertian canopy scattering
+matrices.  Rows are outgoing streams and columns are incoming streams:
+`Z[i_out, j_in]`.
 
-``Γ(μ' -> μ) = \\int_0^1 dμ_L g_L(μ_L)[t_L Ψ⁺(μ, μ', μ_L) + r_L Ψ⁻(μ, μ', μ_L)]``
-
-assuming an azimuthally uniform leaf angle distribution. Normalized Γ as 𝐙 = 4Γ/(ϖ⋅G(μ)).
-Returns 𝐙⁺⁺, 𝐙⁻⁺ 
-
-# Arguments
-- `mod` : A bilambertian canopy scattering model [`BiLambertianCanopyScattering`](@ref), uses R,T,nQuad from that model.
-- `μ::Array{FT,1}`: Quadrature points ∈ [0,1]
-- `LD` an `AbstractLeafDistribution` struct that describes the leaf angular distribution function.
-- `m`: Fourier moment (for azimuthally uniform leave distributions such as here, only m=0 returns non-zero matrices)
+This method uses the closed-form Fourier moments from
+[`compute_Z_matrices_aniso_analytic`](@ref).  For all moments in one call, pass
+a range such as `0:m_max`.
 """
-function compute_Z_matrices(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
-    (;R,T,nQuad) = mod
-    # Transmission (same direction)
-    𝐙⁺⁺ = zeros(length(μ), length(μ))
-    # Reflection (change direction)
-    𝐙⁻⁺ = zeros(length(μ), length(μ))
-    
-    # skip everything beyond m=0
-    if m>0  
-        return 𝐙⁺⁺, 𝐙⁻⁺
-    end
-    # Ross kernel
-    G = CanopyOptics.G(μ, LD)
-    # Single Scattering Albedo (should make this a vector too)
-    ϖ = R+T
-
-    θₗ,w = gauleg(nQuad,FT(0),FT(π/2));
-    for i in eachindex(θₗ)
-        Ψ⁺, Ψ⁻ = compute_Ψ(μ,μ, cos(θₗ[i]));
-        𝐙⁺⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻) 
-        Ψ⁺, Ψ⁻ = compute_Ψ(μ,-μ, cos(θₗ[i]));
-        𝐙⁻⁺ += pdf.(LD.LD,2θₗ[i]/π) * LD.scaling * w[i] * (T * Ψ⁺ + R * Ψ⁻) 
-    end
-    return 4𝐙⁺⁺ ./(G'*ϖ), 4𝐙⁻⁺ ./(G'*ϖ)
+function compute_Z_matrices(mod::BiLambertianCanopyScattering,
+                            μ::AbstractVector{FT},
+                            LD::AbstractLeafDistribution,
+                            m::Integer) where FT
+    Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, Int(m))
+    return Z⁺⁺[:, :, m + 1], Z⁻⁺[:, :, m + 1]
 end
 
 # Page 20, top of Knyazikhin and Marshak
@@ -338,6 +317,56 @@ function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::
     return 𝐙⁺⁺, 𝐙⁻⁺
 end
 
+function compute_Z_matrices(mod::SpecularCanopyScattering,
+                            μ::AbstractVector{FT},
+                            LD::AbstractLeafDistribution,
+                            m::Integer) where FT
+    return compute_Z_matrices(mod, Array(μ), LD, Int(m))
+end
+
+function _check_m_range(m_range::AbstractUnitRange{<:Integer})
+    isempty(m_range) && throw(ArgumentError("Fourier moment range must be non-empty"))
+    first(m_range) < 0 && throw(ArgumentError("Fourier moments must be non-negative"))
+    return m_range
+end
+
+function _stack_Z_moments(compute_component_Z, mod, μ, LD,
+                          m_range::AbstractUnitRange{<:Integer})
+    _check_m_range(m_range)
+    Z⁺⁺₀, Z⁻⁺₀ = compute_component_Z(mod, μ, LD, first(m_range))
+    nμ_out, nμ_in = size(Z⁺⁺₀)
+    nm = length(m_range)
+    Z⁺⁺ = similar(Z⁺⁺₀, nμ_out, nμ_in, nm)
+    Z⁻⁺ = similar(Z⁻⁺₀, nμ_out, nμ_in, nm)
+    Z⁺⁺[:, :, 1] .= Z⁺⁺₀
+    Z⁻⁺[:, :, 1] .= Z⁻⁺₀
+
+    k = 2
+    for m in Iterators.drop(m_range, 1)
+        Z⁺⁺ₘ, Z⁻⁺ₘ = compute_component_Z(mod, μ, LD, m)
+        Z⁺⁺[:, :, k] .= Z⁺⁺ₘ
+        Z⁻⁺[:, :, k] .= Z⁻⁺ₘ
+        k += 1
+    end
+    return Z⁺⁺, Z⁻⁺
+end
+
+function compute_Z_matrices(mod::BiLambertianCanopyScattering,
+                            μ::AbstractVector{FT},
+                            LD::AbstractLeafDistribution,
+                            m_range::AbstractUnitRange{<:Integer}) where FT
+    _check_m_range(m_range)
+    Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, last(m_range))
+    return Z⁺⁺[:, :, m_range .+ 1], Z⁻⁺[:, :, m_range .+ 1]
+end
+
+function compute_Z_matrices(mod::SpecularCanopyScattering,
+                            μ::AbstractVector{FT},
+                            LD::AbstractLeafDistribution,
+                            m_range::AbstractUnitRange{<:Integer}) where FT
+    return _stack_Z_moments(compute_Z_matrices, mod, μ, LD, m_range)
+end
+
 function _sum_component_Z(compute_component_Z, components::Tuple, μ, LD, m::Int)
     Z⁺⁺, Z⁻⁺ = compute_component_Z(components[1], μ, LD, m)
     Z⁺⁺_sum = copy(Z⁺⁺)
@@ -355,9 +384,37 @@ function compute_Z_matrices(mod::CompositeCanopyScattering, μ::Array{FT,1}, LD:
     return _sum_component_Z(compute_Z_matrices, mod.components, μ, LD, m)
 end
 
+function compute_Z_matrices(mod::CompositeCanopyScattering,
+                            μ::AbstractVector{FT},
+                            LD::AbstractLeafDistribution,
+                            m::Integer) where FT
+    return _sum_component_Z(compute_Z_matrices, mod.components, μ, LD, Int(m))
+end
+
+function _sum_component_Z_stack(components::Tuple, μ, LD,
+                                m_range::AbstractUnitRange{<:Integer})
+    Z⁺⁺, Z⁻⁺ = compute_Z_matrices(components[1], μ, LD, m_range)
+    Z⁺⁺_sum = copy(Z⁺⁺)
+    Z⁻⁺_sum = copy(Z⁻⁺)
+
+    for i in 2:length(components)
+        Z⁺⁺ᵢ, Z⁻⁺ᵢ = compute_Z_matrices(components[i], μ, LD, m_range)
+        Z⁺⁺_sum = Z⁺⁺_sum .+ Z⁺⁺ᵢ
+        Z⁻⁺_sum = Z⁻⁺_sum .+ Z⁻⁺ᵢ
+    end
+    return Z⁺⁺_sum, Z⁻⁺_sum
+end
+
+function compute_Z_matrices(mod::CompositeCanopyScattering,
+                            μ::AbstractVector{FT},
+                            LD::AbstractLeafDistribution,
+                            m_range::AbstractUnitRange{<:Integer}) where FT
+    _check_m_range(m_range)
+    return _sum_component_Z_stack(mod.components, μ, LD, m_range)
+end
+
 function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
-    Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, m)
-    return Z⁺⁺[:, :, m + 1], Z⁻⁺[:, :, m + 1]
+    return compute_Z_matrices(mod, μ, LD, m)
 end
 
 function compute_Z_matrices_aniso(mod::SpecularCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
@@ -631,18 +688,7 @@ function compute_Z_matrices_aniso_analytic(mod::CompositeCanopyScattering,
                                            μ::AbstractVector{FT},
                                            LD::AbstractLeafDistribution,
                                            m_max::Int) where {FT<:AbstractFloat}
-    m_max < 0 && throw(ArgumentError("m_max must be non-negative"))
-
-    nμ = length(μ)
-    nm = m_max + 1
-    Z⁺⁺ = zeros(promote_type(FT, _canopy_scattering_ft(mod)), nμ, nμ, nm)
-    Z⁻⁺ = similar(Z⁺⁺)
-    for m in 0:m_max
-        Z⁺⁺ₘ, Z⁻⁺ₘ = compute_Z_matrices_aniso(mod, μ, LD, m)
-        Z⁺⁺[:, :, m + 1] .= Z⁺⁺ₘ
-        Z⁻⁺[:, :, m + 1] .= Z⁻⁺ₘ
-    end
-    return Z⁺⁺, Z⁻⁺
+    return compute_Z_matrices(mod, μ, LD, 0:m_max)
 end
 
 """

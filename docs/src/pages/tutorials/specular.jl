@@ -39,7 +39,7 @@ maximum(abs.(Z⁻⁺₃))
 # the specular term.
 diffuse = CanopyOptics.BiLambertianCanopyScattering(R = 0.4, T = 0.2, nQuad = 64)
 mixed_leaf = diffuse + specular
-Z_mix⁺⁺, Z_mix⁻⁺ = CanopyOptics.compute_Z_matrices_aniso(mixed_leaf, μ, LD, 3)
+Z_mix⁺⁺, Z_mix⁻⁺ = CanopyOptics.compute_Z_matrices(mixed_leaf, μ, LD, 0:3)
 size(Z_mix⁻⁺)
 
 # ## Lightweight animation

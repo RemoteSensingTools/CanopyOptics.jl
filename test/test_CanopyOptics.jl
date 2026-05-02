@@ -46,8 +46,15 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test all(isfinite.(Z⁻⁺))
 
         Z⁺⁺_m1, Z⁻⁺_m1 = CanopyOptics.compute_Z_matrices(mod, μ, LD, 1)
-        @test all(Z⁺⁺_m1 .== 0)
-        @test all(Z⁻⁺_m1 .== 0)
+        Z⁺⁺_a1, Z⁻⁺_a1 = CanopyOptics.compute_Z_matrices_aniso(mod, μ, LD, 1)
+        @test Z⁺⁺_m1 == Z⁺⁺_a1
+        @test Z⁻⁺_m1 == Z⁻⁺_a1
+
+        Z⁺⁺_stack, Z⁻⁺_stack = CanopyOptics.compute_Z_matrices(mod, μ, LD, 0:2)
+        @test Z⁺⁺_stack[:, :, 2] == Z⁺⁺_m1
+        @test Z⁻⁺_stack[:, :, 2] == Z⁻⁺_m1
+        @test_throws ArgumentError CanopyOptics.compute_Z_matrices(mod, μ, LD, -1:1)
+        @test_throws ArgumentError CanopyOptics.compute_Z_matrices(mod, μ, LD, 2:1)
     end
 
     @testset "Specular compute_reflection symmetry" begin
@@ -88,6 +95,10 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         Zpp_stack, Zmp_stack = CanopyOptics.compute_Z_matrices_aniso_analytic(composite, μ, LD, 3)
         @test Zpp_stack[:, :, 3] ≈ Zpp_a
         @test Zmp_stack[:, :, 3] ≈ Zmp_a
+
+        Zpp_public_stack, Zmp_public_stack = CanopyOptics.compute_Z_matrices(composite, μ, LD, 0:3)
+        @test Zpp_public_stack == Zpp_stack
+        @test Zmp_public_stack == Zmp_stack
     end
 
     @testset "dielectric sanity" begin
@@ -146,15 +157,20 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             for LD in LADs, (R, T) in RTs
                 mod = CanopyOptics.BiLambertianCanopyScattering(R = R, T = T, nQuad = 64)
                 Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(mod, μb, LD, 4)
+                Zpp_public, Zmp_public = CanopyOptics.compute_Z_matrices(mod, μb, LD, 0:4)
+                @test Zpp_public == Zpp
+                @test Zmp_public == Zmp
 
                 for m in 0:4
-                    Zpp_single, Zmp_single = CanopyOptics.compute_Z_matrices_aniso(
+                    Zpp_single, Zmp_single = CanopyOptics.compute_Z_matrices(
+                        mod, μb, LD, m)
+                    Zpp_aniso, Zmp_aniso = CanopyOptics.compute_Z_matrices_aniso(
                         mod, μb, LD, m)
                     Zpp_compat, Zmp_compat = CanopyOptics.compute_Z_matrices_aniso(
                         mod, μb, LD, nothing, nothing, m)
 
-                    @test Zpp[:, :, m + 1] == Zpp_single == Zpp_compat
-                    @test Zmp[:, :, m + 1] == Zmp_single == Zmp_compat
+                    @test Zpp[:, :, m + 1] == Zpp_single == Zpp_aniso == Zpp_compat
+                    @test Zmp[:, :, m + 1] == Zmp_single == Zmp_aniso == Zmp_compat
                 end
             end
         end
