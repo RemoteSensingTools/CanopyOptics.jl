@@ -118,6 +118,53 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test Zmp_public_stack == Zmp_stack
     end
 
+    @testset "Wood reflectance and Lambertian wood scattering" begin
+        μ, _ = CanopyOptics.gauleg(5, 0.0, 1.0)
+        LD = CanopyOptics.spherical_leaves()
+        quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 24)
+
+        constant = CanopyOptics.ConstantWoodReflectance(R = 0.23)
+        @test CanopyOptics.wood_reflectance(constant) == 0.23
+        @test CanopyOptics.wood_reflectance(constant, [450.0, 550.0]) == [0.23, 0.23]
+
+        lut = CanopyOptics.LUTWoodReflectance([400.0, 500.0, 600.0],
+                                             [0.10, 0.20, 0.40])
+        @test CanopyOptics.wood_reflectance(lut, 450.0) ≈ 0.15
+        @test CanopyOptics.wood_reflectance(lut, 1e7 / 500.0; grid_unit = :cm_inv) ≈ 0.20
+        @test CanopyOptics.wood_reflectance(lut, 350.0) ≈ 0.10
+
+        poly = CanopyOptics.PolynomialWoodReflectance(
+            coeffs = [0.20, 0.05], x_offset = 400.0, x_scale = 100.0)
+        @test CanopyOptics.wood_reflectance(poly, 500.0) ≈ 0.25
+
+        poly_sum(c) = begin
+            p = CanopyOptics.PolynomialWoodReflectance(
+                coeffs = c, x_offset = 400.0, x_scale = 100.0)
+            sum(CanopyOptics.wood_reflectance(p, [400.0, 500.0, 600.0]))
+        end
+        @test all(isfinite, ForwardDiff.gradient(poly_sum, [0.2, 0.05, 0.01]))
+
+        wood = CanopyOptics.LambertianWoodCanopyScattering(constant)
+        diffuse_ref = CanopyOptics.BiLambertianCanopyScattering(R = 0.23, T = 0.0)
+        Zpp_w, Zmp_w = CanopyOptics.compute_Z_matrices(
+            wood, μ, LD, 0:2; quadrature)
+        Zpp_d, Zmp_d = CanopyOptics.compute_Z_matrices(
+            diffuse_ref, μ, LD, 0:2; quadrature)
+        @test Zpp_w == Zpp_d
+        @test Zmp_w == Zmp_d
+
+        spectral_wood = CanopyOptics.LambertianWoodCanopyScattering(reflectance = lut)
+        @test_throws ArgumentError CanopyOptics.compute_Z_matrices(
+            spectral_wood, μ, LD, 0; quadrature)
+        Zpp_lut, Zmp_lut = CanopyOptics.compute_Z_matrices(
+            spectral_wood, μ, LD, 0; quadrature, spectral_coordinate = 500.0)
+        Zpp_ref, Zmp_ref = CanopyOptics.compute_Z_matrices(
+            CanopyOptics.BiLambertianCanopyScattering(R = 0.20, T = 0.0),
+            μ, LD, 0; quadrature)
+        @test Zpp_lut == Zpp_ref
+        @test Zmp_lut == Zmp_ref
+    end
+
     @testset "Canopy Z supports ForwardDiff parameters" begin
         μ, _ = CanopyOptics.gauleg(4, 0.0, 1.0)
         LD = CanopyOptics.spherical_leaves()
@@ -157,9 +204,9 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
     @testset "Analytic BiLambertian canopy Fourier moments" begin
         grid = collect(range(0.0, 1.0, length = 50))
 
-        @testset "clipped projection moments" begin
+        @testset "one-sided leaf projection moments" begin
             for μ in grid, μ_L in grid
-                P, N = CanopyOptics._clipped_projection_moments(μ, μ_L, 32)
+                P, N = CanopyOptics._one_sided_projection_moments(μ, μ_L, 32)
 
                 # P₀ is Shultis-Myneni's H function.
                 @test isapprox(P[1], CanopyOptics.H(μ, μ_L); rtol = 1e-14, atol = 1e-14)

@@ -54,8 +54,15 @@ include("utils/quadrature.jl")
 include("utils/canopy_angles.jl")
 include("utils/fresnel.jl")
 
-include("core/prospect.jl")
-include("core/leafAngleRoutines.jl")
+include("leaf_optics/prospect.jl")
+include("wood_optics/reflectance.jl")
+
+include("canopy_scattering/projection_geometry.jl")
+include("canopy_scattering/quadrature_controls.jl")
+include("canopy_scattering/specular.jl")
+include("canopy_scattering/bilambertian_fourier.jl")
+include("canopy_scattering/z_matrices.jl")
+include("canopy_scattering/legacy_azimuth_reference.jl")
 
 include("initialization/loadProspect.jl")
 include("initialization/default_constructors.jl")
@@ -72,7 +79,11 @@ include("utils/dielectric.jl")
 export prospect
 export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties, dirVector, dirVector_μ
 export AbstractCanopyScatteringType, CanopyQuadrature, BiLambertianCanopyScattering,
-       CompositeCanopyScattering, SpecularCanopyScattering
+       CompositeCanopyScattering, SpecularCanopyScattering,
+       LambertianWoodCanopyScattering, LambertianWood
+export AbstractWoodReflectance, AbstractLUTWoodReflectance,
+       ConstantWoodReflectance, LUTWoodReflectance, PolynomialWoodReflectance,
+       wood_reflectance
 export PureIce, LiquidPureWater, LiquidSaltWater
 export LeafProspectProProperties, LeafOpticalProperties, dielectric
 # Functions:
