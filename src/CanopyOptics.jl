@@ -1,3 +1,21 @@
+"""
+    CanopyOptics
+
+Canopy radiative-transfer utilities.
+
+Canopy scattering matrices follow the same scalar normalization used by
+vSmartMOM's atmospheric phase matrices: `Z[i_out, j_in]` stores rows as
+outgoing streams and columns as incoming streams; `Z⁺⁺` is same-sign
+transmission and `Z⁻⁺` is sign-change reflection.  The single-scattering
+albedo is not folded into `Z`; for conservative scattering the `m = 0`
+hemispheric column integral satisfies
+
+```math
+\\sum_i w_i\\,(Z^{++}_{ij} + Z^{-+}_{ij}) \\simeq 2 .
+```
+
+The layer solvers multiply by `ϖ` separately.
+"""
 module CanopyOptics
 
 ###### Julia packages to import  ############
@@ -57,7 +75,8 @@ export AbstractCanopyScatteringType, BiLambertianCanopyScattering, SpecularCanop
 export PureIce, LiquidPureWater, LiquidSaltWater
 export LeafProspectProProperties, LeafOpticalProperties, dielectric
 # Functions:
-export compute_Z_matrices, prospect, compute_reflection
+export compute_Z_matrices, compute_Z_matrices_aniso_analytic,
+       prospect, compute_reflection
 # MW stuff
 export wood_forward, wood_backward, afsal, asal, abs_components 
 

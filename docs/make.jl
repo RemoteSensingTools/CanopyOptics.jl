@@ -31,20 +31,25 @@ function build()
         mathengine = mathengine,
         collapselevel = 1,
         size_threshold = nothing,
+        size_threshold_warn = nothing,
+        example_size_threshold = nothing,
         )
     makedocs(
             sitename = "Canopy Optics",
             format = format,
-            clean = false,
+            clean = true,
+            checkdocs = :none,
+            warnonly = [:cross_references],
             modules = [CanopyOptics],
-            pages = pages,
-            warnonly = [:missing_docs, :cross_references])
+            pages = pages)
 end
 build()
 
-deploydocs(
-    repo = "github.com/RemoteSensingTools/CanopyOptics.jl.git",
-    target = "build",
-    devbranch = "main",
-    push_preview = true,
-)
+if get(ENV, "CI", "false") == "true"
+    deploydocs(
+        repo = "github.com/RemoteSensingTools/CanopyOptics.jl.git",
+        target = "build",
+        devbranch = "main",
+        push_preview = true,
+    )
+end

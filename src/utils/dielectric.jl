@@ -108,7 +108,7 @@ $(FUNCTIONNAME)(mod::SoilMW, T::FT,f::FT)
 
 Computes the complex dielectric constant of moist soil (Ulaby & Long book, Eqs. 4.66–4.70).
 # Arguments
-- `mod` a [`SoilMW`](@ref) type struct (fields: `sand_frac`, `clay_frac`, `mᵥ`, `ρ`)
+- `mod` a `SoilMW` type struct (fields: `sand_frac`, `clay_frac`, `mᵥ`, `ρ`)
 - `T`  Temperature in `[K]`
 - `f`  Frequency in `[GHz]`
 

@@ -61,7 +61,7 @@ This function is often referred to as the function O(B) (Goudriaan 1977) or G(Ζ
 
 # Arguments
 - `μ` an array of cos(θ) (directions [0,1]) 
-- `LD` an [`AbstractLeafDistribution`](@ref) type struct, includes a leaf distribution function
+- `LD` an `AbstractLeafDistribution` type struct, includes a leaf distribution function
 - `nLeg` an optional parameter for the number of legendre polynomials to integrate over the leaf distribution (default=20)
 
 # Examples
@@ -84,11 +84,11 @@ julia> G   = CanopyOptics.G(μ, LD)                  # Compute G(μ)
 """
 function G(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=40) where FT
     θₗ, w = gauleg(nLeg, FT(0), FT(π/2))
-    Fᵢ = pdf.(LD.LD, 2θₗ/π) * LD.scaling
+    Fᵢ = FT.(pdf.(LD.LD, FT(2) .* θₗ ./ FT(π))) .* FT(LD.scaling)
     Fᵢ = Fᵢ / (w' * Fᵢ)   # normalize leaf angle distribution
     θ  = acos.(μ)
     G  = (w .* Fᵢ)' * A.(θ', θₗ)
-    return G'
+    return FT.(G')
 end
 
 function G2(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=40) where FT
@@ -140,7 +140,7 @@ assuming an azimuthally uniform leaf angle distribution.
 - `μꜛ::Array{FT,1}`: Quadrature points outgoing direction (cos(θ))
 - `r` : Leaf lambertian reflectance
 - `t` : Leaf lambertian transmittance
-- `LD` a [`AbstractLeafDistribution`](@ref) struct that describes the leaf angular distribution function.
+- `LD` an `AbstractLeafDistribution` struct that describes the leaf angular distribution function.
 - `nLeg = 20`: number of quadrature points used for integration over all leaf angles (default is 20).
 """
 function compute_lambertian_Γ(μ::Array{FT,1},μꜛ::Array{FT,1}, r,t, LD::AbstractLeafDistribution; nLeg = 20) where FT
@@ -166,7 +166,7 @@ Returns 𝐙⁺⁺, 𝐙⁻⁺
 # Arguments
 - `mod` : A bilambertian canopy scattering model [`BiLambertianCanopyScattering`](@ref), uses R,T,nQuad from that model.
 - `μ::Array{FT,1}`: Quadrature points ∈ [0,1]
-- `LD` a [`AbstractLeafDistribution`](@ref) struct that describes the leaf angular distribution function.
+- `LD` an `AbstractLeafDistribution` struct that describes the leaf angular distribution function.
 - `m`: Fourier moment (for azimuthally uniform leave distributions such as here, only m=0 returns non-zero matrices)
 """
 function compute_Z_matrices(mod::BiLambertianCanopyScattering, μ::Array{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
@@ -275,12 +275,12 @@ Photon Transport in Leaf Canopies*, Eq. 2.39:
 ``f_s(Ω' \\to Ω) = \\frac{1}{8}\\,g_L(θ^*)\\,K(κ, α^*)\\,F_r(n_r, α^*)``
 
 where:
-- `θ*` = polar angle of the specular leaf normal (from [`getSpecularΩ`](@ref))
+- `θ*` = polar angle of the specular leaf normal (from `getSpecularΩ`)
 - `α*` = incidence half-angle = `arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ) / 2`
-- `K(κ, α*)` = Nilson–Kuusk roughness factor (from [`K`](@ref))
-- `Fᵣ(nᵣ, α*)` = unpolarized Fresnel reflectance (from [`Fᵣ`](@ref))
+- `K(κ, α*)` = Nilson–Kuusk roughness factor (from `K`)
+- `Fᵣ(nᵣ, α*)` = unpolarized Fresnel reflectance (from `Fᵣ`)
 
-For full Stokes-vector propagation (vSmartMOM.jl), use [`fresnel_components`](@ref)
+For full Stokes-vector propagation (vSmartMOM.jl), use `fresnel_components`
 to obtain `r_s, r_p` and construct the 4×4 Mueller reflection matrix directly.
 
 Note: only reflection is currently modelled; specular transmission is not yet implemented.
@@ -339,45 +339,267 @@ function compute_Z_matrices(mod::SpecularCanopyScattering, μ::Array{FT,1}, LD::
 end
 
 function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering, μ::AbstractArray{FT,1}, LD::AbstractLeafDistribution, m::Int) where FT
-    (;R,T, nQuad) = mod
-    # Ross kernel
-    G = CanopyOptics.G(Array(μ), LD)
-    # Single Scattering Albedo (should make this a vector too)
-    ϖ = R+T
+    Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, m)
+    return Z⁺⁺[:, :, m + 1], Z⁻⁺[:, :, m + 1]
+end
 
-    # Transmission (same direction)
-    𝐙⁺⁺ = zeros(length(μ), length(μ))
-    # Reflection (change direction)
-    𝐙⁻⁺ = zeros(length(μ), length(μ))
-    
-    # Quadrature points in the azimuth:
-    # Y. Knyazikhin and A. Marshak, eq. A.9a
-    ϕ, w_azi = gauleg(nQuad,FT(0),FT(π));
-    w_azi *= 2/FT(π)
-    ff = m==0 ? FT(2) : FT(4)
-    #if m>0
-    #     w_azi /= 2
-    #end
-    # Fourier weights (cosine decomposition)
-    f_weights = cos.(m*ϕ)
-    
-    # Create outgoing vectors in θ and ϕ
-    dirOutꜛ = [dirVector_μ(a,b) for a in -μ, b in ϕ];
-    dirOutꜜ = [dirVector_μ(a,b) for a in  μ, b in ϕ];
+@inline function _psi_same(Pᵢ::FT, Nᵢ::FT, Pₒ::FT, Nₒ::FT) where {FT}
+    return FT(2) * (Pᵢ * Pₒ + Nᵢ * Nₒ)
+end
 
-    for i in eachindex(μ)
-        # Incoming beam at ϕ = 0
-        Ωⁱⁿ = dirVector_μ(μ[i], FT(0));
-        # Compute over μ and μ_azi:
-        Zup   = compute_Γ.((mod,),(Ωⁱⁿ,),dirOutꜛ, (LD,));
-        Zdown = compute_Γ.((mod,),(Ωⁱⁿ,),dirOutꜜ, (LD,));
-        #Zup   = compute_Γ_isotropic.((mod,),(Ωⁱⁿ,),dirOutꜛ);
-        #Zdown = compute_Γ_isotropic.((mod,),(Ωⁱⁿ,),dirOutꜜ);
-        # integrate over the azimuth:
-        𝐙⁻⁺[:,i] = ff * Zup   / ϖ   * (w_azi .* f_weights)
-        𝐙⁺⁺[:,i] = ff * Zdown / ϖ   * (w_azi .* f_weights)
+@inline function _psi_opposite(Pᵢ::FT, Nᵢ::FT, Pₒ::FT, Nₒ::FT) where {FT}
+    return FT(2) * (Pᵢ * Nₒ + Nᵢ * Pₒ)
+end
+
+function _normalise_Z!(Z⁺⁺::AbstractArray{FT,3},
+                       Z⁻⁺::AbstractArray{FT,3},
+                       G::AbstractVector,
+                       ϖ::FT) where {FT}
+    nμ = size(Z⁺⁺, 1)
+    nm = size(Z⁺⁺, 3)
+    for k in 1:nm
+        ff = k == 1 ? FT(2) : FT(4)
+        for j in 1:nμ
+            scale = ff / (ϖ * FT(G[j]))
+            @inbounds for i in 1:nμ
+                Z⁺⁺[i, j, k] *= scale
+                Z⁻⁺[i, j, k] *= scale
+            end
+        end
     end
-    return 𝐙⁺⁺, 𝐙⁻⁺
+    return Z⁺⁺, Z⁻⁺
+end
+
+function _leaf_inclination_quadrature(LD::AbstractLeafDistribution, nQuad::Int, ::Type{FT}) where {FT}
+    θₗ, wθ = gauleg(nQuad, FT(0), FT(π / 2))
+    Fₗ = FT.(pdf.(LD.LD, 2θₗ / FT(π))) .* FT(LD.scaling)
+    return (θ = θₗ, w_measure = wθ .* Fₗ)
+end
+
+"""
+    _clipped_projection_moments!(P, N, μ::FT, μ_L::FT, m_max::Int) -> (P, N)
+    _clipped_projection_moments(μ::FT, μ_L::FT, m_max::Int) -> (P, N)
+
+Closed-form cosine Fourier moments of the clipped leaf projection for
+orders `m = 0:m_max`.
+
+For a viewing direction with signed cosine `μ` and a leaf normal with
+inclination cosine `μ_L`, write
+
+```math
+x(ψ) = a + b\\cos ψ, \\qquad
+a = μ μ_L, \\qquad
+b = \\sqrt{1 - μ^2}\\sqrt{1 - μ_L^2}.
+```
+
+This routine returns
+
+```math
+P_m = \\frac{1}{2π}\\int_0^{2π} \\max(x(ψ), 0)\\cos(mψ)\\,dψ,
+```
+
+and
+
+```math
+N_m = \\frac{1}{2π}\\int_0^{2π} \\max(-x(ψ), 0)\\cos(mψ)\\,dψ.
+```
+
+The `m = 0` value `P_0` is the Shultis and Myneni (1988) projected-area
+function `H` (their Eq. 35/46 in this codebase).  For `|a| < b`, with
+`ψ* = acos(-a / b)`, the antiderivative gives
+
+```math
+P_m =
+\\frac{1}{π}\\left[
+\\frac{a\\sin(mψ*)}{m} +
+\\frac{b}{2}\\left(
+\\frac{\\sin((m-1)ψ*)}{m-1} +
+\\frac{\\sin((m+1)ψ*)}{m+1}
+\\right)\\right],
+```
+
+with the removable limits
+
+```math
+P_0 = \\frac{aψ* + b\\sin ψ*}{π}, \\qquad
+P_1 = \\frac{a\\sin ψ* + \\frac{b}{2}ψ* + \\frac{b}{4}\\sin(2ψ*)}{π}.
+```
+
+`N_m` is derived from the exact identity
+
+```math
+P_m - N_m = a\\,δ_{m0} + \\frac{b}{2}\\,δ_{m1},
+```
+
+which follows because `max(x,0) - max(-x,0) = x`.
+"""
+function _clipped_projection_moments!(P::AbstractVector{FT},
+                                      N::AbstractVector{FT},
+                                      μ::FT, μ_L::FT,
+                                      m_max::Int) where {FT<:Real}
+    m_max < 0 && throw(ArgumentError("m_max must be non-negative"))
+    length(P) >= m_max + 1 || throw(DimensionMismatch("P must have length at least m_max + 1"))
+    length(N) >= m_max + 1 || throw(DimensionMismatch("N must have length at least m_max + 1"))
+    fill!(P, zero(FT))
+    fill!(N, zero(FT))
+
+    a = μ * μ_L
+    b = sqrt(max(zero(FT), one(FT) - μ * μ)) *
+        sqrt(max(zero(FT), one(FT) - μ_L * μ_L))
+
+    if b == zero(FT)
+        P[1] = max(a, zero(FT))
+    elseif a >= b
+        P[1] = a
+        if m_max >= 1
+            P[2] = b / FT(2)
+        end
+    elseif a <= -b
+        # P remains zero; N is filled from P - N below.
+    else
+        πFT = FT(π)
+        ψ = acos(clamp(-a / b, -one(FT), one(FT)))
+        P[1] = (a * ψ + b * sin(ψ)) / πFT
+        if m_max >= 1
+            P[2] = (a * sin(ψ) + (b / FT(2)) * ψ +
+                    (b / FT(4)) * sin(FT(2) * ψ)) / πFT
+        end
+        for m in 2:m_max
+            mFT = FT(m)
+            P[m + 1] = (
+                a * sin(mFT * ψ) / mFT +
+                (b / FT(2)) * (
+                    sin(FT(m - 1) * ψ) / FT(m - 1) +
+                    sin(FT(m + 1) * ψ) / FT(m + 1)
+                )
+            ) / πFT
+        end
+    end
+
+    for m in 0:m_max
+        diff = m == 0 ? a : (m == 1 ? b / FT(2) : zero(FT))
+        N[m + 1] = P[m + 1] - diff
+    end
+
+    return P, N
+end
+
+function _clipped_projection_moments(μ::FT, μ_L::FT, m_max::Int) where {FT<:Real}
+    P = zeros(FT, m_max + 1)
+    N = zeros(FT, m_max + 1)
+    return _clipped_projection_moments!(P, N, μ, μ_L, m_max)
+end
+
+"""
+    compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
+                                      μ::AbstractVector{FT},
+                                      LD::AbstractLeafDistribution,
+                                      m_max::Int) -> (Z⁺⁺, Z⁻⁺)
+
+Compute all scalar Fourier moments `m = 0:m_max` of the bi-Lambertian
+canopy phase matrices without azimuthal quadrature.
+
+The returned arrays have shape `(length(μ), length(μ), m_max + 1)` and
+use the vSmartMOM convention
+
+```math
+Z[i_{out}, j_{in}, m+1],
+```
+
+where `Z⁺⁺` is same-sign transmission and `Z⁻⁺` is sign-change reflection.
+The single-scattering albedo `ϖ = R + T` is divided out, so for
+conservative leaves the `m = 0` column integral of `Z⁺⁺ + Z⁻⁺` targets
+`≈ 2` under the same quadrature and `G(μ)` convention used by vSmartMOM.
+
+# Origin trace
+
+Shultis and Myneni (1988), Eq. 45 writes the azimuthally averaged
+Lambertian canopy kernels as products of one-direction clipped projection
+functions.  For each leaf inclination this implementation generalizes that
+factorization from `m = 0` to arbitrary cosine Fourier order by using the
+closed-form moments returned by `_clipped_projection_moments`.
+
+For signed incoming/outgoing directions, let `(Pᵢ, Nᵢ)` and `(Pₒ, Nₒ)` be
+the clipped projection moments.  The circular-convolution theorem gives the
+per-leaf Fourier coefficients
+
+```math
+Ψ^+_m = P_{i,m}P_{o,m} + N_{i,m}N_{o,m},
+\\qquad
+Ψ^-_m = P_{i,m}N_{o,m} + N_{i,m}P_{o,m}.
+```
+
+The code multiplies these products by `2` before applying the existing
+`f_0 = 2`, `f_{m>0} = 4` factors.  That leading `2` is not leaf physics; it
+converts the `1/(2π)` Fourier coefficients above to the half-range cosine
+moment used by the historical `compute_Z_matrices_aniso` implementation:
+`(2/π)∫_0^π Γ(Δϕ)cos(mΔϕ)dΔϕ`.  This is the normalization expected by
+vSmartMOM's elemental kernels, where `ϖ` is applied outside `Z`.
+"""
+function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
+                                           μ::AbstractVector{FT},
+                                           LD::AbstractLeafDistribution,
+                                           m_max::Int) where {FT<:AbstractFloat}
+    m_max < 0 && throw(ArgumentError("m_max must be non-negative"))
+
+    (; R, T, nQuad) = mod
+    R_leaf = FT(R)
+    T_leaf = FT(T)
+    ϖ = R_leaf + T_leaf
+
+    nμ = length(μ)
+    nm = m_max + 1
+    Z⁺⁺ = zeros(FT, nμ, nμ, nm)
+    Z⁻⁺ = zeros(FT, nμ, nμ, nm)
+    ϖ <= zero(FT) && return Z⁺⁺, Z⁻⁺
+
+    leaf_quad = _leaf_inclination_quadrature(LD, nQuad, FT)
+    θₗ = leaf_quad.θ
+    w_measure = leaf_quad.w_measure
+    G = vec(CanopyOptics.G(Array(μ), LD))
+
+    Pꜜ = zeros(FT, nμ, nm)
+    Nꜜ = zeros(FT, nμ, nm)
+    Pꜛ = zeros(FT, nμ, nm)
+    Nꜛ = zeros(FT, nμ, nm)
+    P = zeros(FT, nm)
+    N = zeros(FT, nm)
+    Pm = zeros(FT, nm)
+    Nm = zeros(FT, nm)
+
+    for l in eachindex(θₗ)
+        μ_L = cos(θₗ[l])
+        leaf_weight = w_measure[l]
+
+        for i in eachindex(μ)
+            _clipped_projection_moments!(P, N, μ[i], μ_L, m_max)
+            _clipped_projection_moments!(Pm, Nm, -μ[i], μ_L, m_max)
+            @inbounds for k in 1:nm
+                Pꜜ[i, k] = P[k]
+                Nꜜ[i, k] = N[k]
+                Pꜛ[i, k] = Pm[k]
+                Nꜛ[i, k] = Nm[k]
+            end
+        end
+
+        for k in 1:nm, j in 1:nμ
+            @inbounds begin
+                Pj = Pꜜ[j, k]
+                Nj = Nꜜ[j, k]
+                for i in 1:nμ
+                    Ψpp_same = _psi_same(Pj, Nj, Pꜜ[i, k], Nꜜ[i, k])
+                    Ψpp_opp  = _psi_opposite(Pj, Nj, Pꜜ[i, k], Nꜜ[i, k])
+                    Ψmp_same = _psi_same(Pj, Nj, Pꜛ[i, k], Nꜛ[i, k])
+                    Ψmp_opp  = _psi_opposite(Pj, Nj, Pꜛ[i, k], Nꜛ[i, k])
+
+                    Z⁺⁺[i, j, k] += leaf_weight * (T_leaf * Ψpp_same + R_leaf * Ψpp_opp)
+                    Z⁻⁺[i, j, k] += leaf_weight * (T_leaf * Ψmp_same + R_leaf * Ψmp_opp)
+                end
+            end
+        end
+    end
+
+    return _normalise_Z!(Z⁺⁺, Z⁻⁺, G, ϖ)
 end
 
 """
@@ -404,33 +626,9 @@ function compute_Γ_isotropic(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVe
 end
 
 function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,μ::AbstractArray{FT,1},LD::AbstractLeafDistribution, Zup, Zdown, m::Int) where FT
-    (;R,T, nQuad) = mod
-    # Ross kernel
-    
-    # Single Scattering Albedo (should make this a vector too)
-    ϖ = R+T
-
-    # Transmission (same direction)
-    𝐙⁺⁺ = similar(μ,(length(μ), length(μ)))
-    # Reflection (change direction)
-    𝐙⁻⁺ = similar(μ,(length(μ), length(μ)))
-
-    # Quadrature points in the azimuth:
-    ϕ, w_azi = gauleg(nQuad,FT(0),FT(π));
-    w_azi *= 2/FT(π)
-    w_azi = typeof(μ)(w_azi)
-    ff = m==0 ? FT(2) : FT(4)
-    
-    # Fourier weights (cosine decomposition)
-    f_weights = typeof(μ)(cos.(m*ϕ))
-
-    for i in eachindex(μ)
-        # integrate over the azimuth:
-        @views 𝐙⁻⁺[i,:] = ff * Zup[i,:,:]   /ϖ   * (w_azi .* f_weights)
-        @views 𝐙⁺⁺[i,:] = ff * Zdown[i,:,:] /ϖ   * (w_azi .* f_weights)
-
-    end
-    return 𝐙⁺⁺, 𝐙⁻⁺
+    # Zup/Zdown are retained only for API compatibility with callers that
+    # previously used the brute-force precomputed-azimuth path.
+    return compute_Z_matrices_aniso(mod, μ, LD, m)
 end
 
 

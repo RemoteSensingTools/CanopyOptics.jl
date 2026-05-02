@@ -16,3 +16,7 @@
 </p>
 
 Tools for the computation of canopy optical parameters, see docs for details (works in concert with vSmartMOM.jl)
+
+Convention note: `compute_Z_matrices_aniso` now returns matrices as
+`Z[i_out, j_in]` and normalizes by `G(μ_in) * (R + T)`, matching the
+vSmartMOM phase-matrix convention.
