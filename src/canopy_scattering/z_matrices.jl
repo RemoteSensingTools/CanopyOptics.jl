@@ -254,6 +254,137 @@ function compute_Z_matrices(mod::CompositeCanopyScattering,
                                   quadrature = q, npol = npol)
 end
 
+function _component_G_weights(components::Tuple, μ::AbstractVector)
+    Gs = map(component -> vec(G(μ, component.LAD)), components)
+    FTG = eltype(Gs[1])
+    for i in eachindex(components)
+        FTG = promote_type(FTG, eltype(Gs[i]), typeof(components[i].area_index))
+    end
+
+    G_total = zeros(FTG, length(μ))
+    for i in eachindex(components)
+        area = FTG(components[i].area_index)
+        Gi = Gs[i]
+        @inbounds for j in eachindex(G_total)
+            G_total[j] += area * FTG(Gi[j])
+        end
+    end
+    return Gs, G_total
+end
+
+function _add_weighted_component_Z!(Zpp_sum::AbstractMatrix, Zmp_sum::AbstractMatrix,
+                                    Zpp, Zmp, weights, npol::Int)
+    nμ = length(weights)
+    @inbounds for j in 1:nμ, sj in 1:npol
+        col = _stokes_index(j, sj, npol)
+        weight = weights[j]
+        for row in axes(Zpp_sum, 1)
+            Zpp_sum[row, col] += weight * Zpp[row, col]
+            Zmp_sum[row, col] += weight * Zmp[row, col]
+        end
+    end
+    return nothing
+end
+
+function _add_weighted_component_Z!(Zpp_sum::AbstractArray{<:Any,3},
+                                    Zmp_sum::AbstractArray{<:Any,3},
+                                    Zpp, Zmp, weights, npol::Int)
+    nμ = length(weights)
+    @inbounds for k in axes(Zpp_sum, 3), j in 1:nμ, sj in 1:npol
+        col = _stokes_index(j, sj, npol)
+        weight = weights[j]
+        for row in axes(Zpp_sum, 1)
+            Zpp_sum[row, col, k] += weight * Zpp[row, col, k]
+            Zmp_sum[row, col, k] += weight * Zmp[row, col, k]
+        end
+    end
+    return nothing
+end
+
+function _mixed_component_weights(component::CanopyComponent, G_component, G_total)
+    weights = zeros(promote_type(eltype(G_component), eltype(G_total),
+                                 typeof(component.area_index)), length(G_total))
+    area = eltype(weights)(component.area_index)
+    @inbounds for j in eachindex(weights)
+        weights[j] = G_total[j] == zero(G_total[j]) ?
+                     zero(eltype(weights)) :
+                     area * G_component[j] / G_total[j]
+    end
+    return weights
+end
+
+function _compute_mixed_Z(canopy::MixedCanopy, μ::AbstractVector, m;
+                          quadrature::CanopyQuadrature = CanopyQuadrature(),
+                          nQuad = nothing,
+                          npol::Integer = 1,
+                          kwargs...)
+    n = _validate_npol(npol)
+    q = _resolve_quadrature(quadrature, nQuad)
+    components = canopy.components
+    Gs, G_total = _component_G_weights(components, μ)
+
+    first_component = components[1]
+    Zpp₁, Zmp₁ = compute_Z_matrices(first_component.scatterer, μ,
+                                     first_component.LAD, m;
+                                     quadrature = q, npol = n, kwargs...)
+    Zpp_sum = zero.(Zpp₁)
+    Zmp_sum = zero.(Zmp₁)
+    weights = _mixed_component_weights(first_component, Gs[1], G_total)
+    _add_weighted_component_Z!(Zpp_sum, Zmp_sum, Zpp₁, Zmp₁, weights, n)
+
+    for i in 2:length(components)
+        component = components[i]
+        Zppᵢ, Zmpᵢ = compute_Z_matrices(component.scatterer, μ, component.LAD, m;
+                                        quadrature = q, npol = n, kwargs...)
+        weights = _mixed_component_weights(component, Gs[i], G_total)
+        _add_weighted_component_Z!(Zpp_sum, Zmp_sum, Zppᵢ, Zmpᵢ, weights, n)
+    end
+    return Zpp_sum, Zmp_sum
+end
+
+"""
+    compute_Z_matrices(canopy::MixedCanopy, μ, m; quadrature, npol = 1)
+    compute_Z_matrices(canopy::MixedCanopy, μ, ignored_LD, m; quadrature, npol = 1)
+
+Compute canopy Z matrices for a mixture of components with their own angle
+distributions and area indices.  The `ignored_LD` compatibility form exists so
+callers that already carry `(scatterer, μ, LAD, m)` can pass a `MixedCanopy` as
+the scatterer without changing their call shape.
+"""
+compute_Z_matrices(canopy::MixedCanopy,
+                   μ::AbstractVector,
+                   m::Integer;
+                   quadrature::CanopyQuadrature = CanopyQuadrature(),
+                   nQuad = nothing,
+                   npol::Integer = 1,
+                   kwargs...) =
+    _compute_mixed_Z(canopy, μ, Int(m);
+                     quadrature = quadrature, nQuad = nQuad,
+                     npol = npol, kwargs...)
+
+compute_Z_matrices(canopy::MixedCanopy,
+                   μ::AbstractVector,
+                   m_range::AbstractUnitRange{<:Integer};
+                   quadrature::CanopyQuadrature = CanopyQuadrature(),
+                   nQuad = nothing,
+                   npol::Integer = 1,
+                   kwargs...) =
+    _compute_mixed_Z(canopy, μ, m_range;
+                     quadrature = quadrature, nQuad = nQuad,
+                     npol = npol, kwargs...)
+
+compute_Z_matrices(canopy::MixedCanopy,
+                   μ::AbstractVector,
+                   LD::AbstractLeafDistribution,
+                   m;
+                   quadrature::CanopyQuadrature = CanopyQuadrature(),
+                   nQuad = nothing,
+                   npol::Integer = 1,
+                   kwargs...) =
+    _compute_mixed_Z(canopy, μ, m;
+                     quadrature = quadrature, nQuad = nQuad,
+                     npol = npol, kwargs...)
+
 """
     compute_Z_matrices_aniso(mod, μ, LD, m; quadrature)
 
@@ -324,6 +455,19 @@ function compute_Z_matrices_aniso(mod::CompositeCanopyScattering,
                             quadrature = q, npol = npol)
 end
 
+function compute_Z_matrices_aniso(canopy::MixedCanopy,
+                                  μ::AbstractArray{FT,1},
+                                  LD::AbstractLeafDistribution,
+                                  m::Int;
+                                  quadrature::CanopyQuadrature = CanopyQuadrature(),
+                                  nQuad = nothing,
+                                  npol::Integer = 1,
+                                  kwargs...) where FT
+    q = _resolve_quadrature(quadrature, nQuad)
+    return compute_Z_matrices(canopy, μ, m;
+                              quadrature = q, npol = npol, kwargs...)
+end
+
 """
     compute_Z_matrices_aniso_analytic(mod::CompositeCanopyScattering,
                                       μ, LD, m_max; quadrature)
@@ -340,6 +484,19 @@ function compute_Z_matrices_aniso_analytic(mod::CompositeCanopyScattering,
                                            npol::Integer = 1) where {FT<:Real}
     q = _resolve_quadrature(quadrature, nQuad)
     return compute_Z_matrices(mod, μ, LD, 0:m_max; quadrature = q, npol = npol)
+end
+
+function compute_Z_matrices_aniso_analytic(canopy::MixedCanopy,
+                                           μ::AbstractVector{FT},
+                                           LD::AbstractLeafDistribution,
+                                           m_max::Int;
+                                           quadrature::CanopyQuadrature = CanopyQuadrature(),
+                                           nQuad = nothing,
+                                           npol::Integer = 1,
+                                           kwargs...) where {FT<:Real}
+    q = _resolve_quadrature(quadrature, nQuad)
+    return compute_Z_matrices(canopy, μ, 0:m_max;
+                              quadrature = q, npol = npol, kwargs...)
 end
 
 function compute_Z_matrices_aniso_analytic(mod::LambertianWoodCanopyScattering,

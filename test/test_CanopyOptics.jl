@@ -272,6 +272,69 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test Zmp_lut == Zmp_ref
     end
 
+    @testset "Mixed canopy components" begin
+        μ, _ = CanopyOptics.gauleg(4, 0.0, 1.0)
+        μ = collect(μ)
+        leaf_LD = CanopyOptics.spherical_leaves()
+        wood_LD = CanopyOptics.erectophile_leaves()
+        quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 24, n_azimuth = 8)
+
+        leaf = CanopyOptics.BiLambertianCanopyScattering(R = 0.45, T = 0.05)
+        wood = CanopyOptics.LambertianWoodCanopyScattering(R = 0.20)
+
+        leaf_component = CanopyOptics.CanopyComponent(
+            scatterer = leaf, LAD = leaf_LD, area_index = 2.0)
+        single = CanopyOptics.MixedCanopy(leaf_component)
+        Zpp_single, Zmp_single = CanopyOptics.compute_Z_matrices(
+            single, μ, 0:2; quadrature, npol = 4)
+        Zpp_direct, Zmp_direct = CanopyOptics.compute_Z_matrices(
+            leaf, μ, leaf_LD, 0:2; quadrature, npol = 4)
+        @test Zpp_single ≈ Zpp_direct
+        @test Zmp_single ≈ Zmp_direct
+
+        wood_component = CanopyOptics.CanopyComponent(
+            scatterer = wood, LAD = wood_LD, AI = 1.0,
+            clumping = CanopyOptics.ConstantClumping(Ω = 0.5))
+        mixed = CanopyOptics.MixedCanopy(leaf_component, wood_component)
+
+        G_leaf = vec(CanopyOptics.G(μ, leaf_LD))
+        G_wood = vec(CanopyOptics.G(μ, wood_LD))
+        @test CanopyOptics.bulk_G(mixed, μ; clumped = false) ≈
+              2.0 .* G_leaf .+ G_wood
+        @test CanopyOptics.bulk_G(mixed, μ; clumped = true) ≈
+              2.0 .* G_leaf .+ 0.5 .* G_wood
+
+        Zpp_mix, Zmp_mix = CanopyOptics.compute_Z_matrices(
+            mixed, μ, 0; quadrature)
+        Zpp_leaf, Zmp_leaf = CanopyOptics.compute_Z_matrices(
+            leaf, μ, leaf_LD, 0; quadrature)
+        Zpp_wood, Zmp_wood = CanopyOptics.compute_Z_matrices(
+            wood, μ, wood_LD, 0; quadrature)
+        G_total = 2.0 .* G_leaf .+ G_wood
+
+        Zpp_expected = zero.(Zpp_mix)
+        Zmp_expected = zero.(Zmp_mix)
+        for j in eachindex(μ)
+            w_leaf = 2.0 * G_leaf[j] / G_total[j]
+            w_wood = G_wood[j] / G_total[j]
+            Zpp_expected[:, j] .= w_leaf .* Zpp_leaf[:, j] .+
+                                  w_wood .* Zpp_wood[:, j]
+            Zmp_expected[:, j] .= w_leaf .* Zmp_leaf[:, j] .+
+                                  w_wood .* Zmp_wood[:, j]
+        end
+
+        @test Zpp_mix ≈ Zpp_expected
+        @test Zmp_mix ≈ Zmp_expected
+
+        unclumped_wood = CanopyOptics.CanopyComponent(
+            scatterer = wood, LAD = wood_LD, AI = 1.0)
+        mixed_unclumped = CanopyOptics.MixedCanopy(leaf_component, unclumped_wood)
+        Zpp_unclumped, Zmp_unclumped = CanopyOptics.compute_Z_matrices(
+            mixed_unclumped, μ, 0; quadrature)
+        @test Zpp_mix ≈ Zpp_unclumped
+        @test Zmp_mix ≈ Zmp_unclumped
+    end
+
     @testset "Canopy Z supports ForwardDiff parameters" begin
         μ, _ = CanopyOptics.gauleg(4, 0.0, 1.0)
         LD = CanopyOptics.spherical_leaves()
