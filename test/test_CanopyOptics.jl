@@ -1,4 +1,5 @@
 using LinearAlgebra
+using ForwardDiff
 
 _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
 
@@ -266,6 +267,30 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
                 @test _relerr(Zpp[:, :, 1], Zpp_ref) ≤ 1e-12
                 @test _relerr(Zmp[:, :, 1], Zmp_ref) ≤ 1e-12
             end
+        end
+
+        @testset "analytic path preserves ForwardDiff derivatives" begin
+            LD = CanopyOptics.spherical_leaves()
+            quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 24)
+
+            function zsum_μ(x)
+                mod = CanopyOptics.BiLambertianCanopyScattering(R = 0.45, T = 0.05)
+                Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(
+                    mod, x, LD, 2; quadrature)
+                return sum(Zpp) + sum(Zmp)
+            end
+            ∂μ = ForwardDiff.gradient(zsum_μ, [0.3, 0.7])
+            @test all(isfinite, ∂μ)
+            @test any(abs.(∂μ) .> 0)
+
+            function zsum_leaf(ρτ)
+                mod = CanopyOptics.BiLambertianCanopyScattering(R = ρτ[1], T = ρτ[2])
+                Zpp, Zmp = CanopyOptics.compute_Z_matrices_aniso_analytic(
+                    mod, μ, LD, 2; quadrature)
+                return sum(Zpp) + sum(Zmp)
+            end
+            ∂leaf = ForwardDiff.gradient(zsum_leaf, [0.45, 0.05])
+            @test all(isfinite, ∂leaf)
         end
 
         @testset "legacy aniso signatures delegate to analytic closure" begin

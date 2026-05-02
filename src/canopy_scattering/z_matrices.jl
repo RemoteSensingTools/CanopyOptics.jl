@@ -276,7 +276,7 @@ function compute_Z_matrices_aniso(mod::SpecularCanopyScattering,
                                   quadrature::CanopyQuadrature = CanopyQuadrature(),
                                   nQuad = nothing) where FT
     q = _resolve_quadrature(quadrature, nQuad)
-    return compute_Z_matrices(mod, Array(μ), LD, m; quadrature = q)
+    return compute_Z_matrices(mod, collect(μ), LD, m; quadrature = q)
 end
 
 function compute_Z_matrices_aniso(mod::CompositeCanopyScattering,

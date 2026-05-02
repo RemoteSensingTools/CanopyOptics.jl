@@ -115,8 +115,8 @@ end
                        μ::AbstractVector, LD::AbstractLeafDistribution,
                        m::Integer; quadrature = CanopyQuadrature())
 
-Convenience method for non-`Array` vector inputs. It materializes `μ` as an
-`Array` and delegates to the specular azimuth-integration method.
+Convenience method for non-`Array` vector inputs. It materializes `μ` with
+`collect` and delegates to the specular azimuth-integration method.
 """
 function compute_Z_matrices(mod::SpecularCanopyScattering,
                             μ::AbstractVector{FT},
@@ -125,7 +125,7 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
                             quadrature::CanopyQuadrature = CanopyQuadrature(),
                             nQuad = nothing) where FT
     q = _resolve_quadrature(quadrature, nQuad)
-    return compute_Z_matrices(mod, Array(μ), LD, Int(m); quadrature = q)
+    return compute_Z_matrices(mod, collect(μ), LD, Int(m); quadrature = q)
 end
 """
     K(κ::FT, α::FT) where FT

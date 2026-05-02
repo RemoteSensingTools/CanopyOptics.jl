@@ -312,27 +312,30 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
     Z⁻⁺ = zeros(ZFT, nμ, nμ, nm)
     ϖ <= zero(ZFT) && return Z⁺⁺, Z⁻⁺
 
+    μ_vec = collect(μ)
+    μ_work = ZFT.(μ_vec)
     leaf_quad = _leaf_inclination_quadrature(LD, q.n_leaf, FT)
     θₗ = leaf_quad.θ
     w_measure = leaf_quad.w_measure
-    G = vec(CanopyOptics.G(Array(μ), LD))
+    G = ZFT.(vec(CanopyOptics.G(μ_vec, LD)))
 
-    Pꜜ = zeros(FT, nμ, nm)
-    Nꜜ = zeros(FT, nμ, nm)
-    Pꜛ = zeros(FT, nμ, nm)
-    Nꜛ = zeros(FT, nμ, nm)
-    P = zeros(FT, nm)
-    N = zeros(FT, nm)
-    Pm = zeros(FT, nm)
-    Nm = zeros(FT, nm)
+    Pꜜ = zeros(ZFT, nμ, nm)
+    Nꜜ = zeros(ZFT, nμ, nm)
+    Pꜛ = zeros(ZFT, nμ, nm)
+    Nꜛ = zeros(ZFT, nμ, nm)
+    P = zeros(ZFT, nm)
+    N = zeros(ZFT, nm)
+    Pm = zeros(ZFT, nm)
+    Nm = zeros(ZFT, nm)
 
     for l in eachindex(θₗ)
-        μ_L = cos(θₗ[l])
-        leaf_weight = w_measure[l]
+        μ_L = ZFT(cos(θₗ[l]))
+        leaf_weight = ZFT(w_measure[l])
 
-        for i in eachindex(μ)
-            _one_sided_projection_moments!(P, N, μ[i], μ_L, m_max)
-            _one_sided_projection_moments!(Pm, Nm, -μ[i], μ_L, m_max)
+        for i in eachindex(μ_work)
+            μ_i = μ_work[i]
+            _one_sided_projection_moments!(P, N, μ_i, μ_L, m_max)
+            _one_sided_projection_moments!(Pm, Nm, -μ_i, μ_L, m_max)
             @inbounds for k in 1:nm
                 Pꜜ[i, k] = P[k]
                 Nꜜ[i, k] = N[k]
