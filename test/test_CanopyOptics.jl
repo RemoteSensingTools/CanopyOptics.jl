@@ -71,6 +71,32 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test !hasproperty(specular, :nQuad)
     end
 
+    @testset "Canopy clumping models" begin
+        μ = [0.2, 0.6, 1.0]
+        G = [0.45, 0.50, 0.55]
+
+        no_clumping = CanopyOptics.NoClumping()
+        @test CanopyOptics.clumping_index(no_clumping, μ) == ones(length(μ))
+        @test CanopyOptics.effective_G(no_clumping, G, μ) == G
+
+        constant = CanopyOptics.ConstantClumping(Ω = 0.7)
+        @test CanopyOptics.clumping_index(constant, μ) == fill(0.7, length(μ))
+        @test CanopyOptics.effective_G(constant, G, μ) == 0.7 .* G
+
+        angular = CanopyOptics.ChenLeblancClumping(Ω₀ = 0.7, c = 2.0, e = 2.0)
+        Ω = CanopyOptics.clumping_index(angular, [1.0, 0.5, 0.0])
+        @test Ω[1] ≈ 0.7
+        @test Ω[1] < Ω[2] < Ω[3] <= 1
+
+        μ_grad = [0.2, 0.6, 0.9]
+        G_grad = [0.45, 0.50, 0.55]
+        clumping_sum(x) = begin
+            model = CanopyOptics.ChenLeblancClumping(Ω₀ = x[1], c = x[2], e = x[3])
+            sum(CanopyOptics.effective_G(model, G_grad, μ_grad))
+        end
+        @test all(isfinite, ForwardDiff.gradient(clumping_sum, [0.7, 2.0, 2.0]))
+    end
+
     @testset "Specular compute_reflection symmetry" begin
         mod = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2)
         LD = CanopyOptics.spherical_leaves()
