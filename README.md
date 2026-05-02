@@ -15,7 +15,8 @@
   </a>
 </p>
 
-Tools for the computation of canopy optical parameters, see docs for details (works in concert with vSmartMOM.jl)
+Tools for the computation of canopy optical parameters, see docs for details
+(works in concert with vSmartMOM.jl).
 
 Convention note: canopy Z matrices use `Z[i_out, j_in]` and normalize
 BiLambertian leaves by `G(μ_in) * (R + T)`, matching the vSmartMOM
@@ -26,10 +27,26 @@ build a full Fourier stack. Numerical integration settings live in
 Canopy scattering parameters are `Real`-generic, so `ForwardDiff.Dual` leaf
 reflectance/transmittance and specular parameters can flow through Z assembly.
 
+## v0.2 highlights
+
+- Closed-form Fourier Z matrices for bi-Lambertian canopy scattering.
+- Stokes-aware Z expansion via `npol = 1`, `3`, or `4`.
+- Additive `CompositeCanopyScattering` for diffuse + specular leaf components.
+- Mixed leaf/wood canopy components with separate angle distributions and area
+  indices.
+- Clumping utilities for propagation/extinction and a Kuusk-style hotspot
+  utility for direct-beam source-term integration.
+- Constant, LUT, and polynomial wood reflectance models.
+
+Specular kernels include the Fresnel/roughness strength in the returned Z
+contribution. Consumers that multiply canopy Z by a separate single-scattering
+albedo, such as vSmartMOM layer assembly, need to provide a matching effective
+albedo when using specular components in full RT.
+
 ## Roadmap / ToDo for next releases
 
-- HotSpot correction for near-backscatter canopy geometries.
-- Canopy clumping factors / non-random leaf spatial distributions.
-- Branches and stems / woody canopy components.
-- Full Stokes-vector leaf-surface scattering, including polarized specular
-  Fresnel reflection.
+- Wire Kuusk hotspot source scaling into vSmartMOM's canopy source-term path.
+- Add default literature-backed wood spectra and YAML access.
+- Add an explicit effective-albedo interface for specular/composite canopy
+  layers in vSmartMOM.
+- Add SIF source-term hooks.

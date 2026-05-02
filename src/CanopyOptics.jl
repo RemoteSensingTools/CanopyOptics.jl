@@ -3,18 +3,19 @@
 
 Canopy radiative-transfer utilities.
 
-Canopy scattering matrices follow the same scalar normalization used by
-vSmartMOM's atmospheric phase matrices: `Z[i_out, j_in]` stores rows as
-outgoing streams and columns as incoming streams; `Z⁺⁺` is same-sign
-transmission and `Z⁻⁺` is sign-change reflection.  The single-scattering
-albedo is not folded into `Z`; for conservative scattering the `m = 0`
-hemispheric column integral satisfies
+Canopy scattering matrices use `Z[i_out, j_in]`: rows are outgoing streams and
+columns are incoming streams; `Z⁺⁺` is same-sign transmission and `Z⁻⁺` is
+sign-change reflection. Bi-Lambertian kernels follow vSmartMOM's atmospheric
+phase-matrix convention: the scalar single-scattering albedo is not folded into
+`Z`, so conservative bi-Lambertian leaves satisfy
 
 ```math
 \\sum_i w_i\\,(Z^{++}_{ij} + Z^{-+}_{ij}) \\simeq 2 .
 ```
 
-The layer solvers multiply by `ϖ` separately.
+Specular kernels carry their Fresnel/roughness strength in the returned
+contribution. Layer solvers that multiply by a separate `ϖ` need a matching
+effective albedo when using specular components.
 """
 module CanopyOptics
 

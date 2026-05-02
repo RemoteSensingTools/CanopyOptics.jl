@@ -21,8 +21,7 @@ CanopyOptics.compute_reflection(specular, incoming, outgoing, LD)
 
 # The specular model can also be projected onto Fourier Z matrices one moment
 # at a time. Unlike the analytic bi-Lambertian routine, this uses numerical
-# azimuth quadrature and should be treated as a separate component until a
-# mixed diffuse/specular leaf model is introduced.
+# azimuth quadrature.
 μ, w = CanopyOptics.gauleg(8, 0.0, 1.0)
 Z⁺⁺₀, Z⁻⁺₀ = CanopyOptics.compute_Z_matrices(specular, μ, LD, 0; quadrature)
 size(Z⁻⁺₀)
