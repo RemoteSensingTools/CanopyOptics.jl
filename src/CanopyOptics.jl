@@ -30,10 +30,9 @@ using DocStringExtensions      # Documentation
 using LazyArtifacts            # Artifacts
 using LinearAlgebra            # Well, guess...
 using Polynomials              # Polynomials for some empirical functions
-using YAML                     # YAML input files 
-using QuadGK                   # Numerical Integration
-using CUDA 
+using CUDA
 using ForwardDiff
+using KernelAbstractions
 
 import SpecialFunctions.expint 
 #"Definition of Stokes vector types:"
@@ -65,15 +64,10 @@ include("canopy_scattering/stokes.jl")
 include("canopy_scattering/specular.jl")
 include("canopy_scattering/bilambertian_fourier.jl")
 include("canopy_scattering/z_matrices.jl")
+include("foursail/foursail.jl")
 
 include("initialization/loadProspect.jl")
 include("initialization/default_constructors.jl")
-
-include("forest_prototyping/types.jl")
-include("forest_prototyping/parameters_from_yaml.jl")
-include("forest_prototyping/probabilities.jl")
-include("forest_prototyping/subroutines.jl")
-#include("forest_prototyping/output_check.jl")
 
 include("utils/dielectric.jl")
 
@@ -96,13 +90,13 @@ export AbstractClumping, NoClumping, ConstantClumping,
 export AbstractHotSpot, NoHotSpot, KuuskHotSpot, canopy_extinction,
        hotspot_separation, hotspot_correction, joint_gap_probability
 export CanopyComponent, MixedCanopy, component_G, bulk_G
-export PureIce, LiquidPureWater, LiquidSaltWater
+export FourSAILGeometry, FourSAILGeometrySet, FourSAILResult, foursail, foursail!
+export AbstractMaterial, AbstractWater, AbstractSoil, AbstractVegetation
+export PureIce, LiquidPureWater, LiquidSaltWater, SoilMW, LeafUlabyElRayes1987
 export LeafProspectProProperties, LeafOpticalProperties, dielectric
 # Functions:
 export compute_Z_matrices, compute_Z_matrices_aniso_analytic,
        prospect, compute_reflection, compute_reflection_mueller,
        G, G2, bfG
-# MW stuff
-export wood_forward, wood_backward, afsal, asal, abs_components 
 
 end # module

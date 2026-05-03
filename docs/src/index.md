@@ -9,6 +9,7 @@
 - Differentiate canopy Z matrices with ForwardDiff leaf optical parameters
 - Compute polarized specular leaf-surface reflection terms
 - Compute leaf reflectance and transmittance based on Prospect-PRO
+- Compute complex microwave dielectric ε(T, f) of water, ice, soil and leaves
 
 ## Z-matrix convention
 
@@ -23,6 +24,26 @@ Specular components include their Fresnel/roughness strength in the returned Z
 contribution. If a downstream RT solver multiplies canopy Z by a separate
 single-scattering albedo, it must provide a matching effective albedo when
 using specular or diffuse+specular composite leaves.
+
+## Microwave dielectric models
+
+A growing set of materials implements the [`dielectric`](@ref) function,
+returning the complex relative permittivity `ε(T, f)` (loss as positive
+imaginary part):
+
+| Material | Type | Domain |
+| --- | --- | --- |
+| Pure liquid water | [`LiquidPureWater`](@ref) | 0.2–1000 GHz, 265–310 K |
+| Salt water | [`LiquidSaltWater`](@ref) | + salinity 0–45 PSU |
+| Pure ice | [`PureIce`](@ref) | 0.2–1000 GHz, 233–273 K |
+| Moist soil | [`SoilMW`](@ref) | Dobson model, 0.3–18 GHz |
+| Fresh leaf | [`LeafUlabyElRayes1987`](@ref) | 0.2–20 GHz, gravimetric moisture 0–0.7 |
+
+All five share the contract `dielectric(model, T_kelvin, f_GHz)`. New
+materials are added by extending the `dielectric` function on a fresh
+`<: AbstractMaterial` subtype — see `src/utils/dielectric.jl` for the
+existing methods. The vegetation hierarchy (`AbstractVegetation`) is
+the entry point for a planned microwave-canopy expansion.
 
 ## Installation
 

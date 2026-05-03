@@ -145,6 +145,122 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test isfinite(ForwardDiff.derivative(h -> hs_sum([h]), 0.1))
     end
 
+    @testset "FourSAIL batched kernel" begin
+        geom = CanopyOptics.FourSAILGeometry(CanopyOptics.spherical_leaves();
+                                             sza_deg = 30.0,
+                                             vza_deg = 20.0,
+                                             raa_deg = 40.0)
+        leaf_R = [0.04, 0.45, 0.30]
+        leaf_T = [0.01, 0.40, 0.25]
+        soil_R = [0.02, 0.10, 0.30]
+
+        result = CanopyOptics.foursail(leaf_R, leaf_T, soil_R, geom, 3.0;
+                                       hotspot = 0.02)
+        @test all(isfinite.(result.rsot))
+        @test all(0 .<= result.rsot .<= 1)
+        @test all(0 .<= result.rddt .<= 1)
+        @test result.rsot[2] > result.rsot[1]
+        @test result.rsot ≈ result.rsost .+ result.rsodt
+        @test all(result.rsos .<= result.rsost)
+
+        scalar = CanopyOptics.foursail(leaf_R[2], leaf_T[2], soil_R[2], geom, 3.0;
+                                       hotspot = 0.02)
+        @test scalar.rsot ≈ result.rsot[2]
+        @test scalar.rddt ≈ result.rddt[2]
+        @test scalar.rsost ≈ result.rsost[2]
+        @test scalar.rsodt ≈ result.rsodt[2]
+
+        bare = CanopyOptics.foursail(leaf_R, leaf_T, soil_R, geom, 0.0)
+        @test bare.rsot ≈ soil_R
+        @test bare.rddt ≈ soil_R
+        @test bare.taus ≈ ones(length(soil_R))
+        @test bare.rsost ≈ soil_R
+        @test bare.rsodt ≈ zeros(length(soil_R))
+
+        out = CanopyOptics.FourSAILResult(similar(leaf_R), similar(leaf_R),
+                                          similar(leaf_R), similar(leaf_R),
+                                          similar(leaf_R))
+        CanopyOptics.foursail!(out, leaf_R, leaf_T, 0.1, geom, 3.0)
+        @test all(isfinite.(out.rsot))
+
+        vza = [0.0, 20.0, 40.0]
+        raa = [0.0, 40.0, 120.0]
+        geoms = CanopyOptics.FourSAILGeometrySet(CanopyOptics.spherical_leaves();
+                                                 sza_deg = 30.0,
+                                                 vza_deg = vza,
+                                                 raa_deg = raa)
+        phase = CanopyOptics.foursail(leaf_R, leaf_T, soil_R, geoms, 3.0;
+                                      hotspot = 0.02)
+        @test size(phase.rsot) == (length(leaf_R), length(vza))
+        @test all(isfinite.(phase.rsot))
+        @test phase.rsot[:, 2] ≈ result.rsot
+
+        single = CanopyOptics.foursail(leaf_R, leaf_T, soil_R, geoms, 3.0;
+                                       hotspot = 0.02, mode = :single)
+        @test size(single.rsot) == size(phase.rsot)
+        @test all(isfinite.(single.rsot))
+        @test all(single.rddt .== 0)
+        @test all(single.taus .<= 1)
+        @test single.rsot ≈ single.rsost
+        @test all(single.rsodt .== 0)
+        @test phase.rsost ≈ single.rsot
+
+        batched_sum(x) = begin
+            r = CanopyOptics.foursail([x[1], x[3]], [x[2], x[4]], 0.1,
+                                      geom, 3.0; hotspot = 0.02)
+            sum(r.rsot)
+        end
+        @test all(isfinite, ForwardDiff.gradient(batched_sum, [0.04, 0.01, 0.45, 0.40]))
+
+        # Conservative-leaf singularity (ρ + τ = 1): the m → 0, rinf → 1
+        # limit. Without the cbrt(eps) floor on m we get NaN; with it,
+        # the (0.5, 0.5) result must match the well-defined ρ + τ → 1⁻
+        # limit to several digits.
+        for (r, t) in ((1.0, 0.0), (0.5, 0.5), (0.0, 1.0), (0.6, 0.4))
+            cons = CanopyOptics.foursail(r, t, 0.2, geom, 3.0)
+            @test isfinite(cons.rsot)
+            @test isfinite(cons.rddt)
+            @test isfinite(cons.taus)
+        end
+        # Continuity check vs. the ρ + τ → 1⁻ limit, sampled at 1 - 1e-5.
+        cons_lim = CanopyOptics.foursail(0.5 - 5e-6, 0.5 - 5e-6, 0.2, geom, 3.0)
+        cons_at1 = CanopyOptics.foursail(0.5,        0.5,        0.2, geom, 3.0)
+        @test cons_at1.rsot ≈ cons_lim.rsot rtol=1e-3
+        @test cons_at1.rddt ≈ cons_lim.rddt rtol=1e-3
+
+        if CanopyOptics.CUDA.functional()
+            geom32 = CanopyOptics.FourSAILGeometry(CanopyOptics.spherical_leaves(Float32);
+                                                   sza_deg = 30.0f0,
+                                                   vza_deg = 20.0f0,
+                                                   raa_deg = 40.0f0)
+            leaf_R32 = Float32.(leaf_R)
+            leaf_T32 = Float32.(leaf_T)
+            soil_R32 = Float32.(soil_R)
+            cpu32 = CanopyOptics.foursail(leaf_R32, leaf_T32, soil_R32, geom32,
+                                          3.0f0; hotspot = 0.02f0)
+            gpu32 = CanopyOptics.foursail(CanopyOptics.CUDA.CuArray(leaf_R32),
+                                          CanopyOptics.CUDA.CuArray(leaf_T32),
+                                          CanopyOptics.CUDA.CuArray(soil_R32),
+                                          geom32, 3.0f0; hotspot = 0.02f0)
+            @test Array(gpu32.rsot) ≈ cpu32.rsot rtol = 5f-5
+            @test Array(gpu32.rddt) ≈ cpu32.rddt rtol = 5f-5
+
+            geoms32 = CanopyOptics.FourSAILGeometrySet(CanopyOptics.spherical_leaves(Float32);
+                                                       sza_deg = 30.0f0,
+                                                       vza_deg = Float32.(vza),
+                                                       raa_deg = Float32.(raa))
+            cpu_phase32 = CanopyOptics.foursail(leaf_R32, leaf_T32, soil_R32,
+                                                geoms32, 3.0f0;
+                                                hotspot = 0.02f0, mode = :single)
+            gpu_phase32 = CanopyOptics.foursail(CanopyOptics.CUDA.CuArray(leaf_R32),
+                                                CanopyOptics.CUDA.CuArray(leaf_T32),
+                                                CanopyOptics.CUDA.CuArray(soil_R32),
+                                                geoms32, 3.0f0;
+                                                hotspot = 0.02f0, mode = :single)
+            @test Array(gpu_phase32.rsot) ≈ cpu_phase32.rsot rtol = 5f-5
+        end
+    end
+
     @testset "Specular compute_reflection symmetry" begin
         mod = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2)
         LD = CanopyOptics.spherical_leaves()
@@ -385,6 +501,61 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test real(ϵ_i) > 0
         @test imag(ϵ_i) > 0
         @test imag(ϵ_i) < imag(ϵ_w)
+
+        # Vegetation: Ulaby & El-Rayes 1987 leaf model.
+        # Dry leaf (M_g=0) collapses to the non-dispersive residual ε_r(0)=1.7.
+        ε_dry = dielectric(LeafUlabyElRayes1987(M_g = 0.0), 295.0, 5.0)
+        @test ε_dry ≈ 1.7 + 0im
+
+        # Mid-moisture, C-band: real part should sit in the documented
+        # 10–30 range for fresh leaves (Ulaby & Long 2014, Fig. 11-12).
+        ε_mid = dielectric(LeafUlabyElRayes1987(M_g = 0.5), 295.0, 5.0)
+        @test 10 ≤ real(ε_mid) ≤ 30
+        @test imag(ε_mid) > 0          # loss positive (physics convention)
+        @test real(ε_mid) > real(ε_dry)
+
+        # Real part rises monotonically with moisture at fixed frequency.
+        ε_lo = dielectric(LeafUlabyElRayes1987(M_g = 0.2), 295.0, 5.0)
+        ε_hi = dielectric(LeafUlabyElRayes1987(M_g = 0.6), 295.0, 5.0)
+        @test real(ε_lo) < real(ε_mid) < real(ε_hi)
+
+        # Closed-form moisture-free limit: at M_g = 0 the volume fractions
+        # vanish (v_fw = v_b = 0), so ε reduces to the residual term
+        # ε_r(0) = 1.7 at any frequency (Eq. 11 with M_g = 0). Pure-formula
+        # check; not a regression, so any future drift in the residual
+        # coefficients trips it.
+        for f in (0.5, 5.0, 20.0)
+            ε_dryf = dielectric(LeafUlabyElRayes1987(M_g = 0.0), 295.0, f)
+            @test ε_dryf ≈ 1.7 + 0im
+        end
+
+        # Pinned regression values — locks current implementation against
+        # accidental sign flips or coefficient drift. Cross-validate against
+        # an independent reference (e.g. MWMOD, Mätzler review code) before
+        # treating these as ground truth.
+        @test dielectric(LeafUlabyElRayes1987(M_g = 0.5), 295.0,  1.0) ≈
+              18.039 + 6.471im rtol=1e-3
+        @test dielectric(LeafUlabyElRayes1987(M_g = 0.5), 295.0, 10.0) ≈
+              12.339 + 5.157im rtol=1e-3
+
+        # Float32 stability: same input precision in, same out.
+        ε32 = dielectric(LeafUlabyElRayes1987{Float32}(0.5f0, 1.27f0), 295f0, 5f0)
+        @test ε32 isa Complex{Float32}
+
+        # ForwardDiff-friendly through M_g and σ.
+        ∂Mg = ForwardDiff.derivative(
+            M -> real(dielectric(LeafUlabyElRayes1987(M_g = M), 295.0, 5.0)), 0.5)
+        @test isfinite(∂Mg) && ∂Mg > 0
+        ∂σ  = ForwardDiff.derivative(
+            σ -> imag(dielectric(LeafUlabyElRayes1987(M_g = 0.5, σ = σ), 295.0, 1.0)), 1.27)
+        @test isfinite(∂σ) && ∂σ > 0
+
+        # Out-of-range moisture and out-of-domain frequency both trip the
+        # bounds check (model is documented for 0.2–20 GHz).
+        @test_throws ArgumentError dielectric(LeafUlabyElRayes1987(M_g = 0.8),  295.0,   5.0)
+        @test_throws ArgumentError dielectric(LeafUlabyElRayes1987(M_g = 0.5),  295.0,  -1.0)
+        @test_throws ArgumentError dielectric(LeafUlabyElRayes1987(M_g = 0.5),  295.0,   0.1)
+        @test_throws ArgumentError dielectric(LeafUlabyElRayes1987(M_g = 0.5),  295.0, 100.0)
     end
 
     @testset "Analytic BiLambertian canopy Fourier moments" begin

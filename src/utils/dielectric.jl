@@ -18,8 +18,8 @@ julia> CanopyOptics.dielectric(w,283.0,10.0)
 """
 function dielectric(mod::LiquidSaltWater, T::FT,f::FT) where FT<:Real
     (;S)  = mod
-    @assert 0 ≤ S ≤ 45 "Salinity should be ∈ [0,45] PSU"
-    @assert 265 ≤ T ≤ 310 "Temperature should be ∈ [265,310] K"
+    0 ≤ S ≤ 45     || throw(ArgumentError("Salinity must be ∈ [0, 45] PSU (got $S)"))
+    265 ≤ T ≤ 310  || throw(ArgumentError("Temperature must be ∈ [265, 310] K (got $T)"))
     # Equations were tuned for ⁰C but want K input!
     T = T - FT(273)        
     # Compute σ (Eqs 4.21 - 4.21 in Ulaby and Long)
@@ -57,7 +57,7 @@ julia> CanopyOptics.dielectric(w,283.0,10.0)
 ```
 """
 function dielectric(mod::LiquidPureWater, T::FT,f::FT) where FT<:Real
-    @assert 265 ≤ T ≤ 310 "Temperature should be ∈ [265,310] K"
+    265 ≤ T ≤ 310 || throw(ArgumentError("Temperature must be ∈ [265, 310] K (got $T)"))
     # Equations were tuned for ⁰C but want K input!
     T = T - FT(273)
 
@@ -88,7 +88,7 @@ julia> CanopyOptics.dielectric(w, 253.0, 10.0)   # T = -20°C, f = 10 GHz
 ```
 """
 function dielectric(mod::PureIce, T::FT, f::FT) where FT
-    @assert 233 ≤ T ≤ 273.15 "Temperature should be ∈ [233,273.15] K"
+    233 ≤ T ≤ 273.15 || throw(ArgumentError("Temperature must be ∈ [233, 273.15] K (got $T)"))
     # Some constants first
     θ  = (FT(300)/T) - FT(1);
     B1 = FT(0.0207);
@@ -142,8 +142,69 @@ function dielectric(mod::SoilMW{FT}, T::FT,f::FT) where FT
     # Add conductivity term to ϵ'' (eq. 4.67b)
     ϵw += im*((FT(2.65)-ρ) / FT(2.65 * mᵥ) * σ / (2π * ϵ₀ * f_hz))
 
-    # calculating dielectric constant of soil using eq. 4.66a and 4.66b 
+    # calculating dielectric constant of soil using eq. 4.66a and 4.66b
     epsr = (FT(1) + FT(0.66) * ρ + mᵥ^β₁ * real(ϵw).^α - mᵥ)^(1/α);
     epsi = mᵥ^β₂ .* imag(ϵw);
     epsr + epsi*im
+end
+
+# === Vegetation dielectric models ============================================
+
+"""
+$(FUNCTIONNAME)(mod::LeafUlabyElRayes1987, T, f)
+
+Complex relative permittivity ε(f) of a fresh leaf with gravimetric
+moisture `mod.M_g`, at frequency `f` [GHz]. Implements the dual-Debye
+mixing model of Ulaby & El-Rayes (1987):
+
+```math
+\\varepsilon = \\varepsilon_r + v_{fw}\\,\\varepsilon_{fw}
+             + v_b\\,\\varepsilon_b
+```
+
+where the residual, free-water and bound-water volume fractions are
+fitted from `M_g`, and ``\\varepsilon_{fw}``, ``\\varepsilon_b`` are
+the free- and bound-water dispersions. The temperature `T` [K] is
+accepted for signature consistency with the other [`dielectric`](@ref)
+methods but is not used by this model.
+
+Sign convention: `+i ε''` (loss positive in imaginary part), matching
+[`LiquidPureWater`](@ref) and [`SoilMW`](@ref) in this package.
+
+# Examples
+```julia-repl
+julia> leaf = LeafUlabyElRayes1987(M_g = 0.5);
+
+julia> dielectric(leaf, 295.0, 5.0)         # C-band, mid-moisture
+14.400774… + 4.689454…im
+```
+
+# Reference
+Ulaby & El-Rayes 1987, IEEE TGRS 25(5), 550–557 (Eqs. 11–14);
+Ulaby & Long 2014, §11-9.
+"""
+function dielectric(mod::LeafUlabyElRayes1987, T::Real, f::Real)
+    (; M_g, σ) = mod
+    0 ≤ M_g ≤ 0.7   || throw(ArgumentError("Gravimetric moisture must be ∈ [0, 0.7] (got $M_g)"))
+    0.2 ≤ f ≤ 20    || throw(ArgumentError("Frequency must be ∈ [0.2, 20] GHz for Ulaby & El-Rayes 1987 (got $f)"))
+
+    FT = promote_type(typeof(M_g), typeof(σ), typeof(f))
+
+    # Volume fractions of free and bound water (Eqs. 12, 13)
+    v_fw = M_g * (FT(0.55) * M_g - FT(0.076))
+    v_b  = FT(4.64) * M_g^2 / (FT(1) + FT(7.36) * M_g^2)
+
+    # Non-dispersive residual (Eq. 11)
+    ε_r  = FT(1.7) - FT(0.74) * M_g + FT(6.16) * M_g^2
+
+    # Free-water Debye + ionic conductivity loss (Eq. 14a, physics convention)
+    # Conductivity coefficient 17.9751 = 1/(2π ε₀) with f in GHz, σ in S/m
+    # — same constant used by LiquidSaltWater above.
+    ε_fw = FT(4.9) + FT(75.0) / (FT(1) - 1im * f / FT(18.0)) +
+           1im * FT(17.9751) * σ / f
+
+    # Bound-water dispersion (Eq. 14b)
+    ε_b  = FT(2.9) + FT(55.0) / (FT(1) + sqrt(-1im * f / FT(0.18)))
+
+    return ε_r + v_fw * ε_fw + v_b * ε_b
 end
