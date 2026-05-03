@@ -55,14 +55,21 @@ julia> ]add https://github.com/RemoteSensingTools/CanopyOptics.jl
 
 ## Code docs:
 
-### Types 
+### Module
+
+```@docs
+CanopyOptics
+```
+
+### Types
 
 ```@autodocs
 Modules = [CanopyOptics]
 Private = false
 Order = [:type]
 ```
-### Functions 
+
+### Functions
 
 ```@autodocs
 Modules = [CanopyOptics]

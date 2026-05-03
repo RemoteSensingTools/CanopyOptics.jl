@@ -42,7 +42,7 @@ function build()
             sitename = "Canopy Optics",
             format = format,
             clean = true,
-            checkdocs = :none,
+            checkdocs = :exports,
             warnonly = [:cross_references],
             modules = [CanopyOptics],
             pages = pages)
