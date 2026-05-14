@@ -6,7 +6,8 @@ using Literate, UnitfulEquivalences, Distributions
 @info "Building docs with CanopyOptics source" path=pathof(CanopyOptics)
 
 function build()
-    tutorials = ["bilambertian.jl", "specular.jl", "foursail.jl", "dielectric.jl"]
+    tutorials = ["bilambertian.jl", "specular.jl", "foursail.jl",
+                 "foursail_hotspot.jl", "foursail_brdf.jl", "dielectric.jl"]
     tutorials_paths = [joinpath(@__DIR__, "src", "pages", "tutorials", tutorial) for tutorial in tutorials]
 
     for tutorial in tutorials_paths
