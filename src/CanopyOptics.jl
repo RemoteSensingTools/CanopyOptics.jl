@@ -90,6 +90,7 @@ export AbstractClumping, NoClumping, ConstantClumping,
 export AbstractHotSpot, NoHotSpot, KuuskHotSpot, canopy_extinction,
        hotspot_separation, hotspot_correction, joint_gap_probability
 export CanopyComponent, MixedCanopy, component_G, bulk_G
+export LeafComponent, StemComponent, BranchComponent, TreeCanopy
 export FourSAILGeometry, FourSAILGeometrySet, FourSAILResult, foursail, foursail!
 export AbstractMaterial, AbstractWater, AbstractSoil, AbstractVegetation
 export PureIce, LiquidPureWater, LiquidSaltWater, SoilMW, LeafUlabyElRayes1987
