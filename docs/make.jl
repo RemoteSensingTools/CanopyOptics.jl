@@ -7,7 +7,8 @@ using Literate, UnitfulEquivalences, Distributions
 
 function build()
     tutorials = ["bilambertian.jl", "specular.jl", "foursail.jl",
-                 "foursail_hotspot.jl", "foursail_brdf.jl", "dielectric.jl"]
+                 "foursail_hotspot.jl", "foursail_brdf.jl", "dielectric.jl",
+                 "tree_canopy.jl"]
     tutorials_paths = [joinpath(@__DIR__, "src", "pages", "tutorials", tutorial) for tutorial in tutorials]
 
     for tutorial in tutorials_paths

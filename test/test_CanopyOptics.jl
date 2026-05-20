@@ -467,6 +467,148 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test Zmp_mix ≈ Zmp_unclumped
     end
 
+    @testset "TreeCanopy convenience constructors" begin
+        # All convenience constructors are exported.
+        @test isdefined(CanopyOptics, :LeafComponent)
+        @test isdefined(CanopyOptics, :StemComponent)
+        @test isdefined(CanopyOptics, :BranchComponent)
+        @test isdefined(CanopyOptics, :TreeCanopy)
+
+        # ---- LeafComponent defaults ----
+        leaf = CanopyOptics.LeafComponent(LAI = 3.5)
+        @test leaf isa CanopyOptics.CanopyComponent
+        @test leaf.area_index == 3.5
+        @test leaf.scatterer isa CanopyOptics.BiLambertianCanopyScattering
+        # Default angle distribution is spherical: G(μ) = 0.5 (constant
+        # Ross-Nilson G; the extinction coefficient K_b = G/μ is what
+        # depends on μ).
+        μ_test = [0.25, 0.5, 0.75, 1.0]
+        @test all(isapprox.(vec(CanopyOptics.G(μ_test, leaf.LAD)), 0.5; rtol = 1e-2))
+
+        # ---- StemComponent defaults ----
+        stem = CanopyOptics.StemComponent(SAI = 0.9)
+        @test stem.area_index == 0.9
+        @test stem.scatterer isa CanopyOptics.LambertianWoodCanopyScattering
+        @test CanopyOptics.wood_reflectance(stem.scatterer) == 0.25
+        # Erectophile leaves: G(μ) increases as μ → 0 (more interception
+        # at low sun angles), and is small at μ = 1 (little interception
+        # at overhead sun) — opposite shape to planophile / horizontal.
+        G_stem = vec(CanopyOptics.G(μ_test, stem.LAD))
+        @test G_stem[1] > G_stem[end]
+        @test all(0.0 .< G_stem .< 1.0)
+
+        # ---- BranchComponent defaults ----
+        branch = CanopyOptics.BranchComponent(BAI = 0.1)
+        @test branch.area_index == 0.1
+        @test branch.scatterer isa CanopyOptics.LambertianWoodCanopyScattering
+        @test CanopyOptics.wood_reflectance(branch.scatterer) == 0.30
+        # Plagiophile (~45° tilted) sits BETWEEN spherical and
+        # erectophile in the μ → 0 limit (G at low sun is moderate, not
+        # extreme).
+        G_branch = vec(CanopyOptics.G(μ_test, branch.LAD))
+        @test all(0.0 .< G_branch .< 1.0)
+
+        # ---- Scalar vs AbstractWoodReflectance R ----
+        stem_lut = CanopyOptics.StemComponent(
+            SAI = 0.9,
+            R = CanopyOptics.LUTWoodReflectance(
+                grid = [400.0, 800.0, 2500.0],
+                R = [0.10, 0.20, 0.45],
+                grid_unit = :nm,
+            ),
+        )
+        @test stem_lut.scatterer isa CanopyOptics.LambertianWoodCanopyScattering
+        @test CanopyOptics.wood_reflectance(stem_lut.scatterer, 800.0) ≈ 0.20
+        @test CanopyOptics.wood_reflectance(stem_lut.scatterer, 400.0) ≈ 0.10
+
+        # ---- TreeCanopy: leaf-only when SAI = BAI = 0 ----
+        canopy_leaves = CanopyOptics.TreeCanopy(LAI = 4.0)
+        @test canopy_leaves isa CanopyOptics.MixedCanopy
+        @test length(canopy_leaves.components) == 1
+        # bulk_G must match the analytical leaf-only AI · G(μ).
+        leaf_LD = CanopyOptics.spherical_leaves()
+        G_leaf  = vec(CanopyOptics.G(μ_test, leaf_LD))
+        @test CanopyOptics.bulk_G(canopy_leaves, μ_test) ≈ 4.0 .* G_leaf
+
+        # ---- TreeCanopy: full 3-component ----
+        canopy_full = CanopyOptics.TreeCanopy(LAI = 4.0, SAI = 0.9, BAI = 0.1)
+        @test length(canopy_full.components) == 3
+        # AI accounting: areas in each component match the constructor inputs.
+        @test canopy_full.components[1].area_index == 4.0
+        @test canopy_full.components[2].area_index == 0.9
+        @test canopy_full.components[3].area_index == 0.1
+        # bulk_G must equal Σ_c AI_c · G_c — directly verifiable.
+        G_full_expected = 4.0 .* G_leaf .+
+                          0.9 .* vec(CanopyOptics.G(μ_test, stem.LAD)) .+
+                          0.1 .* vec(CanopyOptics.G(μ_test, branch.LAD))
+        @test CanopyOptics.bulk_G(canopy_full, μ_test) ≈ G_full_expected
+
+        # ---- TreeCanopy: SAI > 0, BAI = 0 (two-component) ----
+        canopy_stem = CanopyOptics.TreeCanopy(LAI = 4.0, SAI = 0.9)
+        @test length(canopy_stem.components) == 2
+        @test canopy_stem.components[2].area_index == 0.9
+
+        # ---- compute_Z_matrices: TreeCanopy plugs into the standard path ----
+        μ_z, _ = CanopyOptics.gauleg(4, 0.0, 1.0)
+        μ_z = collect(μ_z)
+        quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 24, n_azimuth = 8)
+        Zpp, Zmp = CanopyOptics.compute_Z_matrices(canopy_full, μ_z, 0;
+                                                   quadrature = quadrature)
+        @test all(isfinite, Zpp)
+        @test all(isfinite, Zmp)
+
+        # ---- Float32 path with explicit scatterer / LAD ----
+        leaf32 = CanopyOptics.LeafComponent(
+            LAI = Float32(3.5),
+            scatterer = CanopyOptics.BiLambertianCanopyScattering{Float32}(),
+            LAD = CanopyOptics.spherical_leaves(Float32),
+        )
+        @test typeof(leaf32.scatterer.R) === Float32
+        @test typeof(leaf32.area_index) === Float32
+        @test leaf32.clumping isa CanopyOptics.NoClumping{Float32}
+
+        # ---- Float32 path with ALL DEFAULTS ----
+        # Reviewer Finding #1: the convenience defaults must pick up
+        # FT from the area-index argument, not silently promote to
+        # Float64 via Float64 default literals (R = 0.25, etc.).
+        leaf_default32 = CanopyOptics.LeafComponent(LAI = Float32(4))
+        @test typeof(leaf_default32.area_index) === Float32
+        @test typeof(leaf_default32.scatterer.R) === Float32
+        @test typeof(leaf_default32.scatterer.T) === Float32
+        @test leaf_default32.clumping isa CanopyOptics.NoClumping{Float32}
+
+        stem_default32 = CanopyOptics.StemComponent(SAI = Float32(0.9))
+        @test typeof(stem_default32.area_index) === Float32
+        @test typeof(CanopyOptics.wood_reflectance(stem_default32.scatterer)) === Float32
+        @test stem_default32.clumping isa CanopyOptics.NoClumping{Float32}
+
+        branch_default32 = CanopyOptics.BranchComponent(BAI = Float32(0.1))
+        @test typeof(branch_default32.area_index) === Float32
+        @test typeof(CanopyOptics.wood_reflectance(branch_default32.scatterer)) === Float32
+
+        # TreeCanopy at Float32 must produce Float32 components for
+        # every population.
+        tree32 = CanopyOptics.TreeCanopy(LAI = Float32(4),
+                                          SAI = Float32(0.9),
+                                          BAI = Float32(0.1))
+        for c in tree32.components
+            @test typeof(c.area_index) === Float32
+            @test c.clumping isa CanopyOptics.NoClumping{Float32}
+        end
+
+        # ---- Negative-area validation (Finding #3) ----
+        @test_throws DomainError CanopyOptics.LeafComponent(LAI = -1.0)
+        @test_throws DomainError CanopyOptics.StemComponent(SAI = -0.1)
+        @test_throws DomainError CanopyOptics.BranchComponent(BAI = -0.05)
+        @test_throws DomainError CanopyOptics.TreeCanopy(LAI = -1.0)
+        @test_throws DomainError CanopyOptics.TreeCanopy(LAI = 4.0, SAI = -0.1)
+        @test_throws DomainError CanopyOptics.TreeCanopy(LAI = 4.0, BAI = -0.05)
+        # Zero is allowed (LAI = 0 for a bare canopy, SAI / BAI = 0 to
+        # omit those populations).
+        @test (CanopyOptics.TreeCanopy(LAI = 0.0); true)
+        @test length(CanopyOptics.TreeCanopy(LAI = 4.0, SAI = 0.0).components) == 1
+    end
+
     @testset "Canopy Z supports ForwardDiff parameters" begin
         μ, _ = CanopyOptics.gauleg(4, 0.0, 1.0)
         LD = CanopyOptics.spherical_leaves()
