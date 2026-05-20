@@ -557,8 +557,7 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test all(isfinite, Zpp)
         @test all(isfinite, Zmp)
 
-        # ---- Float32 path: type-stable throughout (no silent Float64
-        # promotion via the default-clumping anchor).
+        # ---- Float32 path with explicit scatterer / LAD ----
         leaf32 = CanopyOptics.LeafComponent(
             LAI = Float32(3.5),
             scatterer = CanopyOptics.BiLambertianCanopyScattering{Float32}(),
@@ -567,6 +566,47 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test typeof(leaf32.scatterer.R) === Float32
         @test typeof(leaf32.area_index) === Float32
         @test leaf32.clumping isa CanopyOptics.NoClumping{Float32}
+
+        # ---- Float32 path with ALL DEFAULTS ----
+        # Reviewer Finding #1: the convenience defaults must pick up
+        # FT from the area-index argument, not silently promote to
+        # Float64 via Float64 default literals (R = 0.25, etc.).
+        leaf_default32 = CanopyOptics.LeafComponent(LAI = Float32(4))
+        @test typeof(leaf_default32.area_index) === Float32
+        @test typeof(leaf_default32.scatterer.R) === Float32
+        @test typeof(leaf_default32.scatterer.T) === Float32
+        @test leaf_default32.clumping isa CanopyOptics.NoClumping{Float32}
+
+        stem_default32 = CanopyOptics.StemComponent(SAI = Float32(0.9))
+        @test typeof(stem_default32.area_index) === Float32
+        @test typeof(CanopyOptics.wood_reflectance(stem_default32.scatterer)) === Float32
+        @test stem_default32.clumping isa CanopyOptics.NoClumping{Float32}
+
+        branch_default32 = CanopyOptics.BranchComponent(BAI = Float32(0.1))
+        @test typeof(branch_default32.area_index) === Float32
+        @test typeof(CanopyOptics.wood_reflectance(branch_default32.scatterer)) === Float32
+
+        # TreeCanopy at Float32 must produce Float32 components for
+        # every population.
+        tree32 = CanopyOptics.TreeCanopy(LAI = Float32(4),
+                                          SAI = Float32(0.9),
+                                          BAI = Float32(0.1))
+        for c in tree32.components
+            @test typeof(c.area_index) === Float32
+            @test c.clumping isa CanopyOptics.NoClumping{Float32}
+        end
+
+        # ---- Negative-area validation (Finding #3) ----
+        @test_throws DomainError CanopyOptics.LeafComponent(LAI = -1.0)
+        @test_throws DomainError CanopyOptics.StemComponent(SAI = -0.1)
+        @test_throws DomainError CanopyOptics.BranchComponent(BAI = -0.05)
+        @test_throws DomainError CanopyOptics.TreeCanopy(LAI = -1.0)
+        @test_throws DomainError CanopyOptics.TreeCanopy(LAI = 4.0, SAI = -0.1)
+        @test_throws DomainError CanopyOptics.TreeCanopy(LAI = 4.0, BAI = -0.05)
+        # Zero is allowed (LAI = 0 for a bare canopy, SAI / BAI = 0 to
+        # omit those populations).
+        @test (CanopyOptics.TreeCanopy(LAI = 0.0); true)
+        @test length(CanopyOptics.TreeCanopy(LAI = 4.0, SAI = 0.0).components) == 1
     end
 
     @testset "Canopy Z supports ForwardDiff parameters" begin

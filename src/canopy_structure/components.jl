@@ -146,36 +146,45 @@ G(μ::AbstractArray, canopy::MixedCanopy; clumped::Bool = false) =
 #####
 
 """
-    LeafComponent(; LAI, scatterer = BiLambertianCanopyScattering{FT}(),
-                  LAD = spherical_leaves(FT),
+    LeafComponent(; LAI, scatterer = nothing, LAD = nothing,
                   clumping = nothing) -> CanopyComponent
 
 Convenience constructor for the **leaf** scattering population of a
 tree canopy.  Defaults to a `BiLambertianCanopyScattering` (reflection
 + transmission, the canonical leaf scatterer) and `spherical_leaves`
-(Bonan/Norman default — `G(μ) = 0.5/μ`).  Override either via kwarg:
-e.g. `scatterer = some_prospect_driven_scatterer` or
-`LAD = planophile_leaves(FT)`.
+(Bonan/Norman default — projection function `G(μ) ≈ 0.5`).  Override
+either via kwarg: e.g. `scatterer = some_prospect_driven_scatterer`
+or `LAD = planophile_leaves(FT)`.
 
-`LAI` is the one-sided leaf area index `[m² leaf / m² ground]`.
+When `scatterer` and `LAD` are left at their defaults, they are
+constructed in the float type of `LAI` — so `LeafComponent(LAI = 3.5f0)`
+returns a `CanopyComponent{Float32, ...}` end-to-end, with no silent
+Float64 promotion.
+
+`LAI` is the one-sided leaf area index `[m² leaf / m² ground]`.  Must
+be non-negative (throws `DomainError` otherwise).
 
 The resulting `CanopyComponent` plugs directly into
 [`MixedCanopy`](@ref) and the existing `compute_Z_matrices`,
 `bulk_G`, `effective_G` paths — no other call sites change.
 """
 function LeafComponent(; LAI::Real,
-                      scatterer::AbstractCanopyScatteringType =
-                            BiLambertianCanopyScattering(),
-                      LAD::AbstractLeafDistribution =
-                            spherical_leaves(_canopy_scattering_ft(scatterer)),
+                      scatterer::Union{AbstractCanopyScatteringType, Nothing} = nothing,
+                      LAD::Union{AbstractLeafDistribution, Nothing} = nothing,
                       clumping = nothing)
+    LAI ≥ 0 || throw(DomainError(LAI, "LeafComponent: LAI must be non-negative"))
+    FT = float(typeof(LAI))
+    if scatterer === nothing
+        scatterer = BiLambertianCanopyScattering{FT}()
+    end
+    if LAD === nothing
+        LAD = spherical_leaves(_canopy_scattering_ft(scatterer))
+    end
     return CanopyComponent(scatterer, LAD, LAI; clumping = clumping)
 end
 
 """
-    StemComponent(; SAI, R = 0.25,
-                  scatterer = nothing,
-                  LAD = erectophile_leaves(FT),
+    StemComponent(; SAI, R = 0.25, scatterer = nothing, LAD = nothing,
                   clumping = nothing) -> CanopyComponent
 
 Convenience constructor for the **stem** scattering population.
@@ -193,29 +202,36 @@ typical mature-bark value (Bonan 2019, *Climate Change and Terrestrial
 Ecosystem Modeling*, Table 14.1).  Pass `scatterer = ...` to override
 the entire scattering model (rarely needed).
 
-`SAI` is the one-sided stem area index `[m² stem / m² ground]`.
+When `scatterer` and `LAD` are left at their defaults, they are
+constructed in the float type of `SAI` — so `StemComponent(SAI = 0.9f0)`
+returns a `CanopyComponent{Float32, ...}` end-to-end.
+
+`SAI` is the one-sided stem area index `[m² stem / m² ground]`.  Must
+be non-negative (throws `DomainError` otherwise).
 """
 function StemComponent(; SAI::Real,
                       R = 0.25,
                       scatterer::Union{AbstractCanopyScatteringType, Nothing} = nothing,
                       LAD::Union{AbstractLeafDistribution, Nothing} = nothing,
                       clumping = nothing)
+    SAI ≥ 0 || throw(DomainError(SAI, "StemComponent: SAI must be non-negative"))
+    FT = float(typeof(SAI))
     if scatterer === nothing
-        reflectance = R isa AbstractWoodReflectance ? R :
-                      ConstantWoodReflectance(R)
+        reflectance = if R isa AbstractWoodReflectance
+            R
+        else
+            ConstantWoodReflectance{FT}(FT(R))
+        end
         scatterer = LambertianWoodCanopyScattering(reflectance)
     end
     if LAD === nothing
-        FT = _canopy_scattering_ft(scatterer)
-        LAD = erectophile_leaves(FT)
+        LAD = erectophile_leaves(_canopy_scattering_ft(scatterer))
     end
     return CanopyComponent(scatterer, LAD, SAI; clumping = clumping)
 end
 
 """
-    BranchComponent(; BAI, R = 0.30,
-                    scatterer = nothing,
-                    LAD = plagiophile_leaves(FT),
+    BranchComponent(; BAI, R = 0.30, scatterer = nothing, LAD = nothing,
                     clumping = nothing) -> CanopyComponent
 
 Convenience constructor for the **branch** scattering population.
@@ -228,21 +244,30 @@ younger-bark value, slightly higher than the mature-stem default to
 reflect smoother branch bark; override with any
 [`AbstractWoodReflectance`](@ref) for band-resolved spectra.
 
+When `scatterer` and `LAD` are left at their defaults, they are
+constructed in the float type of `BAI` — so `BranchComponent(BAI = 0.1f0)`
+returns a `CanopyComponent{Float32, ...}` end-to-end.
+
 `BAI` is the one-sided branch area index `[m² branch / m² ground]`.
+Must be non-negative (throws `DomainError` otherwise).
 """
 function BranchComponent(; BAI::Real,
                         R = 0.30,
                         scatterer::Union{AbstractCanopyScatteringType, Nothing} = nothing,
                         LAD::Union{AbstractLeafDistribution, Nothing} = nothing,
                         clumping = nothing)
+    BAI ≥ 0 || throw(DomainError(BAI, "BranchComponent: BAI must be non-negative"))
+    FT = float(typeof(BAI))
     if scatterer === nothing
-        reflectance = R isa AbstractWoodReflectance ? R :
-                      ConstantWoodReflectance(R)
+        reflectance = if R isa AbstractWoodReflectance
+            R
+        else
+            ConstantWoodReflectance{FT}(FT(R))
+        end
         scatterer = LambertianWoodCanopyScattering(reflectance)
     end
     if LAD === nothing
-        FT = _canopy_scattering_ft(scatterer)
-        LAD = plagiophile_leaves(FT)
+        LAD = plagiophile_leaves(_canopy_scattering_ft(scatterer))
     end
     return CanopyComponent(scatterer, LAD, BAI; clumping = clumping)
 end
@@ -289,6 +314,13 @@ function TreeCanopy(; LAI::Real,
                    leaf_kwargs::NamedTuple = (;),
                    stem_kwargs::NamedTuple = (;),
                    branch_kwargs::NamedTuple = (;))
+    # Per-component constructors throw `DomainError` on negative
+    # inputs.  Reject up front so a negative SAI / BAI never silently
+    # collapses to an LAI-only canopy via the `> zero(...)` gating
+    # below.
+    LAI ≥ 0 || throw(DomainError(LAI, "TreeCanopy: LAI must be non-negative"))
+    SAI ≥ 0 || throw(DomainError(SAI, "TreeCanopy: SAI must be non-negative"))
+    BAI ≥ 0 || throw(DomainError(BAI, "TreeCanopy: BAI must be non-negative"))
     components = CanopyComponent[]
     push!(components, LeafComponent(; LAI = LAI, leaf_kwargs...))
     if SAI > zero(SAI)
