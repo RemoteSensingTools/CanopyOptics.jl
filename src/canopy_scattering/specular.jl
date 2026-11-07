@@ -121,7 +121,7 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
 
     # Quadrature points in the azimuth:
     ϕ, w_azi = gauleg(q.n_azimuth, FT(0), FT(2π))
-    G_in = ZFT.(vec(G(μ, LD)))
+    G_in = ZFT.(vec(G(μ, LD; quadrature=q)))
 
     if n == 1
         𝐙⁺⁺ = zeros(ZFT, length(μ), length(μ))

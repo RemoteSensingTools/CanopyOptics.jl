@@ -257,10 +257,10 @@ function compute_Z_matrices(mod::CompositeCanopyScattering,
                                   quadrature = q, npol = npol)
 end
 
-function _component_G_weights(components::Tuple, μ::AbstractVector)
+function _component_G_weights(components::Tuple, μ::AbstractVector, quadrature::CanopyQuadrature)
     # Each G_c is already integrated over that component's inclination PDF;
     # only area-index weighting remains here.
-    Gs = map(component -> vec(G(μ, component.LAD)), components)
+    Gs = map(component -> vec(G(μ, component.LAD; quadrature)), components)
     FTG = eltype(Gs[1])
     for i in eachindex(components)
         FTG = promote_type(FTG, eltype(Gs[i]), typeof(components[i].area_index))
@@ -326,7 +326,7 @@ function _compute_mixed_Z(canopy::MixedCanopy, μ::AbstractVector, m;
     n = _validate_npol(npol)
     q = _resolve_quadrature(quadrature, nQuad)
     components = canopy.components
-    Gs, G_total = _component_G_weights(components, μ)
+    Gs, G_total = _component_G_weights(components, μ, q)
 
     first_component = components[1]
     Zpp₁, Zmp₁ = compute_Z_matrices(first_component.scatterer, μ,

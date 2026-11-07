@@ -26,12 +26,12 @@ function compute_Γ(mod::BiLambertianCanopyScattering,
     n_leaf = quadrature.n_leaf
     n_azimuth = quadrature.n_azimuth
     #μ_l, w = gauleg(nQuad,0.0,1.0);
-    θₗ, w = gauleg(n_leaf,FT(0),FT(π/2));
+    leaf_quad = _leaf_inclination_quadrature(LD, n_leaf, FT)
+    θₗ = leaf_quad.θ
     μ_l = cos.(θₗ)
     # Quadrature points in the azimuth (this has to go over 2π):
     ϕ, w_azi = gauleg(n_azimuth,FT(0),FT(2π));
     
-    Fᵢ = pdf.(LD.LD,2θₗ/π) * LD.scaling  
     
     # Create leaf angles in μ and ϕ
     Ω_l  = [dirVector_μ(a,b) for a in μ_l, b in ϕ];
@@ -44,8 +44,8 @@ function compute_Γ(mod::BiLambertianCanopyScattering,
     iNeg = (integrand-abs.(integrand))./2
     
     # Eq 39 in Shultis and Myneni, double integration here
-    Γ⁻ = -1/2π * (Fᵢ .* w)' * (iNeg * w_azi)
-    Γ⁺ =  1/2π * (Fᵢ .* w)' * (iPos * w_azi)
+    Γ⁻ = -1/2π * leaf_quad.w_measure' * (iNeg * w_azi)
+    Γ⁺ =  1/2π * leaf_quad.w_measure' * (iPos * w_azi)
     # Eq 38 in Shultis and Myneni
     return R * Γ⁻ + T * Γ⁺ 
 end
@@ -125,21 +125,6 @@ function _normalise_Z!(Z⁺⁺::AbstractArray{FT,3},
         end
     end
     return Z⁺⁺, Z⁻⁺
-end
-
-"""
-    _leaf_inclination_quadrature(LD, nQuad, FT)
-
-Return leaf-inclination quadrature nodes and measure weights.
-
-The returned `w_measure` is already the Gauss weight multiplied by the leaf
-angle distribution density and scaling factor. Do not multiply by `pdf(LD, ...)`
-again at the call site.
-"""
-function _leaf_inclination_quadrature(LD::AbstractLeafDistribution, nQuad::Int, ::Type{FT}) where {FT}
-    θₗ, wθ = gauleg(nQuad, FT(0), FT(π / 2))
-    Fₗ = FT.(pdf.(LD.LD, 2θₗ / FT(π))) .* FT(LD.scaling)
-    return (θ = θₗ, w_measure = wθ .* Fₗ)
 end
 
 """
@@ -350,7 +335,7 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
     leaf_quad = _leaf_inclination_quadrature(LD, q.n_leaf, FT)
     θₗ = leaf_quad.θ
     w_measure = leaf_quad.w_measure
-    G = ZFT.(vec(CanopyOptics.G(μ_vec, LD)))
+    G = ZFT.(vec(CanopyOptics.G(μ_vec, LD; quadrature=q)))
 
     Pꜜ = zeros(ZFT, nμ, nm)
     Nꜜ = zeros(ZFT, nμ, nm)
