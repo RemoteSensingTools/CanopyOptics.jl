@@ -199,11 +199,16 @@ Returns the Nilson–Kuusk leaf-surface roughness reduction factor:
 ``K(κ, α) = e^{-κ \\tan |α|}``
 
 - `κ ≈ 0.1–0.3` controls surface roughness (`κ = 0` → smooth Fresnel surface)
-- `α` is the incidence half-angle in radians
+- `α` is the incidence half-angle in radians, with `abs(α) ≤ π/2`.
+- At grazing incidence the limit is zero for positive roughness and one for
+  a smooth surface (`κ = 0`). Evaluate this limit explicitly: the rounded
+  Float32 representation of π/2 can otherwise give a large negative tangent.
 
 Used in [`compute_reflection`](@ref) to attenuate specular reflectance for rough leaves.
 """
 function K(κ::FTκ, α::FTα) where {FTκ<:Real,FTα<:Real}
     FT = promote_type(FTκ, FTα)
-    exp(-FT(κ) * tan(abs(FT(α))))
+    roughness, angle = FT(κ), abs(FT(α))
+    roughness > zero(FT) && angle >= FT(π)/FT(2) && return zero(FT)
+    exp(-roughness * tan(angle))
 end

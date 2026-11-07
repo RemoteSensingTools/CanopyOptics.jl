@@ -24,7 +24,7 @@ using Test, CanopyOptics, LinearAlgebra, TOML
     end
     for FT in (Float32,Float64)
         model=CanopyOptics.SpecularCanopyScattering(
-            nᵣ=FT(scattering["refractive_index"]),κ=FT(scattering["extinction_index"]))
+            nᵣ=FT(scattering["refractive_index"]),κ=FT(scattering["roughness"]))
         mu=FT.(scattering["stream_cosines"])
         for m in scattering["fourier_orders"]
             pp,mp=CanopyOptics.compute_Z_matrices(model,mu,CanopyOptics.spherical_leaves(FT),m;
