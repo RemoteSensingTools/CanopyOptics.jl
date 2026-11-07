@@ -19,7 +19,7 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             G = CanopyOptics.G(μ, LD)
             @test eltype(G) == FT
             @test CanopyOptics.G(-μ, LD) ≈ G
-            # The default G quadrature (nLeg=40) is accurate to about
+            # The common default leaf quadrature is accurate to about
             # 1.3e-3 for this 10-point μ grid.
             tol = FT == Float32 ? FT(2e-3) : FT(1.5e-3)
             @test all(abs.(G .- FT(0.5)) .< tol)
@@ -429,11 +429,11 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             clumping = CanopyOptics.ConstantClumping(Ω = 0.5))
         mixed = CanopyOptics.MixedCanopy(leaf_component, wood_component)
 
-        G_leaf = vec(CanopyOptics.G(μ, leaf_LD))
-        G_wood = vec(CanopyOptics.G(μ, wood_LD))
-        @test CanopyOptics.bulk_G(mixed, μ; clumped = false) ≈
+        G_leaf = vec(CanopyOptics.G(μ, leaf_LD; quadrature))
+        G_wood = vec(CanopyOptics.G(μ, wood_LD; quadrature))
+        @test CanopyOptics.bulk_G(mixed, μ; clumped = false, quadrature) ≈
               2.0 .* G_leaf .+ G_wood
-        @test CanopyOptics.bulk_G(mixed, μ; clumped = true) ≈
+        @test CanopyOptics.bulk_G(mixed, μ; clumped = true, quadrature) ≈
               2.0 .* G_leaf .+ 0.5 .* G_wood
 
         Zpp_mix, Zmp_mix = CanopyOptics.compute_Z_matrices(

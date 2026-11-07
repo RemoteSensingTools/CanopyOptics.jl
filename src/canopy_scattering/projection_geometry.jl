@@ -54,41 +54,41 @@ end
 
 
 """
-    $(FUNCTIONNAME)(μ::Array{FT}, LD::AbstractLeafDistribution; nLeg=20)
+    _leaf_inclination_quadrature(LD, n_leaf, FT)
 
-Returns the integrated projection of leaf area in the direction of μ, assumes azimuthally uniform distribution and a LD distribution for leaf polar angle θ. 
-This function is often referred to as the function O(B) (Goudriaan 1977) or G(Ζ) (Ross 1975,1981), see Bonan modeling book, eqs. 14.21-14.26. 
-
-# Arguments
-- `μ` an array of cos(θ) (directions [0,1]) 
-- `LD` an `AbstractLeafDistribution` type struct, includes a leaf distribution function
-- `nLeg` an optional parameter for the number of legendre polynomials to integrate over the leaf distribution (default=20)
-
-# Examples
-```julia-repl
-julia> μ,w = CanopyOptics.gauleg(10,0.0,1.0);       # Create 10 quadrature points in μ      
-julia> LD  = CanopyOptics.spherical_leaves()        # Create a default spherical leaf distribution
-julia> G   = CanopyOptics.G(μ, LD)                  # Compute G(μ)
-10-element Vector{Float64}:
- 0.5002522783000879
- 0.5002715115149204
- 0.5003537989277846
- 0.5004432798701134
- 0.5005134448870893
- 0.5003026448466977
- 0.4999186257540982
- 0.4994511190721635
- 0.49907252201082375
- 0.49936166823681594
-```
+Leaf-inclination nodes and normalized leaf-area measure. G and the scattering
+kernel must integrate the same discrete PDF, including its normalization.
 """
-function G(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg=40) where FT
-    θₗ, w = gauleg(nLeg, FT(0), FT(π/2))
-    Fᵢ = FT.(pdf.(LD.LD, FT(2) .* θₗ ./ FT(π))) .* FT(LD.scaling)
-    Fᵢ = Fᵢ / (w' * Fᵢ)   # normalize leaf angle distribution
-    θ  = acos.(abs.(μ))
-    G  = (w .* Fᵢ)' * A.(θ', θₗ)
-    return FT.(G')
+function _leaf_inclination_quadrature(LD::AbstractLeafDistribution, n_leaf::Int, ::Type{FT}) where {FT}
+    θ, w = gauleg(n_leaf, zero(FT), FT(π) / FT(2))
+    density = FT.(pdf.(LD.LD, FT(2) .* θ ./ FT(π))) .* FT(LD.scaling)
+    w_measure = w .* density
+    mass = sum(w_measure)
+    isfinite(mass) && mass > zero(FT) ||
+        throw(ArgumentError("leaf-inclination quadrature must have finite positive mass"))
+    w_measure ./= mass
+    return (; θ, w_measure)
+end
+
+"""
+    G(μ, LD; quadrature=CanopyQuadrature(), nLeg=nothing)
+
+Ross projected leaf area in directions `μ`, for an azimuthally uniform leaf
+inclination distribution `LD`. Uses `quadrature.n_leaf` and the same normalized
+leaf-area measure as the analytic scattering kernel. Pass the same `quadrature`
+to G and `compute_Z_matrices` when assembling transport coefficients.
+
+`nLeg` remains a compatibility override for the number of leaf-inclination nodes.
+With neither keyword, G now uses the common `CanopyQuadrature()` default instead
+of an independent 40-node default. Only `n_leaf` affects this azimuth-averaged G.
+"""
+function G(μ::AbstractArray{FT}, LD::AbstractLeafDistribution;
+           quadrature::CanopyQuadrature=CanopyQuadrature(), nLeg=nothing) where FT
+    n_leaf = nLeg === nothing ? quadrature.n_leaf : nLeg
+    leaf_quad = _leaf_inclination_quadrature(LD, n_leaf, FT)
+    θ = acos.(abs.(μ))
+    projected = leaf_quad.w_measure' * A.(θ', leaf_quad.θ)
+    return FT.(projected')
 end
 
 """

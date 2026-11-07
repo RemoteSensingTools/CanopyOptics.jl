@@ -116,12 +116,11 @@ function FourSAILGeometry(LAD::AbstractLeafDistribution;
     ks = zero(FT); ko = zero(FT); bf = zero(FT)
     sob = zero(FT); sof = zero(FT)
 
-    θl, wθ = gauleg(quadrature.n_leaf, zero(FT), FT(π / 2))
-    lidf = FT.(pdf.(LAD.LD, FT(2) .* θl ./ FT(π))) .* FT(LAD.scaling)
-    lidf ./= sum(wθ .* lidf)
+    leaf_quad = _leaf_inclination_quadrature(LAD, quadrature.n_leaf, FT)
+    θl = leaf_quad.θ
 
     for i in eachindex(θl)
-        weight = wθ[i] * lidf[i]
+        weight = leaf_quad.w_measure[i]
         χs, χo, frho, ftau = _foursail_volscatt(μs, μo, dϕ, θl[i])
         ks += weight * χs / μs
         ko += weight * χo / μo

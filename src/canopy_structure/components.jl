@@ -93,18 +93,19 @@ end
 MixedCanopy(components::Tuple) = MixedCanopy(components...)
 
 """
-    component_G(component, μ; clumped = false)
+    component_G(component, μ; clumped = false, quadrature = CanopyQuadrature())
 
 Projected area for one [`CanopyComponent`](@ref). Set `clumped = true` to apply
 the component's clumping model.
 """
-function component_G(component::CanopyComponent, μ::AbstractVector; clumped::Bool = false)
-    G_raw = vec(G(μ, component.LAD))
+function component_G(component::CanopyComponent, μ::AbstractVector; clumped::Bool = false,
+                     quadrature::CanopyQuadrature = CanopyQuadrature())
+    G_raw = vec(G(μ, component.LAD; quadrature))
     return clumped ? effective_G(component.clumping, G_raw, μ) : G_raw
 end
 
 """
-    bulk_G(canopy, μ; clumped = true)
+    bulk_G(canopy, μ; clumped = true, quadrature = CanopyQuadrature())
 
 Area-index-weighted canopy projected area:
 
@@ -114,17 +115,18 @@ G_{bulk}(μ) = \\sum_c AI_c G_c(μ),
 
 or `\\sum_c AI_c Ω_c(μ)G_c(μ)` when `clumped = true`.
 """
-function bulk_G(canopy::MixedCanopy, μ::AbstractVector; clumped::Bool = true)
-    first_G = component_G(canopy.components[1], μ; clumped = clumped)
+function bulk_G(canopy::MixedCanopy, μ::AbstractVector; clumped::Bool = true,
+                quadrature::CanopyQuadrature = CanopyQuadrature())
+    first_G = component_G(canopy.components[1], μ; clumped = clumped, quadrature)
     FT = promote_type(eltype(first_G), typeof(canopy.components[1].area_index))
     for component in Iterators.drop(canopy.components, 1)
-        Gc = component_G(component, μ; clumped = clumped)
+        Gc = component_G(component, μ; clumped = clumped, quadrature)
         FT = promote_type(FT, eltype(Gc), typeof(component.area_index))
     end
 
     total = zeros(FT, length(μ))
     for component in canopy.components
-        Gc = component_G(component, μ; clumped = clumped)
+        Gc = component_G(component, μ; clumped = clumped, quadrature)
         @inbounds for i in eachindex(total)
             total[i] += FT(component.area_index) * FT(Gc[i])
         end
@@ -132,8 +134,9 @@ function bulk_G(canopy::MixedCanopy, μ::AbstractVector; clumped::Bool = true)
     return total
 end
 
-G(μ::AbstractArray, canopy::MixedCanopy; clumped::Bool = false) =
-    bulk_G(canopy, μ; clumped = clumped)
+G(μ::AbstractArray, canopy::MixedCanopy; clumped::Bool = false,
+  quadrature::CanopyQuadrature = CanopyQuadrature()) =
+    bulk_G(canopy, μ; clumped = clumped, quadrature)
 
 #####
 ##### Convenience constructors for the canonical tree-canopy populations

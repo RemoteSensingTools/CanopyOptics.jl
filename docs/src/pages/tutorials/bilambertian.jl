@@ -24,6 +24,11 @@ quadrature = CanopyOptics.CanopyQuadrature(n_leaf = 64)
 # moments in one call. The array layout is `Z[i_out, j_in, m+1]` for the
 # common `0:m_max` range.
 m_max = 8
+# Use the same leaf quadrature for extinction and scattering. Both integrate
+# the same normalized leaf-area measure, including for PDFs with endpoint peaks.
+# Do not normalize the outgoing Z columns to force energy closure: refine the
+# outgoing angular grid to check its remaining integration error.
+G_leaf = CanopyOptics.G(μ, LD; quadrature)
 Z⁺⁺, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:m_max; quadrature)
 size(Z⁺⁺)
 
@@ -40,6 +45,10 @@ maximum(abs.(Z⁺⁺₂ .- Z⁺⁺[:, :, 3]))
 # A single `m = 0` call slices the same analytic stack.
 Z⁺⁺₀, Z⁻⁺₀ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0; quadrature)
 maximum(abs.(Z⁻⁺₀ .- Z⁻⁺[:, :, 1]))
+
+# G now defaults to `CanopyQuadrature().n_leaf`, matching scattering. The legacy
+# `nLeg` keyword remains an explicit resolution override for standalone callers;
+# when coupling transport, passing the same `quadrature` is preferred.
 
 # ## Changing the leaf-angle distribution
 
