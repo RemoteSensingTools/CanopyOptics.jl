@@ -1,0 +1,13 @@
+# Synthetic dimensionless regression cases, not a calibrated leaf model.
+[directions]
+incoming_cosines = [0.2, 0.6, 0.9]
+outgoing_cosines = [0.3, 0.7, 0.98]
+outgoing_azimuth_pi = [0.25, 0.75, 1.25, 1.75]
+
+[scattering]
+refractive_index = 1.5
+extinction_index = 0.2
+stream_cosines = [0.2, 0.6, 0.9]
+fourier_orders = [0, 1, 2]
+leaf_nodes = 12
+azimuth_nodes = 12
