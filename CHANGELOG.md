@@ -22,6 +22,11 @@
   switch.
 
 ### Fixed
+- Angle-based specular reflection now uses the same incidence half-angle and
+  unoriented leaf-normal convention as the cosine-based API. Previously,
+  negative direction dot products were folded incorrectly and downward
+  normals could be evaluated outside the leaf-angle PDF. Production Z-matrix
+  assembly already uses the cosine-based method.
 - `foursail` no longer returns `NaN` for conservative leaves
   (`ρ + τ = 1`, e.g. `(0.5, 0.5)`). The `m → 0`, `rinf → 1`
   singularity is patched with a `cbrt(eps)` floor on `m` (same

@@ -10,22 +10,12 @@ method is the one used by Z-matrix assembly; this method is retained for
 interactive angle-grid checks.
 """
 function compute_reflection(mod::SpecularCanopyScattering, Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}, LD) where FT
-    (;nᵣ,κ) = mod
-    Ωstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
-    #θstar = min(abs(Ωstar.θ), (π-abs(Ωstar.θ))) # min(abs(Ωstar.θ), abs(π+Ωstar.θ))
-    θstar = Ωstar.θ;
-    #if Ωⁱⁿ.θ ≈ Ωᵒᵘᵗ.θ && Ωⁱⁿ.ϕ ≈ Ωᵒᵘᵗ.ϕ
-    #    θstar = Ωⁱⁿ.θ
-    #end
-    # Still needs to be implemented!
-    # incident angle on leaf surface (half of in and out angle):
-    sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
-    sa > 1 ? sa = FT(1) : nothing
-    αstar = acos(abs(sa))/2
-    #@show Ωstar.ϕ, Ωstar.θ
-    #a = (Ωⁱⁿ ⋅ Ωstar) * (Ωᵒᵘᵗ ⋅ Ωstar)
-    return FT(1/8) * pdf(LD.LD,2θstar/π) * LD.scaling * K(κ, αstar) * Fᵣ(nᵣ,αstar)
-    
+    # Keep the incidence half-angle and unoriented leaf-normal convention in
+    # one implementation. abs(dot) would incorrectly fold incidence angles
+    # above π/4, and an unfolded downward normal lies outside the leaf PDF.
+    incoming = dirVector_μ(cos(Ωⁱⁿ.θ),Ωⁱⁿ.ϕ)
+    outgoing = dirVector_μ(cos(Ωᵒᵘᵗ.θ),Ωᵒᵘᵗ.ϕ)
+    compute_reflection(mod,incoming,outgoing,LD)
 end
 
 """
