@@ -1,0 +1,15 @@
+# Equivalent direction representations; synthetic numerical regression cases.
+[directions]
+incoming_cosines = [0.7, -0.7, 0.2, -0.2]
+outgoing_cosines = [0.5, -0.5, 0.8, -0.8]
+outgoing_azimuth_pi = [0.0, 0.5, 1.0, 1.5]
+
+[scattering]
+refractive_index = 1.5
+roughness = 0.2
+beta_alpha = 2.0
+beta_beta = 3.0
+
+[validation]
+float32_rtol = 0.00005
+float64_rtol = 0.000000000005
