@@ -136,7 +136,7 @@ function getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) wher
     end
     # Leaf azimuth angle:
     ϕₗ = acos(max(FT(-1),min(t,FT(1))))
-    ϕ > π   ? ϕₗ = 2π-ϕₗ-Ωⁱⁿ.ϕ : ϕₗ = ϕₗ+Ωⁱⁿ.ϕ
+    ϕ > FT(π) ? ϕₗ = FT(2)*FT(π)-ϕₗ-Ωⁱⁿ.ϕ : ϕₗ = ϕₗ+Ωⁱⁿ.ϕ
     #θₗ > π/2 ? θₗ = θₗ - π/2  : nothing 
     out = dirVector(θₗ,ϕₗ)
     #ϕ > π   ? out = dirVector(θₗ,2π-ϕₗ-Ωⁱⁿ.ϕ) : out = dirVector(θₗ,ϕₗ+Ωⁱⁿ.ϕ)
@@ -167,7 +167,7 @@ function getSpecularΩ(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}
     end
     # Leaf azimuth angle:
     ϕₗ = acos(max(FT(-1),min(t,FT(1))))
-    ϕ > π   ? ϕₗ = 2π-ϕₗ-Ωⁱⁿ.ϕ : ϕₗ = ϕₗ+Ωⁱⁿ.ϕ
+    ϕ > FT(π) ? ϕₗ = FT(2)*FT(π)-ϕₗ-Ωⁱⁿ.ϕ : ϕₗ = ϕₗ+Ωⁱⁿ.ϕ
     out = dirVector_μ(μₗ,ϕₗ)
     @assert Ωⁱⁿ ⋅ out ≈  Ωᵒᵘᵗ ⋅ out "Leaf angle wrong in specular reflection, $Ωⁱⁿ, $Ωᵒᵘᵗ, $out"
     return out, α
