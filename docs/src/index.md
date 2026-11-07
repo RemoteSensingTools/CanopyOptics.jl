@@ -3,6 +3,8 @@
 ## Package Features
 - Use leaf angle distributions to compute bi-Lambertian canopy scattering matrices
 - Compute closed-form cosine Fourier moments for the bi-Lambertian canopy kernel
+- Choose an opt-in [conservative discrete angular measure](pages/angular_normalization.md)
+  shared by bi-Lambertian scattering and leaf emission geometry
 - Compose diffuse and specular leaf-surface scattering models additively
 - Request scalar or Stokes-expanded canopy Z matrices with `npol`
 - Combine leaf and wood canopy components with separate angle distributions

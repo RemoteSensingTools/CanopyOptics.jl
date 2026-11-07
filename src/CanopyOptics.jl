@@ -63,6 +63,7 @@ include("canopy_scattering/quadrature_controls.jl")
 include("canopy_scattering/stokes.jl")
 include("canopy_scattering/specular.jl")
 include("canopy_scattering/bilambertian_fourier.jl")
+include("canopy_scattering/angular_normalization.jl")
 include("canopy_scattering/z_matrices.jl")
 include("foursail/foursail.jl")
 
@@ -99,5 +100,7 @@ export LeafProspectProProperties, LeafOpticalProperties, dielectric
 export compute_Z_matrices, compute_Z_matrices_aniso_analytic,
        prospect, compute_reflection, compute_reflection_mueller,
        G, G2, bfG
+export AbstractAngularNormalization, ContinuousAngularNormalization,
+       DiscreteAngularNormalization, leaf_angular_scale, leaf_projection_moments
 
 end # module

@@ -19,6 +19,7 @@ function build()
 
     pages = Any[
             "Home"                  => "index.md",
+            "Angular normalization" => "pages/angular_normalization.md",
             "Tutorials"             => tutorials_md
         ]
 

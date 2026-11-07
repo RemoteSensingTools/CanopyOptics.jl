@@ -1,0 +1,32 @@
+[numerics]
+streams = [8, 16, 32]
+leaf_nodes = [16, 64]
+fourier_order = 6
+leaf_cosines = [0.0, 0.2, 0.7, 1.0]
+view_cosines = [0.37, 1.0]
+
+[distributions]
+central = [2.0, 2.0]
+planophile = [1.5, 3.0]
+erectophile = [3.0, 1.5]
+endpoint_stress = [0.5, 0.5]
+
+[optics]
+black = [0.0, 0.0]
+reflection = [1.0, 0.0]
+transmission = [0.0, 1.0]
+red = [0.15, 0.05]
+far_red = [0.45, 0.45]
+
+[validation]
+float32_atol = 0.000001
+float64_atol = 0.00000000000001
+float32_rtol = 0.00001
+float64_rtol = 0.00000000000005
+finite_difference_step = 0.00001
+derivative_rtol = 0.000001
+
+[source]
+front = [0.0, 1.0, 0.3, 2.0]
+back = [0.0, 0.2, 0.7, 0.0]
+sample_scales = [0.0, 1.0, 0.7]
