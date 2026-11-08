@@ -31,3 +31,6 @@ Manifest.toml
 
 # Local agent-tool session state
 .claude/
+
+# Bytecode from independent Python reference generators
+__pycache__/

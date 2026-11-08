@@ -47,3 +47,15 @@ production code and does not use the production analytic overlap/escape formulas
 The wider Julia grid independently evaluates integrated exponentials and a two
 boundary balance system at 2048 bits. It includes extreme finite depths and
 smallest-positive interface transmission beyond the practical quadrature grid.
+
+`generate_plate_preparation_reference.py` also uses mpmath1.3.0, importing the
+independent Fresnel quadrature from `generate_prospect_reference.py`. It writes
+140 precision-frozen optical cases to `plate_preparation_reference.csv`, with
+280 source-depth integrals for distinct 90-degree and 40-degree entry conventions.
+Traversal survival and direct loss are independent angular integrals; opaque
+survival scales out `exp(-k)` before quadrature to retain relative resolution.
+Record both Python sources when binding reference provenance. The Julia helper
+rejects E3-library underflow even when the exact traversal probability would round
+to a positive subnormal; no unresolved effective depth is silently manufactured.
+The [preparation validation record](../../docs/src/data/plate_preparation_validation.json)
+binds both generators, the fixture, production sources and completed package gates.

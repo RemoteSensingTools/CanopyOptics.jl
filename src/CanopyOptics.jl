@@ -57,6 +57,7 @@ include("leaf_optics/prospect.jl")
 include("leaf_optics/pigment_absorption.jl")
 include("leaf_optics/excitation_selection.jl")
 include("leaf_optics/plate_emission.jl")
+include("leaf_optics/plate_preparation.jl")
 include("wood_optics/reflectance.jl")
 include("canopy_structure/clumping.jl")
 include("canopy_structure/hotspot.jl")
@@ -78,7 +79,7 @@ include("utils/dielectric.jl")
 
 export prospect, prospect_budget, prospect_constituent_coefficients
 export AbstractLeafBirthProfile, UniformBirthProfile, ExponentialBirthProfile,
-       RegularPlateEscape, leaf_emission_fates
+       RegularPlateEscape, leaf_emission_fates, diffuse_plate_optics
 export AbstractAbsorptionPartition, HomogeneousAbsorption, AbsorptionPartitionResult,
        AbsorptionPartitionStatus, AbsorptionPartitionValid, AbsorptionNoMaterial,
        AbsorptionInvalidInput, AbsorptionIncompatibleInput, partition_absorption,

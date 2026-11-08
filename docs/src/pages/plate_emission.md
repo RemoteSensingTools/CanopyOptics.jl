@@ -107,6 +107,60 @@ birth type can subtype `AbstractLeafBirthProfile` and implement
 `leaf_emission_fates(escape, birth)`; a different escape structure can dispatch on
 the first argument. Neither extension changes a photosynthesis model or host grid.
 
-Actual optical-database preparation, multiple-plate assembly, intrinsic PSII
-spectra and canopy coupling follow separately. No fractional-stack, directional
-SIF or complete coupled energy capability is implied by this scalar component.
+Multiple-plate assembly, intrinsic PSII spectra and canopy coupling follow
+separately. No fractional-stack, directional SIF or complete coupled energy
+capability is implied by this scalar component.
+
+## Preparing a regular plate from material properties
+
+[`diffuse_plate_optics`](@ref) prepares effective depths and interface probabilities
+from dimensionless material optical depth `k` and refractive index `nr` on the
+host. Its separate implementation is `src/leaf_optics/plate_preparation.jl`.
+Material composition and optical-table selection remain caller choices.
+
+```julia
+excitation = diffuse_plate_optics(excitation_material_depth, excitation_index)
+emission = diffuse_plate_optics(emission_material_depth, emission_index)
+birth = ExponentialBirthProfile(excitation.effective_depth,
+    one(excitation_material_depth),
+    (one(excitation_material_depth)-excitation.interface_exit_transmission) *
+        excitation.traversal_transmission)
+escape = RegularPlateEscape(emission.effective_depth,
+    emission.interface_exit_transmission)
+fates = leaf_emission_fates(escape, birth)
+```
+
+Traversal transmission is `2E₃(k)`. The independently evaluated traversal loss
+preserves weak absorption even when transmission rounds to one. Effective depth
+uses `-log1p(-loss)` near the conservative limit and `-log(transmission)` otherwise.
+A loss rounded to one is allowed when transmission remains positive. If the E₃
+library underflows to zero, preparation rejects the unresolved depth; it supplies
+no optical floor. Independently resolved finite depths can still be passed directly
+to the scalar component.
+
+Both interface probabilities use hemispheric **90-degree** Fresnel transmission;
+internal-to-outside transmission equals outside-to-inside transmission divided by
+`nr²`. This differs from default PROSPECT's **40-degree first-entry cone**. Under
+this isotropized interior closure, the entry cone changes source amplitude but
+not the normalized birth shape. It does not resolve angle-dependent internal paths.
+For a unit incident photon, the internal absorption source is
+
+```math
+B=\frac{t_{\mathrm{entry}}\,a_{\mathrm{traversal}}}
+        {t_{\mathrm{exit}}+(1-t_{\mathrm{exit}})a_{\mathrm{traversal}}}.
+```
+
+Use a matching entry convention when comparing this source with an external
+absorption budget. Independent tests integrate the source density for both entry
+conventions; they do not compare diffuse entry directly with default PROSPECT.
+Homogeneous chlorophyll allocation changes its magnitude, not its conditional
+depth shape. Zero total/selected absorption remains an inactive physical source.
+
+The helper supports Float32/Float64 host preparation; no CUDA or AD execution is
+claimed for it. Prepared scalar models retain their tested CPU/CUDA contract.
+The legacy Fresnel expression is checked against angular quadrature for indices
+1.25–1.6, covering the native optical database. Its nearly index-matched limit is
+unsupported. The independent preparation fixture has 140 optical cases and 280
+source-depth integrals at 90 digits, including weak absorption and unresolved
+opaque cases. Normal output tests use relative tolerances `3e-5`/`2e-12`, with
+subnormal transmission handled by a few-ULP absolute allowance.
