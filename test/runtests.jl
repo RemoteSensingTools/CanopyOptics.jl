@@ -12,6 +12,11 @@ include("test_specular_angle.jl")
 include("test_prospect_budget.jl")
 include("test_plate_emission.jl")
 include("test_plate_preparation.jl")
+include("test_emission_spectrum.jl")
+include("emission_spectrum_batches.jl")
+@testset "Conditional spectrum CPU application" begin
+    check_emission_spectrum_batches(identity, () -> nothing)
+end
 include("plate_emission_batches.jl")
 @testset "Regular plate emission CPU batches" begin
     check_plate_emission_batches(identity,()->nothing)

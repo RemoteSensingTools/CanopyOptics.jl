@@ -107,8 +107,10 @@ birth type can subtype `AbstractLeafBirthProfile` and implement
 `leaf_emission_fates(escape, birth)`; a different escape structure can dispatch on
 the first argument. Neither extension changes a photosynthesis model or host grid.
 
-Multiple-plate assembly, intrinsic PSII spectra and canopy coupling follow
-separately. No fractional-stack, directional SIF or complete coupled energy
+The separate [emission spectrum interface](emission_spectrum.md) distributes
+already-produced photons over wavelength with an explicit support rule.
+Multiple-plate assembly and canopy coupling follow separately. No calibrated
+intrinsic PSII shape, fractional-stack, directional SIF or complete coupled energy
 capability is implied by this scalar component.
 
 ## Preparing a regular plate from material properties
