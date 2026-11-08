@@ -1,0 +1,4 @@
+Test Summary:                   | Pass  Total   Time
+Pigment allocation CUDA batches | 1228   1228  25.9s
+Test Summary:                        | Pass  Total  Time
+Actual PROSPECT pigment spectra CUDA | 5508   5508  7.8s

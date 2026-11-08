@@ -1,0 +1,54 @@
+# Explicit optical fixture, independent of any photosynthesis calibration.
+# PAR includes lower_nm and excludes upper_nm; native bins are 1 nm wide.
+[spectrum]
+lower_nm = 400.0
+upper_nm = 700.0
+incident_photons_per_bin = 1.0 # micromol photons m^-2 leaf s^-1 per native bin
+planck_J_s = 6.62607015e-34
+light_speed_m_s = 299792458.0
+avogadro_mol_inverse = 6.02214076e23
+nm_to_m = 1.0e-9
+micromoles_per_mole = 1.0e6
+
+[selection]
+carotenoid_transfer_fractions = [0.0, 0.3, 1.0] # illustrative, not fitted
+photosystem_fraction = 0.5 # explicit illustrative PSII allocation
+
+[validation]
+float32_relative_tolerance = 0.000002
+float64_relative_tolerance = 0.00000000000002
+
+# Explicit PROSPECT-PRO profiles; independent of physiology calibration.
+[[leaf]]
+name = "low_pigment_thin"
+N = 1.3
+Ccab = 20.0 # microgram cm^-2
+Ccar = 5.0 # microgram cm^-2
+Canth = 0.0 # nmol cm^-2
+Cbrown = 0.0 # arbitrary units
+Cw = 0.008 # cm
+Cm = 0.0 # g cm^-2; avoid double counting PRO protein + carbon constituents
+Cprot = 0.001 # g cm^-2
+Ccbc = 0.005 # g cm^-2
+[[leaf]]
+name = "moderate_pigment"
+N = 1.5
+Ccab = 40.0
+Ccar = 8.0
+Canth = 0.0
+Cbrown = 0.0
+Cw = 0.012
+Cm = 0.0
+Cprot = 0.0015
+Ccbc = 0.0075
+[[leaf]]
+name = "high_pigment_thick"
+N = 2.0
+Ccab = 65.0
+Ccar = 12.0
+Canth = 0.0
+Cbrown = 0.0
+Cw = 0.020
+Cm = 0.0
+Cprot = 0.002
+Ccbc = 0.010

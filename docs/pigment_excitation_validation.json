@@ -1,0 +1,52 @@
+{
+  "date_utc": "2026-11-08",
+  "base_revision": "56965a3aad7e1d37dd1eaf41d1edd73f7eaaa923",
+  "branch": "feat/pigment-excitation",
+  "julia_version": "1.12.6",
+  "cuda_package_version": "5.11.3",
+  "source_sha256": {
+    "src/CanopyOptics.jl": "7fb346ec1ffdd834c73d2b19581f7b3809b9d6554c09193b846eaf5f37d89e30",
+    "src/leaf_optics/pigment_absorption.jl": "8976ce8e48d86d7d953157a39c172cc2c171efcfab821a9b7a09c5ad5fd95268",
+    "src/leaf_optics/excitation_selection.jl": "b44ab6c3acd4720640417e2500aee046c2f702d0f1cb9a8f881b7851ec2a925b",
+    "src/leaf_optics/prospect.jl": "7e202f5cf4b30504d89b01ae3f1cb41bfa39d84f93be3b231399f728e80184c9",
+    "test/test_pigment_absorption.jl": "04b40ac06640d76a17705211fe66f6304b4ccec47498def5ae6e3bf654339320",
+    "test/pigment_batches.jl": "e407710e9eb42d962abdf4302c37e64e400a7e6acfe4bebe384c91356d2850b1",
+    "test/pigment_gpu.jl": "6b09be78bc249c744b6b9f0e1925ad1f68aebd97c395ca5c644540a01894f221",
+    "test/pigment_spectral_fixture.jl": "1d7f48576e3a577417b0284dc3633e4c12ed4d428e69424c0bf516d2d88391a0",
+    "test/runtests.jl": "be2b672cef23da433e4c01f9803fc09ef356803f9ec1ed8cd0d8982c87e9b5e2",
+    "test/parameters/pigment_absorption.toml": "67d58b77ff8097fb13acbacf6a660469a9bd57745c5016c3895dc9a81a9caec0",
+    "docs/src/pages/pigment_excitation.md": "154bc8c4f2eb77aa83673a489d1ffbf9f20047e877ad915124c56937a37bdec4",
+    "docs/make.jl": "f02893373f8868629a2a71473cfb0788c40ee4adce30c18cbe1905dd12fcdaa6",
+    "README.md": "2221f730e700bb033554c2cec16e1b6a32c1a8127f3bc2e7ca77172519a4aa1e"
+  },
+  "full_test_count": 102469,
+  "new_cpu_test_count": 12168,
+  "cuda_test_count": 6736,
+  "full_test_command": "julia --project=/tmp/pigment-excitation-20261108/env test/runtests.jl",
+  "cuda_test_command": "CUDA_VISIBLE_DEVICES=0 julia --project=/tmp/pigment-excitation-20261108/env test/pigment_gpu.jl",
+  "test_environment_manifest_sha256": "4d1f9e3ee61be792b9fae67193e9c3bf016c8a4c039b4a9bfa2d8bfed81750c1",
+  "logs_sha256": {
+    "docs/pigment_excitation_full_tests.txt": "cd7fb0879114473752efa088dfec07bb3f64f1d74a6b68a7d1b4d3888034d3e3",
+    "docs/pigment_excitation_gpu_tests.txt": "164ae676bc6f9ec0f9f53e21b22b74602db0ace1654ce844d7e4302b9a58e6be",
+    "docs/pigment_excitation_optics_compatibility.txt": "fb74b40cd38305434735869645704e3a30b68ed5c4b0cda700bd8dc5b779c71a"
+  },
+  "documentation_build": {
+    "status": "passed",
+    "command": "julia --project=/tmp/pigment-excitation-20261108/docs-env docs/make.jl",
+    "manifest_sha256": "dcaa67449da975532f8a306bc6d4f637c64e0965969fb26941166e5543ec7cff",
+    "log_sha256": "5bfa4056013ef0ecbddb19b95c671d2e334bba6ad101a8ea9245641968d53cfa",
+    "warnings": [
+      "Aggregate search index exceeds Documenter size warning threshold"
+    ]
+  },
+  "independent_reviews": {
+    "code_structure_bugs": "cleared after retained-fraction underflow fix",
+    "physics_biophysics": "cleared after retained-fraction underflow fix"
+  },
+  "optics_compatibility": {
+    "reference_revision": "56965a3",
+    "profile_controls": 12,
+    "transmission_reflection_direct_absorption": "bitwise identical"
+  },
+  "scope": "Per-bin homogeneous optical constituent allocation and excitation selection, FP32/FP64 CPU/CUDA. Host PROSPECT assembly. Leaf explicit-Q2 integration remains next; no AD, Metal or calibrated SIF claim."
+}

@@ -59,7 +59,12 @@ function prospect_budget(leaf::LeafProspectProProperties{FT}, optis) where {FT}
         x->isfinite(prospect_primal(x)) && prospect_primal(x)>one(prospect_primal(x)),
         nᵣ,
     ) || throw(ArgumentError("PROSPECT requires finite refractive indices >1"))
-    Kall=(Ccab*Kcab+Ccar*Kcar+Canth*Kant+Cbrown*Kb+Cw*Kw+Cm*Km+Cprot*Kp+Ccbc*Kcbc)/N
+    products=prospect_constituent_coefficients(leaf,optis)
+    # Preserve the original operation order while sharing exactly the same
+    # concentration × coefficient products with pigment attribution.
+    Kall=(products.chlorophyll+products.carotenoids+products.anthocyanins+
+        products.brown_material+products.water+products.dry_matter+
+        products.protein+products.carbon_constituents)/N
     talf=calctav.(FT(40), nᵣ)
     t12=calctav.(FT(90), nᵣ)
     surface_transmission(x) =
@@ -76,6 +81,32 @@ function prospect_budget(leaf::LeafProspectProProperties{FT}, optis) where {FT}
         reflectance = getproperty.(values, :reflectance),
         absorptance = getproperty.(values, :absorptance),
     )
+end
+
+"""
+    prospect_constituent_coefficients(leaf, optics)
+
+Host-side PROSPECT-PRO composition products for each spectral bin, named by
+physical constituent. These are the exact concentration × specific-absorption
+products used by `prospect_budget`, before dividing their sum by the common plate
+count N. That common scale cancels in homogeneous constituent attribution.
+
+No spectrum, plant profile or units are selected here. Contents and coefficients
+must use the matching units documented by `LeafProspectProProperties` and
+`LeafOpticalProperties`. Bulk dry matter overlaps protein/carbon constituents;
+set Cm=0 when those PRO constituents already describe the same mass. Validation
+occurs in `prospect_budget` and the scalar `partition_absorption` kernel. This
+array assembly is separate from the CPU/GPU scalar partition/selection rules.
+"""
+function prospect_constituent_coefficients(leaf::LeafProspectProProperties,optics)
+    return (;chlorophyll=leaf.Ccab*optics.Kcab,
+        carotenoids=leaf.Ccar*optics.Kcar,
+        anthocyanins=leaf.Canth*optics.Kant,
+        brown_material=leaf.Cbrown*optics.Kb,
+        water=leaf.Cw*optics.Kw,
+        dry_matter=leaf.Cm*optics.Km,
+        protein=leaf.Cprot*optics.Kp,
+        carbon_constituents=leaf.Ccbc*optics.Kcbc)
 end
 
 

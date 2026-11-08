@@ -60,6 +60,21 @@ See the [tutorials](https://RemoteSensingTools.github.io/CanopyOptics.jl/dev/)
 for 4SAIL, specular reflection, mixed leaf/wood canopies, clumping,
 and microwave dielectric models.
 
+## Leaf absorption and excitation
+
+[`prospect_budget`](docs/src/pages/prospect_budget.md) returns direct material
+absorption alongside reflection/transmission, including the nonabsorbing limit.
+The separate [pigment and excitation components](docs/src/pages/pigment_excitation.md)
+partition spectral absorption into named constituents, select chlorophyll alone
+or an explicit carotenoid antenna contribution, and apply a separate photosystem
+fraction. These scalar components run in Float32/Float64 on CPU and CUDA;
+PROSPECT optical tables are prepared on the host.
+
+The implementation lives in `src/leaf_optics/pigment_absorption.jl` and
+`src/leaf_optics/excitation_selection.jl`. A new absorber is a NamedTuple entry;
+a new antenna policy extends a small dispatch interface. Photosynthesis, NPQ,
+fluorescence escape and canopy transport remain separate physical components.
+
 ## Conventions
 
 Canopy Z matrices use `Z[i_out, j_in]` and normalize BiLambertian

@@ -10,3 +10,13 @@ include("test_specular_grazing.jl")
 include("test_specular_angle.jl")
 
 include("test_prospect_budget.jl")
+
+include("test_pigment_absorption.jl")
+include("pigment_batches.jl")
+@testset "Pigment allocation CPU batches" begin
+    check_pigment_batches(identity,()->nothing)
+end
+include("pigment_spectral_fixture.jl")
+@testset "Actual PROSPECT pigment spectra CPU" begin
+    check_pigment_spectra(identity,()->nothing)
+end

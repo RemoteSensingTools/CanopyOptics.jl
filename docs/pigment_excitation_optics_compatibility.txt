@@ -1,0 +1,2 @@
+/tmp/pigment-excitation-20261108/prospect_profiles.csv
+All 12 PROSPECT profile/control spectra are bitwise unchanged by shared constituent assembly.

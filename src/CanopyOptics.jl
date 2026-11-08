@@ -54,6 +54,8 @@ include("utils/fresnel.jl")
 
 include("leaf_optics/prospect_layers.jl")
 include("leaf_optics/prospect.jl")
+include("leaf_optics/pigment_absorption.jl")
+include("leaf_optics/excitation_selection.jl")
 include("wood_optics/reflectance.jl")
 include("canopy_structure/clumping.jl")
 include("canopy_structure/hotspot.jl")
@@ -73,7 +75,12 @@ include("initialization/default_constructors.jl")
 include("utils/dielectric.jl")
 
 
-export prospect, prospect_budget
+export prospect, prospect_budget, prospect_constituent_coefficients
+export AbstractAbsorptionPartition, HomogeneousAbsorption, AbsorptionPartitionResult,
+       AbsorptionPartitionStatus, AbsorptionPartitionValid, AbsorptionNoMaterial,
+       AbsorptionInvalidInput, AbsorptionIncompatibleInput, partition_absorption,
+       absorption_valid, AbstractAntennaSelection, ChlorophyllOnly, CarotenoidAntenna,
+       antenna_excitation, select_absorbed_photons, photosystem_excitation
 export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties, dirVector, dirVector_μ
 export AbstractCanopyScatteringType, CanopyQuadrature, BiLambertianCanopyScattering,
        CompositeCanopyScattering, SpecularCanopyScattering,
