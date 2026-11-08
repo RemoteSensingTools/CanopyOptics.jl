@@ -10,6 +10,11 @@ include("test_specular_grazing.jl")
 include("test_specular_angle.jl")
 
 include("test_prospect_budget.jl")
+include("test_plate_emission.jl")
+include("plate_emission_batches.jl")
+@testset "Regular plate emission CPU batches" begin
+    check_plate_emission_batches(identity,()->nothing)
+end
 
 include("test_pigment_absorption.jl")
 include("pigment_batches.jl")

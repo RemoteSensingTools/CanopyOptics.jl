@@ -21,6 +21,7 @@ function build()
             "Home"                  => "index.md",
             "PROSPECT budgets"      => "pages/prospect_budget.md",
             "Pigment excitation"    => "pages/pigment_excitation.md",
+            "Internal leaf emission" => "pages/plate_emission.md",
             "Tutorials"             => tutorials_md
         ]
 

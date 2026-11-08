@@ -1,0 +1,85 @@
+generated_utc = "2026-11-08T05:37:44.144"
+julia_version = "1.12.6"
+reference = "2048-bit independent analytic boundary balances; separate 90-digit quadrature/path fixtures"
+
+[accuracy.Float32]
+cases = 1230
+max_absolute_photon_closure = 2.384185791015625e-7
+
+    [accuracy.Float32.max_absolute_error]
+    back = 8.940696716308594e-8
+    front = 8.940696716308594e-8
+    reabsorbed = 1.1920928955078125e-7
+
+    [accuracy.Float32.max_relative_error_normal_outputs]
+    back = 4.1737941655246866e-7
+    front = 2.1264366471792925e-7
+    reabsorbed = 9.00450356704809e-6
+
+    [accuracy.Float32.worst_relative_case.back]
+    emission_depth = 30.0
+    excitation_depth = 8.0
+    interface_transmission = 1.0
+
+    [accuracy.Float32.worst_relative_case.front]
+    emission_depth = 0.018581358715891838
+    excitation_depth = 1.0
+    interface_transmission = 1.1754943508222875e-38
+
+    [accuracy.Float32.worst_relative_case.reabsorbed]
+    emission_depth = 0.018581360578536987
+    excitation_depth = 700.0
+    interface_transmission = 1.0
+
+[accuracy.Float64]
+cases = 1230
+max_absolute_photon_closure = 2.220446049250313e-16
+
+    [accuracy.Float64.max_absolute_error]
+    back = 1.6653345369377348e-16
+    front = 1.1102230246251565e-16
+    reabsorbed = 2.220446049250313e-16
+
+    [accuracy.Float64.max_relative_error_normal_outputs]
+    back = 1.4292161291870825e-15
+    front = 5.204170427930714e-16
+    reabsorbed = 2.407505565341575e-12
+
+    [accuracy.Float64.worst_relative_case.back]
+    emission_depth = 30.0
+    excitation_depth = 30.0
+    interface_transmission = 0.6
+
+    [accuracy.Float64.worst_relative_case.front]
+    emission_depth = 30.0
+    excitation_depth = 0.0
+    interface_transmission = 0.6
+
+    [accuracy.Float64.worst_relative_case.reabsorbed]
+    emission_depth = 0.0001220703125
+    excitation_depth = 0.01
+    interface_transmission = 1.0
+
+[sha256]
+"src/CanopyOptics.jl" = "e1b9a7aace40b9a598f8a2f8e1683fff80dcaf0204b60aca8e670e7bed00cfe5"
+"src/leaf_optics/plate_emission.jl" = "0c3d73e3cac005f5bca0016ce5170e409093e40dda5e1ac85e6fea66e8195f25"
+"test/plate_emission_accuracy.jl" = "b88a0c7a455afdcb58bd885447c48674e9ab8982fa4a9fab1d410fab29f34882"
+"test/plate_emission_batches.jl" = "58ad6c0d1616645792ca2e0ee003adeb1647ddae51d7050382d634ed1834533c"
+"test/plate_emission_gpu.jl" = "ec937ac1941e26d0f9d182497b00ecac2442a88eb2feed1b82befebb44c0a1a2"
+"test/plate_emission_reference.jl" = "e365b76bd17253ca6c435230c36bc4bf66defe9f6f0d650c63e8ab7966dd60c7"
+"test/reference/generate_plate_emission_reference.py" = "13be41eb22343bc2d59bbedcadac4e34406211347456de86477f565839a76a2d"
+"test/reference/plate_emission_reference.csv" = "973bedc3503134e88cbf2ece401f4cd28fcda0a4509fcbd68155285c988b4287"
+"test/runtests.jl" = "43c8fa6d1a718db80c536126f54f51c60e1eb2dbd9dfa39398f313018b8590ec"
+"test/test_plate_emission.jl" = "b97d739f74254e5bb0a5be6c81e54b70b45e2343b600f0fcfa13b1d9b88f65e7"
+
+[validation_logs."docs.log"]
+sha256 = "05f754ec20f305af96af1481bbf3eb247245134b542706c5f58239cb960ae215"
+text = """┌ Info: Building docs with CanopyOptics source\n└   path = \"/home/cfranken/code/gitHub/CanopyOptics-leaf-emission/src/CanopyOptics.jl\"\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/bilambertian.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/bilambertian.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/specular.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/specular.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_hotspot.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_hotspot.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_brdf.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_brdf.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/dielectric.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/dielectric.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/tree_canopy.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/tree_canopy.md`\n[ Info: SetupBuildDirectory: setting up build directory.\n[ Info: Doctest: running doctests.\n[ Info: ExpandTemplates: expanding markdown templates.\n[ Info: CrossReferences: building cross-references.\n[ Info: CheckDocument: running document checks.\n[ Info: Populate: populating indices.\n[ Info: RenderDocument: rendering document.\n[ Info: HTMLWriter: rendering HTML pages.\n┌ Warning: Generated search index over size_threshold_warn limit:\n│     Generated file size: 744.18 (KiB)\n│     search_size_threshold_warn: 500.0 (KiB)\n│     Search index file:   build/search_index.js\n└ @ Documenter.HTMLWriter ~/.julia/packages/Documenter/eCrmY/src/html/HTMLWriter.jl:973\n[ Info: Automatic `version=\"0.2.2\"` for inventory from ../Project.toml\n"""
+
+[validation_logs."full.log"]
+sha256 = "ad6c54ff4a6db93115205a49dae20b143fbd18bae8044223215aa96acdfbecfd"
+text = """[ Info: Testing spherical leaf G factor calculation ...\n┌ Warning: Assuming unit of [nm] here for optical struct\n└ @ CanopyOptics ~/code/gitHub/CanopyOptics-leaf-emission/src/initialization/loadProspect.jl:64\n┌ Warning: Assuming unit of [nm] here for optical struct\n└ @ CanopyOptics ~/code/gitHub/CanopyOptics-leaf-emission/src/initialization/loadProspect.jl:64\nTest Summary: |  Pass  Total   Time\nCanopyOptics  | 85541  85541  41.5s\nTest Summary:               | Pass  Total  Time\nShared leaf-area quadrature |   76     76  2.1s\nTest Summary:                                  | Pass  Total  Time\nSpecular azimuth preserves floating-point type |  312    312  0.8s\nTest Summary:                    | Pass  Total  Time\nSpecular roughness grazing limit |  170    170  0.3s\nTest Summary:                                                  | Pass  Total  Time\nSpecular reflection is independent of direction representation | 1024   1024  0.0s\nTest Summary:                         | Pass  Total  Time\nPROSPECT independent spectral budgets | 2832   2832  1.1s\nTest Summary:                                 | Pass  Total  Time\nPROSPECT extreme stacks and branch continuity |  178    178  0.3s\nTest Summary:                               | Pass  Total  Time\nPROSPECT actual optical data and public API |  168    168  3.8s\nTest Summary:                                     | Pass  Total  Time\nRegular plate emission construction and extension |   50     50  0.3s\nTest Summary:                                                    | Pass  Total  Time\nRegular plate numerical switches and independent path quadrature |  904    904  0.8s\nTest Summary:                                     |  Pass  Total  Time\nRegular plate independent high-precision balances | 43656  43656  0.9s\nTest Summary:                      |  Pass  Total  Time\nRegular plate emission CPU batches | 37638  37638  1.9s\nTest Summary:                                               | Pass  Total  Time\nHomogeneous pigment partition and independent optical paths | 1264   1264  0.4s\nTest Summary:                                                 | Pass  Total  Time\nPigment domains, zero material and photon-selection endpoints | 4168   4168  0.3s\nTest Summary:                  | Pass  Total  Time\nPigment allocation CPU batches | 1228   1228  2.2s\nTest Summary:                       | Pass  Total  Time\nActual PROSPECT pigment spectra CPU | 5508   5508  2.9s\n"""
+
+[validation_logs."gpu.log"]
+sha256 = "3e0e8f046239225de27c900933828688f0b15ea3eb0c830b275dd820fe27aba6"
+text = """CUDA toolchain: \n- runtime 13.2, artifact installation\n- driver 615.71.10 for 13.4\n- compiler 13.3, artifact installation\n\nCUDA libraries: \n- CUBLAS: 13.4.0\n- CURAND: 10.4.2\n- CUFFT: 12.2.0\n- CUSOLVER: 12.2.0\n- CUSPARSE: 12.7.10\n- CUPTI: 2026.1.1 (API 13.2.1)\n- NVML: 13.0.0+615.71.10\n\nJulia packages: \n- CUDA: 5.11.3\n- GPUArrays: 11.5.16\n- GPUCompiler: 1.17.1\n- KernelAbstractions: 0.9.45\n- CUDA_Driver_jll: 13.3.6+0\n- CUDA_Compiler_jll: 0.4.4+1\n- CUDA_Runtime_jll: 0.21.0+1\n\nToolchain:\n- Julia: 1.12.6\n- LLVM: 18.1.7\n\n1 device:\n  0: NVIDIA L40S (sm_89, 44.470 GiB / 44.988 GiB available)\nTest Summary:                                      |  Pass  Total   Time\nRegular plate emission CUDA independent references | 37638  37638  19.4s\n"""

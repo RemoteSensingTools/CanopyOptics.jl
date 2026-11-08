@@ -32,3 +32,18 @@ no production result is clipped to make a reference comparison pass.
 
 The E3 library's measured Float32 error and separate transmission/absorption
 acceptance criteria are documented in `docs/src/pages/prospect_budget.md`.
+
+## Internal regular-plate emission
+
+`generate_plate_emission_reference.py` requires mpmath 1.3.0 and writes
+`plate_emission_reference.csv`. It freezes inputs to Float32/Float64, integrates
+the normalized source density numerically at 90 digits, and explicitly sums
+successive reflection/absorption paths until the unprocessed probability is less
+than 1e-85. The residual is reported, never normalized into an escape fate. The 28
+cases cover equal excitation/emission depths, zero and weak loss, opaque material,
+uniform and asymmetric birth, and mirrored amplitudes. This generator imports no
+production code and does not use the production analytic overlap/escape formulas.
+
+The wider Julia grid independently evaluates integrated exponentials and a two
+boundary balance system at 2048 bits. It includes extreme finite depths and
+smallest-positive interface transmission beyond the practical quadrature grid.

@@ -75,6 +75,12 @@ The implementation lives in `src/leaf_optics/pigment_absorption.jl` and
 a new antenna policy extends a small dispatch interface. Photosynthesis, NPQ,
 fluorescence escape and canopy transport remain separate physical components.
 
+[Internal leaf emission](docs/src/pages/plate_emission.md) now provides a small
+regular-plate escape component with separate uniform/exponential birth-depth
+types. It transports already-produced photons into front/back escape and
+reabsorption on CPU/CUDA in either precision. Optical preparation, intrinsic
+spectra and canopy transport compose outside that scalar interface.
+
 ## Conventions
 
 Canopy Z matrices use `Z[i_out, j_in]` and normalize BiLambertian
