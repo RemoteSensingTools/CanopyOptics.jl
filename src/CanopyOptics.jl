@@ -52,6 +52,7 @@ include("utils/quadrature.jl")
 include("utils/canopy_angles.jl")
 include("utils/fresnel.jl")
 
+include("leaf_optics/prospect_layers.jl")
 include("leaf_optics/prospect.jl")
 include("wood_optics/reflectance.jl")
 include("canopy_structure/clumping.jl")
@@ -72,7 +73,7 @@ include("initialization/default_constructors.jl")
 include("utils/dielectric.jl")
 
 
-export prospect
+export prospect, prospect_budget
 export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties, dirVector, dirVector_μ
 export AbstractCanopyScatteringType, CanopyQuadrature, BiLambertianCanopyScattering,
        CompositeCanopyScattering, SpecularCanopyScattering,

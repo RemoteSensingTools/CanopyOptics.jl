@@ -1,0 +1,24 @@
+Precompiling packages...
+   7267.0 ms  ✓ CanopyOptics
+  1 dependency successfully precompiled in 8 seconds. 172 already precompiled.
+[ Info: Testing spherical leaf G factor calculation ...
+┌ Warning: Assuming unit of [nm] here for optical struct
+└ @ CanopyOptics ~/code/gitHub/CanopyOptics-lossless-prospect/src/initialization/loadProspect.jl:64
+┌ Warning: Assuming unit of [nm] here for optical struct
+└ @ CanopyOptics ~/code/gitHub/CanopyOptics-lossless-prospect/src/initialization/loadProspect.jl:64
+Test Summary: |  Pass  Total   Time
+CanopyOptics  | 85541  85541  40.3s
+Test Summary:               | Pass  Total  Time
+Shared leaf-area quadrature |   76     76  1.8s
+Test Summary:                                  | Pass  Total  Time
+Specular azimuth preserves floating-point type |  312    312  0.8s
+Test Summary:                    | Pass  Total  Time
+Specular roughness grazing limit |  170    170  0.3s
+Test Summary:                                                  | Pass  Total  Time
+Specular reflection is independent of direction representation | 1024   1024  0.0s
+Test Summary:                         | Pass  Total  Time
+PROSPECT independent spectral budgets | 2832   2832  1.1s
+Test Summary:                                 | Pass  Total  Time
+PROSPECT extreme stacks and branch continuity |  178    178  0.3s
+Test Summary:                               | Pass  Total  Time
+PROSPECT actual optical data and public API |  168    168  3.7s

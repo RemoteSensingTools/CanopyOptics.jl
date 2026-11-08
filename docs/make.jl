@@ -19,6 +19,7 @@ function build()
 
     pages = Any[
             "Home"                  => "index.md",
+            "PROSPECT budgets"      => "pages/prospect_budget.md",
             "Tutorials"             => tutorials_md
         ]
 

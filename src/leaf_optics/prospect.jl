@@ -2,7 +2,8 @@
     $(FUNCTIONNAME)(leaf::LeafProspectProProperties{FT},
                     optis) where {FT<:AbstractFloat}
 
-Computes leaf optical properties (reflectance and transittance) based on PROSPECT-PRO
+Computes leaf optical properties (reflectance and transmittance) based on PROSPECT-PRO.
+See [`prospect_budget`](@ref) for the validated input domain and direct absorptance.
 # Arguments
 - `leaf`  [`LeafProspectProProperties`](@ref) type struct which provides leaf composition
 - `optis` [`LeafOpticalProperties`](@ref) type struct, which provides absorption cross sections and spectral grid
@@ -13,100 +14,71 @@ julia> leaf = LeafProspectProProperties{Float64}(Ccab=30.0);
 julia> T,R = prospect(leaf,opti);
 ```
 """
-function prospect(
-            leaf::LeafProspectProProperties{FT},
-            optis
-) where {FT}
-    # ***********************************************************************
-    # Jacquemoud S., Baret F. (1990), PROSPECT: a model of leaf optical
-    # properties spectra; Remote Sens. Environ.; 34:75-91.
-    # Reference:
-    # Féret, Gitelson, Noble & Jacquemoud [2017]. PROSPECT-D: Towards modeling
-    # leaf optical properties through a complete lifecycle
-    # Remote Sensing of Environment; 193:204215
-    # DOI: http://doi.org/10.1016/j.rse.2017.03.004
-    # The specific absorption coefficient corresponding to brown pigment is()
-    # provided by Frederic Baret [EMMAH, INRA Avignon, baret@avignon.inra.fr]
-    # & used with his autorization.
-    # ***********************************************************************
-
-    (;N, Ccab, Ccar, Cbrown, Canth, Cw, Cm, Cprot, Ccbc) = leaf;
-    (;Kcab, Kant, Kb, Kcar, Km, Kw, nᵣ, Kp, Kcbc)        = optis;
-
-    # This can go into a separate multiple dispatch function as the rest remains constant across versions!
-    Kall=(Ccab*Kcab + Ccar*Kcar + Canth*Kant + Cbrown*Kb + Cw*Kw + Cm*Km + Cprot*Kp +Ccbc * Kcbc) / N;
-   
-    # Adding eps() here to keep it stable and NOT set to 1 manually when Kall=0 (ForwardDiff won't work otherwise)
-    tau = (FT(1) .-Kall).*exp.(-Kall) .+ Kall.^2 .*real.(expint.(Kall.+eps(FT)))
-
-    # ***********************************************************************
-    # reflectance & transmittance of one layer
-    # ***********************************************************************
-    # Allen W.A., Gausman H.W., Richardson A.J., Thomas J.R. (1969)
-    # Interaction of isotropic ligth with a compact plant leaf; J. Opt.
-    # Soc. Am., 59[10]:1376-1379.
-    # ***********************************************************************
-    # reflectivity & transmissivity at the interface
-    #-------------------------------------------------
-    # From Prospect-D, uses 40 here instead of 59 from CVT)
-
-    #talf    = calctav.(59.,nr)
-    talf    = calctav.(FT(40),nᵣ)
-    ralf    = FT(1) .-talf
-
-    t12     = calctav.(FT(90), nᵣ)
-    r12     = FT(1) .-t12
-    t21     = t12./(nᵣ.^2)
-    r21     = FT(1) .-t21
-
-    # top surface side
-    denom   = FT(1) .-r21.*r21.*tau.^2
-    Ta      = talf.*tau.*t21./denom
-    Ra      = ralf.+r21.*tau.*Ta
-    # bottom surface side
-    t       = t12.*tau.*t21./denom
-    r       = r12+r21.*tau.*t
-
-    # ***********************************************************************
-    # reflectance & transmittance of N layers
-    # Stokes equations to compute properties of next N-1 layers [N real]
-    # Normal case()
-    # ***********************************************************************
-    # Stokes G.G. (1862), On the intensity of the light reflected from
-    # | transmitted through a pile of plates; Proc. Roy. Soc. Lond.
-    # 11:545-556.
-    # ***********************************************************************
-    D       = sqrt.(((FT(1) .+r.+t).*(FT(1) .+r.-t).*(FT(1) .-r.+t).*(FT(1) .-r.-t)).+5eps(FT))
-    #println(typeof(D), typeof(r), typeof(t))
-    rq      = r.^2
-    tq      = t.^2
-    a       = (FT(1) .+rq.-tq.+D)./(2r)
-    b       = (FT(1) .-rq.+tq.+D)./(2t)
-
-    bNm1    = b.^(N-1);                  #
-    bN2     = bNm1.^2
-    a2      = a.^2
-    denom   = a2.*bN2.-1
-    Rsub    = a.*(bN2.-1)./denom
-    Tsub    = bNm1.*(a2.-1)./denom
-
-    # Case of zero absorption. Keep this branch value-level so ForwardDiff
-    # derivatives are preserved for extreme SWIR inputs near r + t = 1.
-    zero_abs = r .+ t .>= 1
-    Tsub_zero = t ./ (t .+ (1 .- t) .* (N - FT(1)))
-    Rsub_zero = FT(1) .- Tsub_zero
-    Tsub = ifelse.(zero_abs, Tsub_zero, Tsub)
-    Rsub = ifelse.(zero_abs, Rsub_zero, Rsub)
-
-    # Reflectance & transmittance of the leaf: combine top layer with next N-1 layers
-    denom   = FT(1) .-Rsub.*r
-    # lambertian Tranmsission
-    T    = Ta.*Tsub./denom
-    # lambertian Reflectance
-    R    = Ra.+Ta.*Rsub.*t./denom
-    
-    return T,R
+function prospect(leaf::LeafProspectProProperties, optis)
+    budget = prospect_budget(leaf, optis)
+    return budget.transmission, budget.reflectance
 end
+
+"""
+    prospect_budget(leaf, optis)
+
+PROSPECT-PRO transmission, reflection and directly integrated material absorption.
+Returns a named tuple of spectral arrays. Unlike `1-R-T`, the local absorptance
+remains meaningful in the nonabsorbing/weak-absorption limit. No flux is clipped
+or rescaled. `prospect` retains its original `(T,R)` return interface.
+Absorptance is the monochromatic fraction of incident energy (equivalently photon
+count) absorbed by all material, not chlorophyll-only absorption or energy retained
+after fluorescence emission.
+
+Requires finite N>=1, finite nonnegative constituent contents/absorption coefficients
+and refractive indices >1. N>=1 is now enforced for both entry points. The original
+PROSPECT first-surface 40-degree and internal diffuse 90-degree conventions and
+Fresnel routine are retained. Its accuracy is tested across the optical database's
+index range; the nearly index-matched limit is ill-conditioned and is not covered
+by that accuracy claim. Invalid computed surface transmissions are rejected.
+CPU and first-order ForwardDiff paths are
+supported; this function does not claim CUDA execution. The physical absorption
+Hessian is singular at exactly zero material optical depth.
+"""
+function prospect_budget(leaf::LeafProspectProProperties{FT}, optis) where {FT}
+    (; N, Ccab, Ccar, Cbrown, Canth, Cw, Cm, Cprot, Ccbc)=leaf
+    (; Kcab, Kant, Kb, Kcar, Km, Kw, nᵣ, Kp, Kcbc)=optis
+    n=prospect_primal(N)
+    isfinite(n) && n>=one(n) || throw(ArgumentError("PROSPECT requires finite N>=1"))
+    nonnegative(x) =
+        isfinite(prospect_primal(x)) && prospect_primal(x)>=zero(prospect_primal(x))
+    all(nonnegative, (Ccab, Ccar, Canth, Cbrown, Cw, Cm, Cprot, Ccbc)) ||
+        throw(ArgumentError("PROSPECT constituent contents must be finite and nonnegative"))
+    all(
+        coefficients->all(nonnegative, coefficients),
+        (Kcab, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc),
+    ) || throw(
+        ArgumentError("PROSPECT absorption coefficients must be finite and nonnegative"),
+    )
+    all(
+        x->isfinite(prospect_primal(x)) && prospect_primal(x)>one(prospect_primal(x)),
+        nᵣ,
+    ) || throw(ArgumentError("PROSPECT requires finite refractive indices >1"))
+    Kall=(Ccab*Kcab+Ccar*Kcar+Canth*Kant+Cbrown*Kb+Cw*Kw+Cm*Km+Cprot*Kp+Ccbc*Kcbc)/N
+    talf=calctav.(FT(40), nᵣ)
+    t12=calctav.(FT(90), nᵣ)
+    surface_transmission(x) =
+        isfinite(prospect_primal(x)) &&
+        zero(prospect_primal(x))<prospect_primal(x)<=one(prospect_primal(x))
+    all(surface_transmission, talf) && all(surface_transmission, t12) || throw(
+        ArgumentError(
+            "Legacy PROSPECT Fresnel calculation produced an invalid surface transmission; nearly matched refractive indices are unsupported",
+        ),
+    )
+    values=prospect_spectral_budget.(Kall, N, talf, t12, nᵣ)
+    return (;
+        transmission = getproperty.(values, :transmission),
+        reflectance = getproperty.(values, :reflectance),
+        absorptance = getproperty.(values, :absorptance),
+    )
+end
+
+
 
 
 

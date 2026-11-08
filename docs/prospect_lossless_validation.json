@@ -1,0 +1,54 @@
+{
+  "date_utc": "2026-11-08",
+  "base_revision": "56b19be5083f1e06449540512720f11ee3d8e358",
+  "branch": "fix/prospect-lossless-limit",
+  "julia_version": "1.12.6",
+  "packages": {
+    "SpecialFunctions": "2.9.1",
+    "ForwardDiff": "0.10.39",
+    "CUDA": "5.11.3"
+  },
+  "source_sha256": {
+    "docs/make.jl": "5a0ffff8567909176feceabf5e453009785ac229b4a4439216b19ac0c7b5b943",
+    "docs/src/pages/prospect_budget.md": "856229547802abf9a2fdd9ab14fe36fb78156055f2469cbb90dffbb3893c3691",
+    "src/CanopyOptics.jl": "a39428d360dd623f0919096aa7cee1d103b36674a36b0a578631f3daf6a8c79a",
+    "src/leaf_optics/prospect.jl": "6db85a736004b26c4478de143892117487d5cfff7c3ff3b8c6ba103e806550d4",
+    "src/leaf_optics/prospect_layers.jl": "37f6d9df5b30e6b89a128187a9a96a2ca5f5d2799842320224fc43ecf6461ae7",
+    "src/types/canopy_types.jl": "1479d974ce3b3b72ec5385d247bed362e3ad810c4ece444798f353ca548fcae8",
+    "test/reference/README.md": "cf0025571837aeac1a783954559ea9627c476b1e9d3bda953f14e134cf78241f",
+    "test/reference/generate_prospect_reference.py": "c4cf75644899e9c649489f30bf30260603cf1c82303bbc04a060c7f6af3eb0f6",
+    "test/reference/prospect_fresnel_reference.csv": "f630789be0e55927c5241afc9bdf6626f1f4d6f47c4fc63ddd0798f231007e64",
+    "test/reference/prospect_reference.csv": "5c99db2f76d0007af1b091ba2973b4ea2f71df5cf203d8eae0709a757549440e",
+    "test/reference/prospect_stack_reference.csv": "f7b32088582e01b649f4c37dfadcd636da82b65e02fe8638d48c02480f5d9ace",
+    "test/runtests.jl": "13339894c675e7e74f3c03f3e8af949018cc205e17d75df29c424a37132bd505",
+    "test/test_prospect_budget.jl": "3bb514aaea165ded876089104950733886397c0cf50faf2d0e35c1e4c5519dd9"
+  },
+  "full_test_count": 90301,
+  "new_test_count": 3178,
+  "full_test_log": "docs/prospect_lossless_full_tests.txt",
+  "full_test_log_sha256": "289b8bdecb4c98f59dee0609c745d2f125fe9f7694f54426e84e2cb727d9566f",
+  "full_test_command": "julia --project=/tmp/prospect-lossless-20261108/env test/runtests.jl",
+  "test_environment_manifest_sha256": "246328ee2264c40c566877b98173cfd6852cfca837345f44f5881b25ade4809b",
+  "documentation_build": {
+    "status": "passed",
+    "command": "julia --project=/tmp/prospect-lossless-20261108/docs-env docs/make.jl",
+    "manifest_sha256": "3e1f2514ec20e0d4897e2d95b8fd6761dcb04eddcf2d8376c81c8933f5d67f5d",
+    "log_sha256": "d7dd193dceaab64e32964202ca6d12f9bcf2853e837bccb283f024a6fc4a4cdb",
+    "warnings": [
+      "Existing aggregate search index exceeds Documenter 500 KiB warning threshold"
+    ]
+  },
+  "independent_reviews": {
+    "code_structure_bugs": "cleared",
+    "physics_biophysics": "cleared"
+  },
+  "precision_limits": {
+    "float32_E3_k5_relative_error": -7.792007058693429e-06,
+    "float32_T_N8_k5_relative_error": -6.455183e-05,
+    "float32_T_test_rtol": 0.0001,
+    "float32_R_A_test_rtol": 8e-06,
+    "float64_value_test_rtol": 2e-12,
+    "extreme_primal_cases_do_not_establish_extreme_derivatives": true
+  },
+  "scope": "CPU/ForwardDiff PROSPECT optics. No new CUDA special-function or calibrated SIF claim. Legacy Fresnel near-index-match accuracy remains unsupported."
+}

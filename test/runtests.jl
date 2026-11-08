@@ -8,3 +8,5 @@ include("test_leaf_quadrature.jl")
 include("test_specular_precision.jl")
 include("test_specular_grazing.jl")
 include("test_specular_angle.jl")
+
+include("test_prospect_budget.jl")

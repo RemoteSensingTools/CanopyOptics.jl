@@ -151,7 +151,7 @@ $(DocStringExtensions.FIELDS)
 """
 Base.@kwdef struct LeafProspectProProperties{FT} <: AbstractLeafProperties
     ### Prospect related parameters
-    "Leaf structure parameter [0-3]"
+    "Leaf structure parameter N>=1 (fractional plate count)"
     N::FT       = FT(1.4  )
     "Chlorophyll a+b content `[µg cm⁻²]`"
     Ccab::FT    = FT(40.0)#u"µg/cm^2"
