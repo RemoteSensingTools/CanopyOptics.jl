@@ -25,6 +25,7 @@ function build()
             "Pigment excitation"             => "pages/pigment_excitation.md",
             "Internal leaf emission"         => "pages/plate_emission.md",
             "Emission spectra"               => "pages/emission_spectrum.md",
+            "Angular normalization"          => "pages/angular_normalization.md",
             "Model evaluations"              => "pages/leaf_model_evaluations.md",
             "Tutorials"                      => tutorials_md
         ]

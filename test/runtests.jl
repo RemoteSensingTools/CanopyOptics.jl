@@ -8,7 +8,6 @@ include("test_leaf_quadrature.jl")
 include("test_specular_precision.jl")
 include("test_specular_grazing.jl")
 include("test_specular_angle.jl")
-
 include("test_prospect_budget.jl")
 include("test_plate_emission.jl")
 include("test_plate_preparation.jl")
@@ -32,5 +31,6 @@ include("pigment_spectral_fixture.jl")
     check_pigment_spectra(identity,()->nothing)
 end
 
+include("test_angular_normalization.jl")
 include("test_leaf_model_families.jl")
 include("test_qa_and_indexing.jl")

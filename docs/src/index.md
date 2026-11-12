@@ -3,6 +3,7 @@
 ## Package Features
 - Use leaf angle distributions to compute bi-Lambertian and dorsiventral canopy scattering matrices
 - Compute closed-form cosine Fourier moments for symmetric and dorsiventral bi-Lambertian canopy kernels
+- Choose an opt-in [conservative discrete angular measure](pages/angular_normalization.md) shared by bi-Lambertian scattering and leaf emission geometry
 - Couple dielectric leaf surfaces (Stern–Allen smooth cones, Beckmann microfacets, epicuticular wax dispersion) with internal mesophyll budgets into an energy-conserving, Helmholtz-reciprocal 4×4 leaf BSDF
 - Compose diffuse and specular leaf-surface scattering models additively or via coupled BSDF quadrature
 - Request scalar or Stokes-expanded canopy Z matrices with `npol`

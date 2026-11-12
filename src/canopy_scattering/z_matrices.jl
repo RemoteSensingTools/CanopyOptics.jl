@@ -14,6 +14,12 @@ only I→I populated.
 This method uses the closed-form Fourier moments from
 [`compute_Z_matrices_aniso_analytic`](@ref).  For all moments in one call, pass
 a range such as `0:m_max`.
+
+The optional `angular_normalization` keyword selects a
+[`ContinuousAngularNormalization`](@ref) (default) or
+[`DiscreteAngularNormalization`](@ref). The latter is supported for the
+bi-Lambertian single-moment and range APIs; pass the scalar positive-hemisphere
+cosine weights, including zeros for viewing nodes.
 """
 function compute_Z_matrices(mod::BiLambertianCanopyScattering,
                             μ::AbstractVector{FT},
@@ -21,10 +27,12 @@ function compute_Z_matrices(mod::BiLambertianCanopyScattering,
                             m::Integer;
                             quadrature::CanopyQuadrature = CanopyQuadrature(),
                             nQuad = nothing,
-                            npol::Integer = 1) where FT
+                            npol::Integer = 1,
+                            angular_normalization::AbstractAngularNormalization = ContinuousAngularNormalization()) where FT
     q = _resolve_quadrature(quadrature, nQuad)
     Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, Int(m);
-                                                 quadrature = q, npol = npol)
+                                                 quadrature = q, npol = npol,
+                                                 angular_normalization = angular_normalization)
     return Z⁺⁺[:, :, m + 1], Z⁻⁺[:, :, m + 1]
 end
 
@@ -122,11 +130,13 @@ function compute_Z_matrices(mod::BiLambertianCanopyScattering,
                             m_range::AbstractUnitRange{<:Integer};
                             quadrature::CanopyQuadrature = CanopyQuadrature(),
                             nQuad = nothing,
-                            npol::Integer = 1) where FT
+                            npol::Integer = 1,
+                            angular_normalization::AbstractAngularNormalization = ContinuousAngularNormalization()) where FT
     _check_m_range(m_range)
     q = _resolve_quadrature(quadrature, nQuad)
     Z⁺⁺, Z⁻⁺ = compute_Z_matrices_aniso_analytic(mod, μ, LD, last(m_range);
-                                                 quadrature = q, npol = npol)
+                                                 quadrature = q, npol = npol,
+                                                 angular_normalization = angular_normalization)
     return Z⁺⁺[:, :, m_range .+ 1], Z⁻⁺[:, :, m_range .+ 1]
 end
 
@@ -403,9 +413,11 @@ function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,
                                   m::Int;
                                   quadrature::CanopyQuadrature = CanopyQuadrature(),
                                   nQuad = nothing,
-                                  npol::Integer = 1) where FT
+                                  npol::Integer = 1,
+                                  angular_normalization::AbstractAngularNormalization = ContinuousAngularNormalization()) where FT
     q = _resolve_quadrature(quadrature, nQuad)
-    return compute_Z_matrices(mod, μ, LD, m; quadrature = q, npol = npol)
+    return compute_Z_matrices(mod, μ, LD, m; quadrature = q, npol = npol,
+                              angular_normalization = angular_normalization)
 end
 
 function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,
@@ -414,9 +426,11 @@ function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,
                                   Zup, Zdown, m::Int;
                                   quadrature::CanopyQuadrature = CanopyQuadrature(),
                                   nQuad = nothing,
-                                  npol::Integer = 1) where FT
+                                  npol::Integer = 1,
+                                  angular_normalization::AbstractAngularNormalization = ContinuousAngularNormalization()) where FT
     q = _resolve_quadrature(quadrature, nQuad)
-    return compute_Z_matrices_aniso(mod, μ, LD, m; quadrature = q, npol = npol)
+    return compute_Z_matrices_aniso(mod, μ, LD, m; quadrature = q, npol = npol,
+                                    angular_normalization = angular_normalization)
 end
 
 function compute_Z_matrices_aniso(mod::LambertianWoodCanopyScattering,

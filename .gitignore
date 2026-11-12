@@ -27,7 +27,9 @@ docs/src/pages/tutorials/specular.md
 docs/src/pages/tutorials/bilambertian.md
 docs/src/pages/tutorials/dielectric.md
 docs/src/pages/tutorials/foursail.md
-Manifest.toml
+docs/src/pages/tutorials/foursail_brdf.md
+docs/src/pages/tutorials/foursail_hotspot.md
+docs/src/pages/tutorials/tree_canopy.md
 
 # Local agent-tool session state
 .claude/

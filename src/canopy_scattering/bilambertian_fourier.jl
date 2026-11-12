@@ -303,6 +303,13 @@ converts the `1/(2π)` Fourier coefficients above to the half-range cosine
 moment used by the historical `compute_Z_matrices_aniso` implementation:
 `(2/π)∫_0^π Γ(Δϕ)cos(mΔϕ)dΔϕ`.  This is the normalization expected by
 vSmartMOM's elemental kernels, where `ϖ` is applied outside `Z`.
+
+`angular_normalization = ContinuousAngularNormalization()` retains the default
+continuous angular law. Pass `DiscreteAngularNormalization(μ, weights; atol)`
+to normalize each leaf's angular redistribution on that outgoing quadrature
+before integrating over leaf inclination. This preserves the area kernel's
+reciprocity and its discrete zeroth-mode column integral without modifying G or
+leaf albedo. Use the same normalization for emitted leaf-source moments.
 """
 function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
                                            μ::AbstractVector{FT},
@@ -310,9 +317,11 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
                                            m_max::Int;
                                            quadrature::CanopyQuadrature = CanopyQuadrature(),
                                            nQuad = nothing,
-                                           npol::Integer = 1) where {FT<:Real}
+                                           npol::Integer = 1,
+                                           angular_normalization = ContinuousAngularNormalization()) where {FT<:Real}
     m_max < 0 && throw(ArgumentError("m_max must be non-negative"))
     n = _validate_npol(npol)
+    _check_angular_normalization(angular_normalization,μ)
 
     (; R, T) = mod
     q = _resolve_quadrature(quadrature, nQuad)
@@ -346,7 +355,7 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
 
     for l in eachindex(θₗ)
         μ_L = ZFT(cos(θₗ[l]))
-        leaf_weight = ZFT(w_measure[l])
+        leaf_weight = ZFT(w_measure[l]) * ZFT(leaf_angular_scale(angular_normalization,cos(θₗ[l])))
 
         for i in eachindex(μ_work)
             μ_i = μ_work[i]
