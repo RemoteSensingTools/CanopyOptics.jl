@@ -28,7 +28,7 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
 
     @testset "PROSPECT refl and gradient" begin
         function test_prospect(θ::AbstractVector{T}) where {T}
-            opti = createLeafOpticalStruct((400.0:1.0:2500.0))
+            opti = LeafOpticalProperties((400.0:1.0:2500.0))
             leaf = LeafProspectProProperties{T}(Ccab = θ[1], Ccar = θ[2], Canth = θ[3])
             _, R = prospect(leaf, opti)
             return R
@@ -228,7 +228,7 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         @test cons_at1.rsot ≈ cons_lim.rsot rtol=1e-3
         @test cons_at1.rddt ≈ cons_lim.rddt rtol=1e-3
 
-        if CanopyOptics.CUDA.functional()
+        if isdefined(Main, :CUDA) && Main.CUDA.functional()
             geom32 = CanopyOptics.FourSAILGeometry(CanopyOptics.spherical_leaves(Float32);
                                                    sza_deg = 30.0f0,
                                                    vza_deg = 20.0f0,
@@ -238,9 +238,9 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             soil_R32 = Float32.(soil_R)
             cpu32 = CanopyOptics.foursail(leaf_R32, leaf_T32, soil_R32, geom32,
                                           3.0f0; hotspot = 0.02f0)
-            gpu32 = CanopyOptics.foursail(CanopyOptics.CUDA.CuArray(leaf_R32),
-                                          CanopyOptics.CUDA.CuArray(leaf_T32),
-                                          CanopyOptics.CUDA.CuArray(soil_R32),
+            gpu32 = CanopyOptics.foursail(Main.CUDA.CuArray(leaf_R32),
+                                          Main.CUDA.CuArray(leaf_T32),
+                                          Main.CUDA.CuArray(soil_R32),
                                           geom32, 3.0f0; hotspot = 0.02f0)
             @test Array(gpu32.rsot) ≈ cpu32.rsot rtol = 5f-5
             @test Array(gpu32.rddt) ≈ cpu32.rddt rtol = 5f-5
@@ -252,9 +252,9 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             cpu_phase32 = CanopyOptics.foursail(leaf_R32, leaf_T32, soil_R32,
                                                 geoms32, 3.0f0;
                                                 hotspot = 0.02f0, mode = :single)
-            gpu_phase32 = CanopyOptics.foursail(CanopyOptics.CUDA.CuArray(leaf_R32),
-                                                CanopyOptics.CUDA.CuArray(leaf_T32),
-                                                CanopyOptics.CUDA.CuArray(soil_R32),
+            gpu_phase32 = CanopyOptics.foursail(Main.CUDA.CuArray(leaf_R32),
+                                                Main.CUDA.CuArray(leaf_T32),
+                                                Main.CUDA.CuArray(soil_R32),
                                                 geoms32, 3.0f0;
                                                 hotspot = 0.02f0, mode = :single)
             @test Array(gpu_phase32.rsot) ≈ cpu_phase32.rsot rtol = 5f-5
@@ -270,8 +270,8 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             (-0.63, 4.10, 0.41, 1.05),
             (0.85, 5.50, 0.30, 0.40),
         )
-            Ωᵢ = CanopyOptics.dirVector_μ(μ1, ϕ1)
-            Ωₒ = CanopyOptics.dirVector_μ(μ2, ϕ2)
+            Ωᵢ = CanopyOptics.DirectionCosine(μ1, ϕ1)
+            Ωₒ = CanopyOptics.DirectionCosine(μ2, ϕ2)
             fᵢₒ = CanopyOptics.compute_reflection(mod, Ωᵢ, Ωₒ, LD)
             fₒᵢ = CanopyOptics.compute_reflection(mod, Ωₒ, Ωᵢ, LD)
             @test isapprox(fᵢₒ, fₒᵢ; rtol = 1e-12, atol = 1e-14)
@@ -282,13 +282,13 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         for FT in (Float32, Float64)
             tol = 32 * eps(FT)
             for (μ1, ϕ1) in ((FT(0.6), FT(0.7)), (FT(-0.6), FT(2.3)), (one(FT), zero(FT)), (-one(FT), FT(1.1)))
-                Ω1 = CanopyOptics.dirVector_μ(μ1, ϕ1)
+                Ω1 = CanopyOptics.DirectionCosine(μ1, ϕ1)
                 # Collinear (Ω2 == Ω1): α == 0
                 Ωstar_same, α_same = CanopyOptics.getSpecularΩ(Ω1, Ω1)
                 @test abs(α_same) <= tol
                 @test isapprox(Ωstar_same.μ, Ω1.μ; atol = tol)
                 # Antipodal (Ω2 == -Ω1): α == π/2 and unit normal is orthogonal to Ω1
-                Ω_anti = CanopyOptics.dirVector_μ(-μ1, Base.mod(ϕ1 + FT(π), FT(2π)))
+                Ω_anti = CanopyOptics.DirectionCosine(-μ1, Base.mod(ϕ1 + FT(π), FT(2π)))
                 Ωstar_anti, α_anti = CanopyOptics.getSpecularΩ(Ω1, Ω_anti)
                 @test isapprox(α_anti, FT(π) / FT(2); atol = tol)
                 c1 = CanopyOptics._cartesian(Ω1)
@@ -300,8 +300,8 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
 
         # ForwardDiff safety right at |μ| = 1 and collinear ray pairs
         d_col = ForwardDiff.derivative(0.0) do δ
-            Ωa = CanopyOptics.dirVector_μ(one(δ), zero(δ))
-            Ωb = CanopyOptics.dirVector_μ(cos(δ), one(δ) * 0.4)
+            Ωa = CanopyOptics.DirectionCosine(one(δ), zero(δ))
+            Ωb = CanopyOptics.DirectionCosine(cos(δ), one(δ) * 0.4)
             _, α = CanopyOptics.getSpecularΩ(Ωa, Ωb)
             cos(α)
         end
@@ -364,8 +364,8 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             @test all(iszero, Zmp_4[si:4:end, sj:4:end, :])
         end
 
-        Ωin = CanopyOptics.dirVector_μ(0.7, 0.25)
-        Ωout = CanopyOptics.dirVector_μ(-0.4, 1.35)
+        Ωin = CanopyOptics.DirectionCosine(0.7, 0.25)
+        Ωout = CanopyOptics.DirectionCosine(-0.4, 1.35)
         M = CanopyOptics.compute_reflection_mueller(specular, Ωin, Ωout, LD, 4)
         M_rev = CanopyOptics.compute_reflection_mueller(specular, Ωout, Ωin, LD, 4)
         P_hov = Diagonal([1.0, 1.0, -1.0, 1.0])

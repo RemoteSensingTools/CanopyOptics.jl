@@ -93,7 +93,7 @@ function _fresnel_mueller_real(nᵣ, α, npol::Integer)
     return M
 end
 
-@inline function _cartesian(Ω::dirVector_μ{FT}) where {FT<:Real}
+@inline function _cartesian(Ω::DirectionCosine{FT}) where {FT<:Real}
     BFT = _leaf_base_float(FT)
     u = one(FT) - Ω.μ * Ω.μ
     sθ = prospect_primal(u) <= zero(BFT) ? zero(FT) : sqrt(u)
@@ -141,12 +141,13 @@ end
 end
 
 @inline function _specular_mueller_elements(mod::SpecularCanopyScattering,
-                                            Ωin::dirVector_μ{FTΩ},
-                                            Ωout::dirVector_μ{FTΩ},
-                                            LD::AbstractLeafDistribution) where {FTΩ<:Real}
+                                            Ωin::DirectionCosine{FT1},
+                                            Ωout::DirectionCosine{FT2},
+                                            LD::AbstractLeafDistribution) where {FT1<:Real,FT2<:Real}
     (; nᵣ, κ) = mod
-    BFTΩ = _leaf_base_float(FTΩ)
     Ωleaf, αstar = getSpecularΩ(Ωin, Ωout)
+    FTΩ = typeof(αstar)
+    BFTΩ = _leaf_base_float(FTΩ)
     u_L = one(FTΩ) - Ωleaf.μ * Ωleaf.μ
     s_L = prospect_primal(u_L) <= zero(BFTΩ) ? zero(FTΩ) : sqrt(u_L)
     θstar = atan(s_L, abs(Ωleaf.μ))
@@ -189,7 +190,7 @@ end
     ep_out_x, ep_out_y, ep_out_z = -μo * co_ϕ, -μo * so_ϕ, so
 
     kin_x, kin_y, kin_z = -si * ci_ϕ, -si * si_ϕ, -μi
-    nleaf = _cartesian(dirVector_μ(ZFT(Ωleaf.μ), ZFT(Ωleaf.ϕ)))
+    nleaf = _cartesian(DirectionCosine(ZFT(Ωleaf.μ), ZFT(Ωleaf.ϕ)))
 
     vs_x = kin_y * nleaf[3] - kin_z * nleaf[2]
     vs_y = kin_z * nleaf[1] - kin_x * nleaf[3]
@@ -246,10 +247,10 @@ matching the vSmartMOM Fourier `cos(m dϕ)` / `sin(m dϕ)` parity convention and
 satisfying exact 4×4 Hovenier reciprocity `M(Ω2, Ω1) = P M(Ω1, Ω2)ᵀ P` (`P = diag(1, 1, -1, 1)`).
 """
 function compute_reflection_mueller(mod::SpecularCanopyScattering,
-                                    Ωin::dirVector_μ{FTΩ},
-                                    Ωout::dirVector_μ{FTΩ},
+                                    Ωin::DirectionCosine{FT1},
+                                    Ωout::DirectionCosine{FT2},
                                     LD::AbstractLeafDistribution,
-                                    npol::Integer = 1) where {FTΩ<:Real}
+                                    npol::Integer = 1) where {FT1<:Real,FT2<:Real}
     n = _validate_npol(npol)
     if n == 1
         val = compute_reflection(mod, Ωin, Ωout, LD)

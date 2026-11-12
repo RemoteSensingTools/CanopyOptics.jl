@@ -1,4 +1,9 @@
-"""Numerical angular measure for bi-Lambertian scattering and leaf emission."""
+"""
+    AbstractAngularNormalization
+
+Supertype for numerical angular normalization policies shared across bi-Lambertian
+canopy scattering and leaf emission geometry.
+"""
 abstract type AbstractAngularNormalization end
 
 """
@@ -33,18 +38,31 @@ struct DiscreteAngularNormalization{FT<:AbstractFloat} <: AbstractAngularNormali
     weights::Vector{FT}
     function DiscreteAngularNormalization(μ::AbstractVector{FT},weights::AbstractVector{FT};
                                           atol::FT) where {FT<:AbstractFloat}
-        length(μ)==length(weights)>0 || throw(DimensionMismatch("Angular nodes and weights must align"))
+        n = length(μ)
+        n == length(weights) > 0 || throw(DimensionMismatch("Angular nodes and weights must align"))
         isfinite(atol)&&atol>=zero(FT) || throw(ArgumentError("Angular tolerance must be finite and nonnegative"))
         all(x->isfinite(x)&&zero(FT)<x<=one(FT),μ) || throw(ArgumentError("Positive-hemisphere cosines must lie in (0,1]"))
         all(x->isfinite(x)&&x>=zero(FT),weights) || throw(ArgumentError("Angular weights must be finite and nonnegative"))
         abs(sum(weights)-one(FT))<=atol || throw(ArgumentError("Hemisphere weights must integrate unity without rescaling"))
-        new{FT}(Vector{FT}(μ),Vector{FT}(weights))
+        μ_own = copyto!(Vector{FT}(undef, n), μ)
+        w_own = Vector{FT}(undef, n)
+        for (k, w) in enumerate(weights)
+            w_own[k] = iszero(w) ? zero(FT) : w
+        end
+        new{FT}(μ_own, w_own)
     end
 end
 
+Base.:(==)(a::DiscreteAngularNormalization, b::DiscreteAngularNormalization) =
+    a.μ == b.μ && a.weights == b.weights
+
+Base.hash(a::DiscreteAngularNormalization, h::UInt) =
+    hash(a.weights, hash(a.μ, hash(:DiscreteAngularNormalization, h)))
+
 _check_angular_normalization(::ContinuousAngularNormalization,μ) = nothing
 function _check_angular_normalization(normalization::DiscreteAngularNormalization{FT},μ) where {FT}
-    eltype(μ)===FT && μ==normalization.μ ||
+    eltype(μ)===FT && length(μ)==length(normalization.μ) &&
+        all(splat(==), zip(μ, normalization.μ)) ||
         throw(ArgumentError("Scattering angles must match the normalization grid, order and precision"))
     nothing
 end
@@ -77,6 +95,28 @@ function leaf_angular_scale(normalization::DiscreteAngularNormalization{FT},μ_l
     H = FT(2)*integral
     isfinite(H)&&H>zero(FT) || throw(ArgumentError("Leaf angular law has no finite positive discrete measure"))
     inv(H)
+end
+
+_leaf_angular_scale_for_Z(normalization, μ_leaf) = leaf_angular_scale(normalization, μ_leaf)
+
+function _leaf_angular_scale_for_Z(
+    normalization::DiscreteAngularNormalization{FTN},
+    μ_leaf::FTL,
+) where {FTN<:AbstractFloat,FTL<:Real}
+    isfinite(μ_leaf) && zero(FTL) <= μ_leaf <= one(FTL) ||
+        throw(ArgumentError("Leaf inclination cosine must lie in [0,1]"))
+    T = float(promote_type(FTN, FTL))
+    integral = zero(T)
+    P, N = zeros(T, 1), zeros(T, 1)
+    μ_l = T(μ_leaf)
+    for i in eachindex(normalization.μ)
+        _one_sided_projection_moments!(P, N, T(normalization.μ[i]), μ_l, 0)
+        integral += T(normalization.weights[i]) * (P[1] + N[1])
+    end
+    H = T(2) * integral
+    isfinite(H) && H > zero(T) ||
+        throw(ArgumentError("Leaf angular law has no finite positive discrete measure"))
+    return inv(H)
 end
 
 """

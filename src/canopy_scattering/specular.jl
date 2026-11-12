@@ -10,26 +10,24 @@ Photon Transport in Leaf Canopies*, Eq. 2.39:
 where `θ*` is the polar angle of the specular leaf normal (from [`getSpecularΩ`](@ref)),
 `α* = arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ) / 2` is the incidence half-angle, `K(κ, α*)` is the
 Nilson–Kuusk roughness factor, and `Fᵣ(nᵣ, α*)` is unpolarized Fresnel reflectance.
-Accepts either `dirVector` or `dirVector_μ` directions.
+Accepts [`DirectionCosine`](@ref) directions (construct from `(θ, ϕ)` via
+[`direction_from_angles`](@ref)).
 
 For Stokes-vector propagation, use [`compute_reflection_mueller`](@ref). Note that
 `Ωⁱⁿ` points toward the illumination source (`-k_in`) and `Ωᵒᵘᵗ` points along the
 reflected ray (`+k_out`); only reflection is modelled here (for coupled surface,
 volume, and directional transmission, see [`CoupledLeafBSDF`](@ref)).
 """
-function compute_reflection(mod::SpecularCanopyScattering, Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}, LD) where FT
-    # Keep the incidence half-angle and unoriented leaf-normal convention in
-    # one implementation. abs(dot) would incorrectly fold incidence angles
-    # above π/4, and an unfolded downward normal lies outside the leaf PDF.
-    incoming = dirVector_μ(cos(Ωⁱⁿ.θ), Ωⁱⁿ.ϕ)
-    outgoing = dirVector_μ(cos(Ωᵒᵘᵗ.θ), Ωᵒᵘᵗ.ϕ)
-    return compute_reflection(mod, incoming, outgoing, LD)
-end
-
-function compute_reflection(mod::SpecularCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD::AbstractLeafDistribution) where FT
+function compute_reflection(
+    mod::SpecularCanopyScattering,
+    Ωⁱⁿ::DirectionCosine{FT1},
+    Ωᵒᵘᵗ::DirectionCosine{FT2},
+    LD::AbstractLeafDistribution,
+) where {FT1<:Real,FT2<:Real}
     (; nᵣ, κ) = mod
-    BFT = _leaf_base_float(FT)
     Ωstar, αstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
+    FT = typeof(αstar)
+    BFT = _leaf_base_float(FT)
     u_L = one(FT) - Ωstar.μ * Ωstar.μ
     s_L = prospect_primal(u_L) <= zero(BFT) ? zero(FT) : sqrt(u_L)
     θstar = atan(s_L, abs(Ωstar.μ))
@@ -109,9 +107,9 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
         𝐙⁻⁺ = zeros(ZFT, nμ, nμ)
 
         @inbounds for j in 1:nμ
-            # Downward incoming stream j travels along k_in = dirVector_μ(+μ[j], 0),
-            # so the outward vector toward the illumination source is Ω_src = -k_in = dirVector_μ(-μ[j], π).
-            Ωⁱⁿ = dirVector_μ(-DFT(μ_vec[j]), DFT(π))
+            # Downward incoming stream j travels along k_in = DirectionCosine(+μ[j], 0),
+            # so the outward vector toward the illumination source is Ω_src = -k_in = DirectionCosine(-μ[j], π).
+            Ωⁱⁿ = DirectionCosine(-DFT(μ_vec[j]), DFT(π))
             for i in 1:nμ
                 μ_i = DFT(μ_vec[i])
                 acc_pp = zero(ZFT)
@@ -119,8 +117,8 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
                 for ia in eachindex(ϕ)
                     weight = cos_w[ia]
                     dϕ = DFT(ϕ[ia])
-                    acc_pp += weight * compute_reflection(mod, Ωⁱⁿ, dirVector_μ(μ_i, dϕ), LD)
-                    acc_mp += weight * compute_reflection(mod, Ωⁱⁿ, dirVector_μ(-μ_i, dϕ), LD)
+                    acc_pp += weight * compute_reflection(mod, Ωⁱⁿ, DirectionCosine(μ_i, dϕ), LD)
+                    acc_mp += weight * compute_reflection(mod, Ωⁱⁿ, DirectionCosine(-μ_i, dϕ), LD)
                 end
                 𝐙⁺⁺[i, j] = acc_pp
                 𝐙⁻⁺[i, j] = acc_mp
@@ -138,7 +136,7 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
     𝐙⁻⁺ = zeros(ZFT, n * nμ, n * nμ)
 
     @inbounds for j in 1:nμ
-        Ωⁱⁿ = dirVector_μ(-DFT(μ_vec[j]), DFT(π))
+        Ωⁱⁿ = DirectionCosine(-DFT(μ_vec[j]), DFT(π))
         col1 = _stokes_index(j, 1, n)
         col2 = _stokes_index(j, 2, n)
         col3 = _stokes_index(j, 3, n)
@@ -159,14 +157,14 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
                 sw = sin_w[ia]
 
                 a11, a12, a13, a21, a22, a23, a31, a32, a33, a44 =
-                    _specular_mueller_elements(mod, Ωⁱⁿ, dirVector_μ(μ_i, dϕ), LD)
+                    _specular_mueller_elements(mod, Ωⁱⁿ, DirectionCosine(μ_i, dϕ), LD)
                 pp11 += cw * a11; pp12 += cw * a12; pp13 += sw * a13
                 pp21 += cw * a21; pp22 += cw * a22; pp23 += sw * a23
                 pp31 += sw * a31; pp32 += sw * a32; pp33 += cw * a33
                 pp44 += cw * a44
 
                 b11, b12, b13, b21, b22, b23, b31, b32, b33, b44 =
-                    _specular_mueller_elements(mod, Ωⁱⁿ, dirVector_μ(-μ_i, dϕ), LD)
+                    _specular_mueller_elements(mod, Ωⁱⁿ, DirectionCosine(-μ_i, dϕ), LD)
                 mp11 += cw * b11; mp12 += cw * b12; mp13 += sw * b13
                 mp21 += cw * b21; mp22 += cw * b22; mp23 += sw * b23
                 mp31 += sw * b31; mp32 += sw * b32; mp33 += cw * b33

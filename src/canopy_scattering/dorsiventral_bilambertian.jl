@@ -12,7 +12,7 @@ only for effective/upscaled asymmetric canopy elements (such as clumped shoots).
 
 In `CanopyOptics`'s canopy coordinate convention (`+μ` = downward stream into the
 canopy, `-μ` = upward stream toward the sky), a leaf with inclination `θ_L ∈ [0, π/2]`
-(`μ_L = cos θ_L >= 0`) has downward abaxial normal `Ω_L = dirVector_μ(+μ_L, ϕ_L)`
+(`μ_L = cos θ_L >= 0`) has downward abaxial normal `Ω_L = DirectionCosine(+μ_L, ϕ_L)`
 and upward adaxial normal `-Ω_L`. Because downward and upward streams illuminate
 opposite faces on average (`Z⁺⁺ != Z⁻⁻` and `Z⁻⁺ != Z⁺⁻` whenever `R_ad != R_ab`
 or `T_ad != T_ab`), use [`compute_Z_matrices_directional`](@ref) to assemble all
@@ -73,7 +73,7 @@ end
 
 """
     compute_Γ_directional(mod::DorsiventralBiLambertianCanopyScattering,
-                          Ωⁱⁿ::dirVector_μ, Ωᵒᵘᵗ::dirVector_μ, LD; quadrature)
+                          Ωⁱⁿ::DirectionCosine, Ωᵒᵘᵗ::DirectionCosine, LD; quadrature)
 
 Direct 2D `(θ_L, ϕ_L)` quadrature reference for the dorsiventral area scattering
 transfer function `Γ(Ωⁱⁿ → Ωᵒᵘᵗ)`. Reduces identically to `compute_Γ`
@@ -81,26 +81,28 @@ when `R_ad == R_ab` and `T_ad == T_ab`.
 """
 function compute_Γ_directional(
     mod::DorsiventralBiLambertianCanopyScattering,
-    Ωⁱⁿ::dirVector_μ{FT},
-    Ωᵒᵘᵗ::dirVector_μ{FT},
+    Ωⁱⁿ::DirectionCosine{FT1},
+    Ωᵒᵘᵗ::DirectionCosine{FT2},
     LD::AbstractLeafDistribution;
     quadrature::CanopyQuadrature = CanopyQuadrature(),
-) where {FT<:Real}
+) where {FT1<:Real,FT2<:Real}
     (; R_ad, T_ad, R_ab, T_ab) = mod
+    FT = float(promote_type(FT1, FT2))
+    QFT = _leaf_base_float(FT)
     ZFT = promote_type(FT, typeof(R_ad))
-    leaf_quad = _leaf_inclination_quadrature(LD, quadrature.n_leaf, FT)
+    leaf_quad = _leaf_inclination_quadrature(LD, quadrature.n_leaf, QFT)
     θₗ = leaf_quad.θ
-    ϕ, w_azi = gauleg(quadrature.n_azimuth, FT(0), FT(2π))
+    ϕ, w_azi = gauleg(quadrature.n_azimuth, QFT(0), QFT(2π))
 
     acc = zero(ZFT)
     inv_2pi = inv(ZFT(2) * ZFT(π))
 
     for l in eachindex(θₗ)
-        μ_l = FT(cos(θₗ[l]))
+        μ_l = QFT(cos(θₗ[l]))
         wl = ZFT(leaf_quad.w_measure[l])
         az_sum = zero(ZFT)
         for ia in eachindex(ϕ)
-            Ω_l = dirVector_μ(μ_l, ϕ[ia])
+            Ω_l = DirectionCosine(μ_l, ϕ[ia])
             d_in = ZFT(Ωⁱⁿ ⋅ Ω_l)
             d_out = ZFT(Ωᵒᵘᵗ ⋅ Ω_l)
 

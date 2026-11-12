@@ -3,7 +3,7 @@ using TOML
 function check_pigment_spectra(to_device, synchronize)
     settings=TOML.parsefile(joinpath(@__DIR__, "parameters/pigment_absorption.toml"))
     spectrum=settings["spectrum"]
-    native=createLeafOpticalStruct()
+    native=LeafOpticalProperties()
     for FT in (Float32, Float64)
         optics=LeafOpticalProperties(
             native.λ,

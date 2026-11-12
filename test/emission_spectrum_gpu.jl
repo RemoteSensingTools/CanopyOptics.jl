@@ -1,5 +1,4 @@
-using CanopyOptics, Test
-const CUDA = CanopyOptics.CUDA
+using CanopyOptics, CUDA, Test
 include("emission_spectrum_batches.jl")
 CUDA.functional(true) || error("A functional CUDA device is required")
 CUDA.allowscalar(false)

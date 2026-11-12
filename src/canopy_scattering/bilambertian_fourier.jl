@@ -1,6 +1,6 @@
 """
-    compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT},
-              LD::AbstractLeafDistribution) where FT
+    compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::DirectionCosine, Ωᵒᵘᵗ::DirectionCosine,
+              LD::AbstractLeafDistribution; quadrature = CanopyQuadrature())
 
 Computes the azimuthally-resolved area scattering transfer function
 `Γ(Ωⁱⁿ → Ωᵒᵘᵗ)` for a specific direction pair by direct double integration over
@@ -18,22 +18,24 @@ See [`compute_lambertian_Γ`](@ref) for the azimuthally averaged (m=0 only)
 equivalent.
 """
 function compute_Γ(mod::BiLambertianCanopyScattering,
-                   Ωⁱⁿ::dirVector_μ{FT},
-                   Ωᵒᵘᵗ::dirVector_μ{FT},
+                   Ωⁱⁿ::DirectionCosine{FT1},
+                   Ωᵒᵘᵗ::DirectionCosine{FT2},
                    LD::AbstractLeafDistribution;
-                   quadrature::CanopyQuadrature = CanopyQuadrature()) where FT
+                   quadrature::CanopyQuadrature = CanopyQuadrature()) where {FT1<:Real,FT2<:Real}
     (;R,T) = mod
+    FT = float(promote_type(FT1, FT2))
+    QFT = _leaf_base_float(FT)
     n_leaf = quadrature.n_leaf
     n_azimuth = quadrature.n_azimuth
-    leaf_quad = _leaf_inclination_quadrature(LD, n_leaf, FT)
+    leaf_quad = _leaf_inclination_quadrature(LD, n_leaf, QFT)
     θₗ = leaf_quad.θ
     μ_l = cos.(θₗ)
     # Quadrature points in the azimuth (this has to go over 2π):
-    ϕ, w_azi = gauleg(n_azimuth,FT(0),FT(2π));
+    ϕ, w_azi = gauleg(n_azimuth, QFT(0), QFT(2π));
     
     
     # Create leaf angles in μ and ϕ
-    Ω_l  = [dirVector_μ(a,b) for a in μ_l, b in ϕ];
+    Ω_l  = [DirectionCosine(a,b) for a in μ_l, b in ϕ];
     
     # Compute the angles (in, leaf angles, out, leaf)
     integrand = ((Ωⁱⁿ,) .⋅ Ω_l) .* ((Ωᵒᵘᵗ,) .⋅ Ω_l)
@@ -43,8 +45,8 @@ function compute_Γ(mod::BiLambertianCanopyScattering,
     iNeg = (integrand-abs.(integrand))./2
     
     # Eq 39 in Shultis and Myneni, double integration here
-    Γ⁻ = -1/2π * leaf_quad.w_measure' * (iNeg * w_azi)
-    Γ⁺ =  1/2π * leaf_quad.w_measure' * (iPos * w_azi)
+    Γ⁻ = -inv(QFT(2π)) * (leaf_quad.w_measure' * (iNeg * w_azi))
+    Γ⁺ =  inv(QFT(2π)) * (leaf_quad.w_measure' * (iPos * w_azi))
     # Eq 38 in Shultis and Myneni
     return R * Γ⁻ + T * Γ⁺ 
 end
@@ -63,12 +65,14 @@ where `β = acos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ)` and `ω = R + T`. This is a lightwei
 reference for tests of the general Fourier assembly.
 """
 function compute_Γ_isotropic(mod::BiLambertianCanopyScattering,
-                             Ωⁱⁿ::dirVector_μ{FT},
-                             Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
+                             Ωⁱⁿ::DirectionCosine{FT1},
+                             Ωᵒᵘᵗ::DirectionCosine{FT2}) where {FT1<:Real,FT2<:Real}
     (; R, T) = mod
+    FT = float(promote_type(FT1, FT2))
+    BFT = _leaf_base_float(FT)
     β = acos(Ωᵒᵘᵗ ⋅ Ωⁱⁿ)
     ω = R + T
-    return (ω / FT(3π)) * (sin(β) - β * cos(β)) + (T / FT(3)) * cos(β)
+    return (ω / BFT(3π)) * (sin(β) - β * cos(β)) + (T / BFT(3)) * cos(β)
 end
 
 """
@@ -342,7 +346,8 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
     leaf_quad = _leaf_inclination_quadrature(LD, q.n_leaf, QFT)
     θₗ = leaf_quad.θ
     w_measure = leaf_quad.w_measure
-    G_vec = ZFT.(vec(G(μ_vec, LD; quadrature = q)))
+    μ_for_G = (FT === ZFT || QFT === FT) ? μ_vec : QFT.(μ_vec)
+    G_vec = ZFT.(vec(G(μ_for_G, LD; quadrature = q)))
 
     Pꜜ = zeros(ZFT, nμ, nm)
     Nꜜ = zeros(ZFT, nμ, nm)
@@ -355,7 +360,7 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
 
     for l in eachindex(θₗ)
         μ_L = ZFT(cos(θₗ[l]))
-        leaf_weight = ZFT(w_measure[l]) * ZFT(leaf_angular_scale(angular_normalization,cos(θₗ[l])))
+        leaf_weight = ZFT(w_measure[l]) * ZFT(_leaf_angular_scale_for_Z(angular_normalization, cos(θₗ[l])))
 
         for i in eachindex(μ_work)
             μ_i = μ_work[i]

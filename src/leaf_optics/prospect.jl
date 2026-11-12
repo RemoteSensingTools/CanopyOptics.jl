@@ -13,7 +13,7 @@ See [`prospect_budget`](@ref) for the full conserved `(; transmission, reflectan
 ```jldoctest
 julia> using Unitful
 
-julia> opti = createLeafOpticalStruct((400.0:500.0:2400.0)u"nm");
+julia> opti = LeafOpticalProperties((400.0:500.0:2400.0)u"nm");
 
 julia> leaf = LeafProspectProProperties(Ccab = 30.0);
 

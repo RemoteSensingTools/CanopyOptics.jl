@@ -115,7 +115,7 @@ function compute_Ψ(μ::AbstractVector, μꜛ::AbstractVector, μₗ::Real)
 end
 
 """
-    scattering_model_lambertian(Ωⁱⁿ::dirVector, Ωᵒᵘᵗ::dirVector, Ωᴸ::dirVector, r, t)
+    scattering_model_lambertian(Ωⁱⁿ::DirectionCosine, Ωᵒᵘᵗ::DirectionCosine, Ωᴸ::DirectionCosine, r, t)
 
 Evaluate the single-leaf bi-Lambertian phase function `γ(Ωⁱⁿ → Ωᵒᵘᵗ; Ωᴸ)` for
 leaf reflectance `r` and transmittance `t` (Shultis & Myneni, 1988, Eq. 37):
@@ -127,7 +127,13 @@ leaf reflectance `r` and transmittance `t` (Shultis & Myneni, 1988, Eq. 37):
 \\end{cases}
 ```
 """
-function scattering_model_lambertian(Ωⁱⁿ::dirVector, Ωᵒᵘᵗ::dirVector, Ωᴸ::dirVector, r::Real, t::Real)
+function scattering_model_lambertian(
+    Ωⁱⁿ::DirectionCosine,
+    Ωᵒᵘᵗ::DirectionCosine,
+    Ωᴸ::DirectionCosine,
+    r::Real,
+    t::Real,
+)
     d_in = Ωⁱⁿ ⋅ Ωᴸ
     d_out = Ωᵒᵘᵗ ⋅ Ωᴸ
     FT = float(promote_type(typeof(d_in), typeof(d_out), typeof(r), typeof(t)))
@@ -149,8 +155,7 @@ end
 end
 
 """
-    getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) -> dirVector{FT}
-    getSpecularΩ(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) -> (dirVector_μ{FT}, FT)
+    getSpecularΩ(Ωⁱⁿ::DirectionCosine, Ωᵒᵘᵗ::DirectionCosine) -> (Ωᴸ, α)
 
 Compute the unit specular leaf normal `Ωᴸ` bisecting incoming source direction
 `Ωⁱⁿ` (`-k_in`) and outgoing ray direction `Ωᵒᵘᵗ` (`+k_out`), together with the
@@ -160,32 +165,22 @@ local incidence half-angle `α = arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ) / 2` (Knyazikh
 At the antipodal forward-grazing limit (`Ωᵒᵘᵗ ≈ -Ωⁱⁿ`, `α = π/2`), returns a
 deterministic unit normal orthogonal to `Ωⁱⁿ` without coordinate singularity or
 `ForwardDiff.Dual` `NaN` tangents.
-- The [`dirVector`](@ref) method returns `Ωᴸ`.
-- The [`dirVector_μ`](@ref) method returns `(Ωᴸ, α)`.
 """
-function getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where {FT}
+function getSpecularΩ(Ωⁱⁿ::DirectionCosine{FT1}, Ωᵒᵘᵗ::DirectionCosine{FT2}) where {FT1<:Real,FT2<:Real}
+    FT = _canopy_parameter_type(Ωⁱⁿ.μ, Ωᵒᵘᵗ.μ)
     BFT = _leaf_base_float(FT)
-    in_μ = dirVector_μ(cos(Ωⁱⁿ.θ), Ωⁱⁿ.ϕ)
-    out_μ = dirVector_μ(cos(Ωᵒᵘᵗ.θ), Ωᵒᵘᵗ.ϕ)
-    Ωᴸ_μ, _ = getSpecularΩ(in_μ, out_μ)
-    u_L = one(FT) - Ωᴸ_μ.μ * Ωᴸ_μ.μ
-    s_L = prospect_primal(u_L) <= zero(BFT) ? zero(FT) : sqrt(u_L)
-    θ_L = atan(s_L, Ωᴸ_μ.μ)
-    return dirVector(θ_L, Ωᴸ_μ.ϕ)
-end
-
-function getSpecularΩ(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where {FT}
-    BFT = _leaf_base_float(FT)
-    μ1 = clamp(Ωⁱⁿ.μ, -one(FT), one(FT))
-    μ2 = clamp(Ωᵒᵘᵗ.μ, -one(FT), one(FT))
+    μ1 = clamp(FT(Ωⁱⁿ.μ), -one(FT), one(FT))
+    μ2 = clamp(FT(Ωᵒᵘᵗ.μ), -one(FT), one(FT))
+    ϕ1 = FT(Ωⁱⁿ.ϕ)
+    ϕ2 = FT(Ωᵒᵘᵗ.ϕ)
 
     u1 = one(FT) - μ1 * μ1
     u2 = one(FT) - μ2 * μ2
     s1 = prospect_primal(u1) <= zero(BFT) ? zero(FT) : sqrt(u1)
     s2 = prospect_primal(u2) <= zero(BFT) ? zero(FT) : sqrt(u2)
 
-    c1, sp1 = cos(Ωⁱⁿ.ϕ), sin(Ωⁱⁿ.ϕ)
-    c2, sp2 = cos(Ωᵒᵘᵗ.ϕ), sin(Ωᵒᵘᵗ.ϕ)
+    c1, sp1 = cos(ϕ1), sin(ϕ1)
+    c2, sp2 = cos(ϕ2), sin(ϕ2)
 
     ω1x, ω1y, ω1z = s1 * c1, s1 * sp1, μ1
     ω2x, ω2y, ω2z = s2 * c2, s2 * sp2, μ2
@@ -202,7 +197,7 @@ function getSpecularΩ(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}
     if prospect_primal(H2) > (BFT(16) * eps(BFT))^2
         μ_L = clamp(Hz / Hnorm, -one(FT), one(FT))
         ϕ_L = _azimuth_0_2pi(Hy, Hx, FT, BFT)
-        return dirVector_μ(μ_L, ϕ_L), α
+        return DirectionCosine{FT}(μ_L, ϕ_L), α
     end
 
     # Antipodal grazing limit (Ωᵒᵘᵗ ≈ -Ωⁱⁿ, α ≈ π/2): deterministic unit normal ⊥ ω1
@@ -211,5 +206,5 @@ function getSpecularΩ(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}
     nz = -s1
     μ_L = clamp(nz, -one(FT), one(FT))
     ϕ_L = _azimuth_0_2pi(ny, nx, FT, BFT)
-    return dirVector_μ(μ_L, ϕ_L), α
+    return DirectionCosine{FT}(μ_L, ϕ_L), α
 end

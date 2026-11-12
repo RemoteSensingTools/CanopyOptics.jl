@@ -66,7 +66,7 @@ grid so it can be supplied via `n_surface` (or per-face `n_surface_adaxial` and
 using CanopyOptics, Unitful
 
 λ_bnds = (399.5:1.0:2500.5)u"nm"
-opti   = createLeafOpticalStruct(λ_bnds)
+opti   = LeafOpticalProperties(λ_bnds)
 n_wax  = load_wax_refractive_index(λ_bnds)
 
 leaf = LeafProspectProProperties(N = 1.6, Ccab = 42.0, Cw = 0.013, Cm = 0.006)

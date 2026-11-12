@@ -56,7 +56,7 @@ separate ``C_{\mathrm{chla}}`` and ``C_{\mathrm{chlb}}`` while retaining
 carotenoids, anthocyanins, senescent brown pigments, water, and either bulk dry
 matter (`Cm`) or PROSPECT-PRO protein + carbon-based constituents (`Cprot`, `Ccbc`).
 
-[`createMultiPigmentOpticalStruct`](@ref) builds [`MultiPigmentOpticalProperties`](@ref)
+`MultiPigmentOpticalProperties(λ_bnds; basis = ...)` constructs [`MultiPigmentOpticalProperties`](@ref)
 on any wavelength grid with four selectable basis options:
 
 | `basis` | Pigment spectra (`400–800 nm`) | Units |

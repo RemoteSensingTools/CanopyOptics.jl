@@ -294,7 +294,7 @@ julia> (leaf.Cm, leaf.Cprot, leaf.Ccbc)
 (0.008, 0.0, 0.0)
 ```
 """
-struct LeafProspectProProperties{FT} <: AbstractLeafProperties
+struct LeafProspectProProperties{FT<:Real} <: AbstractLeafProperties
     N::FT
     Ccab::FT
     Ccar::FT
@@ -304,6 +304,25 @@ struct LeafProspectProProperties{FT} <: AbstractLeafProperties
     Cm::FT
     Cprot::FT
     Ccbc::FT
+
+    function LeafProspectProProperties{FT}(
+        N, Ccab, Ccar, Canth, Cbrown, Cw, Cm, Cprot, Ccbc,
+    ) where {FT<:Real}
+        return new{FT}(
+            FT(N), FT(Ccab), FT(Ccar), FT(Canth), FT(Cbrown),
+            FT(Cw), FT(Cm), FT(Cprot), FT(Ccbc),
+        )
+    end
+end
+
+function LeafProspectProProperties(
+    N::Real, Ccab::Real, Ccar::Real, Canth::Real, Cbrown::Real,
+    Cw::Real, Cm::Real, Cprot::Real, Ccbc::Real,
+)
+    FT = _canopy_parameter_type(N, Ccab, Ccar, Canth, Cbrown, Cw, Cm, Cprot, Ccbc)
+    return LeafProspectProProperties{FT}(
+        N, Ccab, Ccar, Canth, Cbrown, Cw, Cm, Cprot, Ccbc,
+    )
 end
 
 function LeafProspectProProperties{FT}(;
@@ -361,11 +380,17 @@ cross-section tables ([`LeafOpticalProperties`](@ref) and
 abstract type AbstractProspectProperties end
 
 """
+    LeafOpticalProperties(λ_bnds = (399.5:2500.5)u"nm"; FT = ...)
+    LeafOpticalProperties{FT}(λ_bnds = (399.5:2500.5)u"nm")
     LeafOpticalProperties{FT,FT2}(λ, nᵣ, Kcab, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc)
 
 Store spectral grid `λ`, aqueous mesophyll refractive index `nᵣ`, and
-PROSPECT-PRO specific absorption coefficient vectors. Construct from the bundled
-artifact via [`createLeafOpticalStruct`](@ref).
+PROSPECT-PRO specific absorption coefficient vectors (Féret et al., 2021).
+
+Calling `LeafOpticalProperties(λ_bnds)` (or `LeafOpticalProperties()` for the
+native `1 nm` grid on `400–2500 nm`) bin-averages the bundled PROSPECT-PRO
+optical database over bin edges `λ_bnds`, accepting any `Unitful` spectral unit
+(`u"nm"`, `u"μm"`, `u"cm^-1"`) or unitless values in `nm`.
 
 # Fields
 - `λ::FT2`: spectral bin centers (with or without `Unitful` units).
@@ -378,6 +403,16 @@ artifact via [`createLeafOpticalStruct`](@ref).
 - `Km::Vector{FT}`: bulk dry matter specific absorption (`cm² g⁻¹`).
 - `Kp::Vector{FT}`: protein specific absorption (`cm² g⁻¹`).
 - `Kcbc::Vector{FT}`: carbon-based constituent specific absorption (`cm² g⁻¹`).
+
+# Examples
+```jldoctest
+julia> using Unitful
+
+julia> opti = LeafOpticalProperties((400.0:100.0:2400.0)u"nm");
+
+julia> length(opti.nᵣ)
+20
+```
 """
 struct LeafOpticalProperties{FT,FT2} <: AbstractProspectProperties
     λ::FT2

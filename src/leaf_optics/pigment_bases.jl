@@ -21,7 +21,7 @@ struct LeafMultiPigmentProperties{FT<:Real} <: AbstractLeafProperties
     Cchlb::FT
     "Carotenoid content `[µg cm⁻²]`"
     Ccar::FT
-    "Anthocyanin content `[µg cm⁻²]` (mass basis matching `OPTI_2021` and `createMultiPigmentOpticalStruct`)"
+    "Anthocyanin content `[µg cm⁻²]` (mass basis matching `OPTI_2021` and `MultiPigmentOpticalProperties`)"
     Canth::FT
     "Brown pigments content in arbitrary units"
     Cbrown::FT
@@ -33,6 +33,27 @@ struct LeafMultiPigmentProperties{FT<:Real} <: AbstractLeafProperties
     Cprot::FT
     "Carbon-based constituents content `[g cm⁻²]`"
     Ccbc::FT
+
+    function LeafMultiPigmentProperties{FT}(
+        N, Cchla, Cchlb, Ccar, Canth, Cbrown, Cw, Cm, Cprot, Ccbc,
+    ) where {FT<:Real}
+        return new{FT}(
+            FT(N), FT(Cchla), FT(Cchlb), FT(Ccar), FT(Canth),
+            FT(Cbrown), FT(Cw), FT(Cm), FT(Cprot), FT(Ccbc),
+        )
+    end
+end
+
+function LeafMultiPigmentProperties(
+    N::Real, Cchla::Real, Cchlb::Real, Ccar::Real, Canth::Real,
+    Cbrown::Real, Cw::Real, Cm::Real, Cprot::Real, Ccbc::Real,
+)
+    FT = _canopy_parameter_type(
+        N, Cchla, Cchlb, Ccar, Canth, Cbrown, Cw, Cm, Cprot, Ccbc,
+    )
+    return LeafMultiPigmentProperties{FT}(
+        N, Cchla, Cchlb, Ccar, Canth, Cbrown, Cw, Cm, Cprot, Ccbc,
+    )
 end
 
 function LeafMultiPigmentProperties{FT}(;
@@ -84,12 +105,24 @@ function LeafMultiPigmentProperties(;
 end
 
 """
+    MultiPigmentOpticalProperties(λ_bnds = (399.5:2500.5)u"nm"; basis = :calibrated_in_vivo, FT = ...)
+    MultiPigmentOpticalProperties{FT}(λ_bnds = (399.5:2500.5)u"nm"; basis = :calibrated_in_vivo)
+    MultiPigmentOpticalProperties(base::LeafOpticalProperties; Kchla = ..., Kchlb = ..., ...)
     MultiPigmentOpticalProperties{FT<:Real, FT2} <: AbstractProspectProperties
 
 Specific absorption cross-section spectra and refractive index `nᵣ` for leaf
 models that resolve chlorophyll *a* (`Kchla`) and chlorophyll *b* (`Kchlb`)
-separately across a user-supplied wavelength grid `λ`. See
-[`createMultiPigmentOpticalStruct`](@ref) for built-in in-vivo and pseudo-Voigt bases.
+separately (`[cm² µg⁻¹]`) across spectral bin edges `λ_bnds` or a custom grid `λ`.
+
+Supported `basis` options when loading from bundled data:
+- `:calibrated_in_vivo` (default): empirical in-vivo `Kchla, Kchlb` calibrated on
+  `ANGERS` (`400–800 nm`, `data/multi_pigment_chlab_in_vivo.csv`), spliced to
+  `OPTI_2021` for `λ > 800 nm`.
+- `:prospect_mp_2017`: Zhang et al. (2017, *Sci. Rep.* 7:6429) pseudo-Voigt
+  `Kchla, Kchlb, Kcar` on `400–800 nm`, spliced to `OPTI_2021` for `λ > 800 nm`.
+- `:prospect_mp_plus_2022`: Zhang et al. (2022, *Sensors* 22:3025) pseudo-Voigt
+  `Kchla, Kchlb, Kcar, Kant` on `400–800 nm`, spliced to `OPTI_2021` for `λ > 800 nm`.
+- `:prospect_pro_pooled`: baseline control with `Kchla == Kchlb == Kcab` from `OPTI_2021`.
 """
 struct MultiPigmentOpticalProperties{FT<:Real,FT2} <: AbstractProspectProperties
     "Wavelength grid"
@@ -634,6 +667,30 @@ struct LeafSIPProperties{FT<:Real} <: AbstractLeafProperties
     f_lma_slope::FT
     "Asymmetry parameter LMA slope `[cm² g⁻¹]` (Wu et al. 2020: 102.8)"
     g_lma_slope::FT
+
+    function LeafSIPProperties{FT}(
+        Ccab, Cchla, Cchlb, Ccar, Canth, Cbrown, Cw,
+        Cm, Cprot, Ccbc, alpha_lma, f_lma_slope, g_lma_slope,
+    ) where {FT<:Real}
+        return new{FT}(
+            FT(Ccab), FT(Cchla), FT(Cchlb), FT(Ccar), FT(Canth), FT(Cbrown), FT(Cw),
+            FT(Cm), FT(Cprot), FT(Ccbc), FT(alpha_lma), FT(f_lma_slope), FT(g_lma_slope),
+        )
+    end
+end
+
+function LeafSIPProperties(
+    Ccab::Real, Cchla::Real, Cchlb::Real, Ccar::Real, Canth::Real, Cbrown::Real, Cw::Real,
+    Cm::Real, Cprot::Real, Ccbc::Real, alpha_lma::Real, f_lma_slope::Real, g_lma_slope::Real,
+)
+    FT = _canopy_parameter_type(
+        Ccab, Cchla, Cchlb, Ccar, Canth, Cbrown, Cw,
+        Cm, Cprot, Ccbc, alpha_lma, f_lma_slope, g_lma_slope,
+    )
+    return LeafSIPProperties{FT}(
+        Ccab, Cchla, Cchlb, Ccar, Canth, Cbrown, Cw,
+        Cm, Cprot, Ccbc, alpha_lma, f_lma_slope, g_lma_slope,
+    )
 end
 
 function LeafSIPProperties{FT}(;

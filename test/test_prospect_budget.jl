@@ -165,7 +165,7 @@ end
 end
 
 @testset "PROSPECT actual optical data and public API" begin
-    native=createLeafOpticalStruct()
+    native=LeafOpticalProperties()
     for FT in (Float32, Float64)
         optics=LeafOpticalProperties(
             native.λ,

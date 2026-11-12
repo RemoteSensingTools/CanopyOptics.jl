@@ -1,34 +1,12 @@
 """
-    dirVector{FT}(θ, ϕ)
-
-Represent a unit spherical direction by polar/zenith angle `θ` and azimuth
-angle `ϕ` (both in radians).
-
-# Fields
-- `θ::FT`: polar/zenith angle in radians.
-- `ϕ::FT`: azimuth angle in radians.
-
-# Examples
-```jldoctest
-julia> dirVector(0.5, 1.2)
-dirVector{Float64}(0.5, 1.2)
-```
-"""
-struct dirVector{FT}
-    θ::FT
-    ϕ::FT
-end
-
-function dirVector(θ::Real, ϕ::Real)
-    FT = promote_type(typeof(θ), typeof(ϕ))
-    return dirVector{FT}(FT(θ), FT(ϕ))
-end
-
-"""
-    dirVector_μ{FT}(μ, ϕ)
+    DirectionCosine{FT}(μ, ϕ)
+    DirectionCosine(; μ = nothing, θ = nothing, ϕ = 0)
 
 Represent a unit spherical direction by polar cosine `μ = cos(θ) ∈ [-1, 1]` and
 azimuth angle `ϕ` in radians.
+
+Passing keyword `θ` instead of `μ` computes `μ = cos(θ)` (see also
+[`direction_from_angles`](@ref)).
 
 # Fields
 - `μ::FT`: polar cosine `cos(θ)` in `[-1, 1]`.
@@ -36,18 +14,68 @@ azimuth angle `ϕ` in radians.
 
 # Examples
 ```jldoctest
-julia> dirVector_μ(0.8, 0.0)
-dirVector_μ{Float64}(0.8, 0.0)
+julia> DirectionCosine(0.8, 0.0)
+DirectionCosine{Float64}(0.8, 0.0)
 ```
 """
-struct dirVector_μ{FT}
+struct DirectionCosine{FT<:Real}
     μ::FT
     ϕ::FT
+
+    DirectionCosine{FT}(μ, ϕ) where {FT<:Real} = new{FT}(FT(μ), FT(ϕ))
 end
 
-function dirVector_μ(μ::Real, ϕ::Real)
-    FT = promote_type(typeof(μ), typeof(ϕ))
-    return dirVector_μ{FT}(FT(μ), FT(ϕ))
+function DirectionCosine(μ::Real, ϕ::Real)
+    FT = _canopy_parameter_type(μ, ϕ)
+    return DirectionCosine{FT}(FT(μ), FT(ϕ))
+end
+
+function DirectionCosine(; μ = nothing, θ = nothing, ϕ::Real = 0)
+    (μ === nothing) == (θ === nothing) &&
+        throw(ArgumentError("Specify exactly one of keyword `μ` or `θ`"))
+    return μ !== nothing ? DirectionCosine(μ, ϕ) : direction_from_angles(θ, ϕ)
+end
+
+"""
+    direction_from_angles(θ, ϕ)
+
+Construct a [`DirectionCosine`](@ref) from polar/zenith angle `θ` and azimuth
+angle `ϕ` (both in radians), setting `μ = cos(θ)`.
+
+# Examples
+```jldoctest
+julia> direction_from_angles(0.0, 1.2)
+DirectionCosine{Float64}(1.0, 1.2)
+```
+"""
+function direction_from_angles(θ::Real, ϕ::Real)
+    FT = _canopy_parameter_type(θ, ϕ)
+    return DirectionCosine{FT}(cos(FT(θ)), FT(ϕ))
+end
+
+Base.@deprecate_binding dirVector_μ DirectionCosine
+Base.Docs.doc!(
+    @__MODULE__,
+    Base.Docs.Binding(@__MODULE__, :dirVector_μ),
+    Base.Docs.docstr(
+        """
+            dirVector_μ(μ, ϕ)
+
+        Deprecated alias for [`DirectionCosine`](@ref).
+        """,
+        Dict{Symbol,Any}(:path => @__FILE__, :linenumber => @__LINE__, :module => @__MODULE__),
+    ),
+)
+
+"""
+    dirVector(θ, ϕ)
+
+Deprecated constructor from polar angle `θ` and azimuth `ϕ`; use
+[`direction_from_angles`](@ref) instead.
+"""
+function dirVector(θ::Real, ϕ::Real)
+    Base.depwarn("`dirVector(θ, ϕ)` is deprecated, use `direction_from_angles(θ, ϕ)` instead.", :dirVector)
+    return direction_from_angles(θ, ϕ)
 end
 
 @inline function _unit_sin_from_cos(μ::FT) where {FT<:Real}
@@ -69,10 +97,7 @@ end
     return prospect_primal(d2) <= zero(BFT) ? zero(FT) : sqrt(d2)
 end
 
-dot(Ω₁::dirVector, Ω₂::dirVector) =
-    cos(Ω₁.θ) * cos(Ω₂.θ) + sin(Ω₁.θ) * sin(Ω₂.θ) * cos(Ω₂.ϕ - Ω₁.ϕ)
-
-function dot(Ω₁::dirVector_μ, Ω₂::dirVector_μ)
+function dot(Ω₁::DirectionCosine, Ω₂::DirectionCosine)
     FT = float(promote_type(typeof(Ω₁.μ), typeof(Ω₁.ϕ), typeof(Ω₂.μ), typeof(Ω₂.ϕ)))
     μ₁ = FT(Ω₁.μ)
     μ₂ = FT(Ω₂.μ)

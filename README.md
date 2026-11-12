@@ -45,7 +45,7 @@ julia> ]add https://github.com/RemoteSensingTools/CanopyOptics.jl
 using CanopyOptics
 
 # Leaf reflectance / transmittance from PROSPECT-PRO
-opti = createLeafOpticalStruct(400.0:1.0:2500.0)             # nm grid
+opti = LeafOpticalProperties(400.0:1.0:2500.0)                # nm grid
 leaf = LeafProspectProProperties{Float64}(Ccab = 40.0)
 T, R = prospect(leaf, opti)                                  # (transmittance, reflectance)
 

@@ -7,20 +7,22 @@ using Test, CanopyOptics, LinearAlgebra, TOML
             mu_out in FT.(directions["outgoing_cosines"]),
             fraction in FT.(directions["outgoing_azimuth_pi"])
         phi = fraction*FT(pi)
-        incoming = CanopyOptics.dirVector_μ(mu_in,zero(FT))
-        outgoing = CanopyOptics.dirVector_μ(mu_out,phi)
+        incoming = CanopyOptics.DirectionCosine(mu_in,zero(FT))
+        outgoing = CanopyOptics.DirectionCosine(mu_out,phi)
         normal,alpha = @inferred CanopyOptics.getSpecularΩ(incoming,outgoing)
-        @test normal isa CanopyOptics.dirVector_μ{FT}
+        @test normal isa CanopyOptics.DirectionCosine{FT}
         @test alpha isa FT
         # Independent Cartesian bisector, with incoming azimuth zero.
         direction(d) = FT[sqrt(one(FT)-d.μ^2)*cos(d.ϕ),
             sqrt(one(FT)-d.μ^2)*sin(d.ϕ),d.μ]
         expected = normalize(direction(incoming)+direction(outgoing))
         @test direction(normal) ≈ expected
-        angles = @inferred CanopyOptics.getSpecularΩ(
-            CanopyOptics.dirVector(acos(mu_in),zero(FT)),
-            CanopyOptics.dirVector(acos(mu_out),phi))
-        @test angles isa CanopyOptics.dirVector{FT}
+        normal_ang, alpha_ang = @inferred CanopyOptics.getSpecularΩ(
+            CanopyOptics.direction_from_angles(acos(mu_in),zero(FT)),
+            CanopyOptics.direction_from_angles(acos(mu_out),phi))
+        @test normal_ang isa CanopyOptics.DirectionCosine{FT}
+        @test alpha_ang isa FT
+        @test direction(normal_ang) ≈ expected
     end
     for FT in (Float32,Float64)
         model=CanopyOptics.SpecularCanopyScattering(

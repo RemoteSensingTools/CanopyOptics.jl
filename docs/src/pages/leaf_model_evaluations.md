@@ -99,7 +99,7 @@ Five physical lessons emerge directly from the fixed-chemistry residuals:
    (red-edge ``R`` RMSE ``0.1371`` on `ANGERS` and ``0.1581`` on `LOTUS`). If the
    pseudo-Voigt Lorentzian tails are evaluated beyond ``800\text{ nm}`` without
    windowing, artificial pigment absorption triples NIR RMSE (`0.0164` to `0.0494`).
-   [`createMultiPigmentOpticalStruct`](@ref) therefore splices all multi-pigment
+   [`MultiPigmentOpticalProperties`](@ref) therefore splices all multi-pigment
    bases cleanly onto `OPTI_2021` for ``\lambda > 800\text{ nm}``.
 3. **`Leaf-SIP` requires coupled boundary calibration**: Bare spectral-invariant
    single-scattering formulas (`Leaf-SIP` without cuticle Fresnel reflection; Wu et
@@ -140,7 +140,7 @@ and ``\partial R/\partial C_{\mathrm{chlb}}`` into strong collinearity except on
 ![Chlorophyll a and b spectral basis and blind cross-dataset transfer](../assets/evaluations/fig2_pigment_identifiability.png)
 
 To prevent per-leaf overfitting, `:calibrated_in_vivo`
-([`createMultiPigmentOpticalStruct`](@ref)) learns smooth perturbations around
+([`MultiPigmentOpticalProperties`](@ref)) learns smooth perturbations around
 `OPTI_2021` `Kcab` strictly on `ANGERS` (regularized for physical non-negativity,
 Soret/``Q_y`` smoothness, and pooling consistency ``0.75 K_{\mathrm{chla}} + 0.25 K_{\mathrm{chlb}} \approx K_{\mathrm{cab}}``)
 and is evaluated **blindly** on `LOTUS` (`n = 255` leaves, zero `LOTUS` spectra or
@@ -374,7 +374,7 @@ air interface reshape escaping solar-induced chlorophyll fluorescence (`SIF`) ac
 | Modeling objective | Recommended `CanopyOptics` API | Key physical properties & caveats |
 | --- | --- | --- |
 | **Hemispherical leaf `R, T, A` (sphere or diffuse RT)** | [`LeafProspectProProperties`](@ref) + [`prospect_budget`](@ref) + [`ConeSurface`](@ref)`(8.0, 1.0)` (or `0.0`) | Exact lossless limit, `Float32`/`Float64` + `ForwardDiff`, `Cm` vs `Cprot + Ccbc` mutual exclusivity, `Canth` in `[µg cm⁻²]`. |
-| **Separated ``\text{Chl } a`` & ``\text{Chl } b`` optics / retrievals** | [`LeafMultiPigmentProperties`](@ref) + [`createMultiPigmentOpticalStruct`](@ref)`(λ; basis = :calibrated_in_vivo)` | Spliced cleanly to `OPTI_2021` above `800 nm`; pair inversions with a biological ``\ln(\text{Chl } a/b)`` prior to avoid collinearity blow-up. |
+| **Separated ``\text{Chl } a`` & ``\text{Chl } b`` optics / retrievals** | [`LeafMultiPigmentProperties`](@ref) + [`MultiPigmentOpticalProperties`](@ref)`(λ; basis = :calibrated_in_vivo)` | Spliced cleanly to `OPTI_2021` above `800 nm`; pair inversions with a biological ``\ln(\text{Chl } a/b)`` prior to avoid collinearity blow-up. |
 | **Dorsiventral adaxial/abaxial leaf budgets** | [`DorsiventralLeafProperties`](@ref) / [`dorsiventral_from_traits`](@ref) + [`dorsiventral_budget`](@ref) | Continuous ``N_{\mathrm{tot}} \ge 1`` sub-2 bridge, exact ``T_{\mathrm{ad}} = T_{\mathrm{ab}}``, per-zone `absorptance_palisade` & `absorptance_spongy`. |
 | **Multi-angle & SWIR leaf BRDF/BTDF (all SZAs)** | [`CoupledLeafBSDF`](@ref) + [`prepare_leaf_bsdf`](@ref) + [`load_wax_refractive_index`](@ref) (`n_surface`) | Exact ``R(\theta_i) + T(\theta_i) + A(\theta_i) = 1`` at all SZAs, 4×4 Hovenier reciprocity, accurate `400–2500 nm` cuticle dispersion; pure Fresnel `DoLP` over-predicts Brewster polarization without an empirical wax depolarization factor. |
 | **Two-zone internal chlorophyll fluorescence escape** | [`dorsiventral_plate_optics`](@ref) + [`DorsiventralPlateEscape`](@ref) + [`DorsiventralBirthProfile`](@ref) + [`leaf_emission_fates`](@ref) | Subtraction-free, subnormal-safe, `isbits` CPU/CUDA scalar kernel; captures palisade/spongy reabsorption & air-gap asymmetry. |

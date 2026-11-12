@@ -1,7 +1,7 @@
 # Published pseudo-Voigt specific absorption cross-section parameters for multi-pigment PROSPECT models.
 # All peak heights K_h carry consistent mass-based units [cm^2 ug^-1], matching Féret et al. (2017, 2021)
 # OPTI_2021 (`dataSpec_PRO.csv`). Both models are calibrated over 400-800 nm; for wavelengths > 800 nm,
-# `createMultiPigmentOpticalStruct` splices cleanly to `OPTI_2021` so Lorentzian wings do not leak
+# `MultiPigmentOpticalProperties` splices cleanly to `OPTI_2021` so Lorentzian wings do not leak
 # unphysical pigment absorption into the NIR/SWIR plateau.
 #
 # Pseudo-Voigt line shape per peak j (Zhang et al. 2017 Eq. 3; Zhang et al. 2022 Eq. 4):

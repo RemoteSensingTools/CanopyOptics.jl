@@ -153,13 +153,13 @@ function bfG(μ::AbstractArray{FT}, LD::AbstractLeafDistribution; nLeg = 20) whe
     nQuad = 100
     ϕ, w_azi = gauleg(nQuad, zero(OutFT), OutFT(2π))
     μ_l, w = gauleg(180, zero(OutFT), one(OutFT))
-    Ω_l = [dirVector_μ(a, b) for a in μ_l, b in ϕ]
+    Ω_l = [DirectionCosine(a, b) for a in μ_l, b in ϕ]
     θₗ = acos.(μ_l)
     Fᵢ = OutFT[OutFT(pdf(LD.LD, OutFT(2) * θ / OutFT(π))) * OutFT(LD.scaling) * (OutFT(π) / OutFT(2)) for θ in θₗ]
     Fᵢ ./= dot(Fᵢ, w)
     res = similar(μ, OutFT)
     for i in eachindex(res, μ)
-        Ω = dirVector_μ(abs(OutFT(μ[i])), zero(OutFT))
+        Ω = DirectionCosine(abs(OutFT(μ[i])), zero(OutFT))
         res[i] = ((Fᵢ .* abs.(dot.((Ω,), Ω_l)))' * w)' * w_azi / OutFT(2π)
     end
     return res

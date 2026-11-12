@@ -7,7 +7,7 @@ using Unitful
 const _u_nm = u"nm"
 
 @testset "Leaf Model Families & Coupled BSDF / Canopy Extensions" begin
-    opti64_full = createLeafOpticalStruct(400.0:100.0:2400.0)
+    opti64_full = LeafOpticalProperties(400.0:100.0:2400.0)
     # Compact Float32 optical fixture without implicit Float64 promotion
     opti32 = LeafOpticalProperties{Float32,Vector{Float32}}(
         Float32.(collect(450.0:200.0:2350.0)),
@@ -554,10 +554,10 @@ const _u_nm = u"nm"
             for ia in eachindex(ϕ_az)
                 dϕ = ϕ_az[ia]
                 wt = w_az[ia] * cos(m * dϕ) / π
-                acc_pp += wt * compute_Γ_directional(asym_dors, dirVector_μ(μ[j], 0.0), dirVector_μ(μ[i], dϕ), LD_test; quadrature = quad_ref2d)
-                acc_mp += wt * compute_Γ_directional(asym_dors, dirVector_μ(μ[j], 0.0), dirVector_μ(-μ[i], dϕ), LD_test; quadrature = quad_ref2d)
-                acc_pm += wt * compute_Γ_directional(asym_dors, dirVector_μ(-μ[j], 0.0), dirVector_μ(μ[i], dϕ), LD_test; quadrature = quad_ref2d)
-                acc_mm += wt * compute_Γ_directional(asym_dors, dirVector_μ(-μ[j], 0.0), dirVector_μ(-μ[i], dϕ), LD_test; quadrature = quad_ref2d)
+                acc_pp += wt * compute_Γ_directional(asym_dors, DirectionCosine(μ[j], 0.0), DirectionCosine(μ[i], dϕ), LD_test; quadrature = quad_ref2d)
+                acc_mp += wt * compute_Γ_directional(asym_dors, DirectionCosine(μ[j], 0.0), DirectionCosine(-μ[i], dϕ), LD_test; quadrature = quad_ref2d)
+                acc_pm += wt * compute_Γ_directional(asym_dors, DirectionCosine(-μ[j], 0.0), DirectionCosine(μ[i], dϕ), LD_test; quadrature = quad_ref2d)
+                acc_mm += wt * compute_Γ_directional(asym_dors, DirectionCosine(-μ[j], 0.0), DirectionCosine(-μ[i], dϕ), LD_test; quadrature = quad_ref2d)
             end
             scale = ff / G_vec[j]
             @test isapprox(res_dir.Zpp[i, j, m + 1], acc_pp * scale; rtol = 5e-4, atol = 2e-5)
@@ -692,8 +692,8 @@ const _u_nm = u"nm"
         @test isfinite(d_cm0) && d_cm0 > 0.0
         @test isapprox(d_cm0, d_cm_pos; rtol = 1e-4)
 
-        # Short spectral grid (< 10 wavelength bins) no longer throws BoundsError in createLeafOpticalStruct
-        opti_short = createLeafOpticalStruct((450.0:50.0:700.0) .* _u_nm)
+        # Short spectral grid (< 10 wavelength bins) works cleanly in LeafOpticalProperties
+        opti_short = LeafOpticalProperties((450.0:50.0:700.0) .* _u_nm)
         @test length(opti_short.nᵣ) == 5
     end
 
@@ -744,12 +744,12 @@ const _u_nm = u"nm"
         )
     end
 
-    @testset "8. createMultiPigmentOpticalStruct Self-Contained Optical Bases" begin
+    @testset "8. MultiPigmentOpticalProperties Self-Contained Optical Bases" begin
         λ_bnds = (399.5:10.0:2499.5) .* _u_nm
-        opt_pro = createLeafOpticalStruct(λ_bnds)
+        opt_pro = LeafOpticalProperties(λ_bnds)
         for basis in (:calibrated_in_vivo, :prospect_mp_2017, :prospect_mp_plus_2022, :prospect_pro_pooled)
-            mp64 = createMultiPigmentOpticalStruct(λ_bnds; basis = basis)
-            mp32 = createMultiPigmentOpticalStruct(λ_bnds; basis = basis, FT = Float32)
+            mp64 = MultiPigmentOpticalProperties(λ_bnds; basis = basis)
+            mp32 = MultiPigmentOpticalProperties(λ_bnds; basis = basis, FT = Float32)
             @test mp64 isa MultiPigmentOpticalProperties{Float64}
             @test mp32 isa MultiPigmentOpticalProperties{Float32}
             @test all(mp64.Kchla .>= 0.0) && all(mp64.Kchlb .>= 0.0)
@@ -777,12 +777,12 @@ const _u_nm = u"nm"
             bd_mp = prospect_budget(lf_mp, mp64)
             @test maximum(abs.(bd_mp.reflectance .+ bd_mp.transmission .+ bd_mp.absorptance .- 1.0)) <= 1e-13
         end
-        @test_throws ArgumentError createMultiPigmentOpticalStruct(λ_bnds; basis = :unknown_basis)
+        @test_throws ArgumentError MultiPigmentOpticalProperties(λ_bnds; basis = :unknown_basis)
     end
 
     @testset "9. Epicuticular Wax Dispersion & Surface-Coupled BSDF / Canopy Consumer Sites" begin
         λ_bnds = (399.5:100.0:2499.5) .* _u_nm
-        opt_w = createLeafOpticalStruct(λ_bnds)
+        opt_w = LeafOpticalProperties(λ_bnds)
         n_wax = load_wax_refractive_index(λ_bnds)
         n_wax32 = load_wax_refractive_index(λ_bnds; FT = Float32)
         @test eltype(n_wax) === Float64 && eltype(n_wax32) === Float32
@@ -1007,9 +1007,9 @@ const _u_nm = u"nm"
         f740 = leaf_emission_fates(dpo_740.escape, bp_blue)
         @test (f685.front / f685.back) > 2.0 * (f740.front / f740.back)
 
-        # CUDA device broadcast verification on NVIDIA L40S
-        if CanopyOptics.CUDA.functional()
-            CanopyOptics.CUDA.allowscalar(false)
+        # Optional CUDA device broadcast verification when CUDA is loaded
+        if isdefined(Main, :CUDA) && Main.CUDA.functional()
+            Main.CUDA.allowscalar(false)
             for FT in (Float32, Float64)
                 escs_cpu = [
                     DorsiventralPlateEscape{FT}(FT(0.8), FT(0.3), FT(0.46), FT(0.44), one(FT)),
@@ -1022,7 +1022,7 @@ const _u_nm = u"nm"
                     DorsiventralBirthProfile{FT}(FT(0.6), FT(0.4)),
                 ]
                 cpu_out = leaf_emission_fates.(escs_cpu, bps_cpu)
-                gpu_out = Array(leaf_emission_fates.(CanopyOptics.CUDA.CuArray(escs_cpu), CanopyOptics.CUDA.CuArray(bps_cpu)))
+                gpu_out = Array(leaf_emission_fates.(Main.CUDA.CuArray(escs_cpu), Main.CUDA.CuArray(bps_cpu)))
                 tol_gpu = FT === Float32 ? FT(5e-6) : FT(1e-13)
                 for k in eachindex(cpu_out)
                     @test isapprox(gpu_out[k].front, cpu_out[k].front; rtol = tol_gpu, atol = tol_gpu)

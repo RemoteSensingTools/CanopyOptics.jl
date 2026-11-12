@@ -20,7 +20,6 @@ effective albedo when using specular components.
 module CanopyOptics
 
 ###### Julia packages to import  ############
-using CUDA: CUDA
 using DelimitedFiles: readdlm
 using Distributions: Beta, Uniform, UnivariateDistribution, params, pdf, support
 using FastGaussQuadrature: gausslegendre
@@ -129,7 +128,8 @@ export AbstractAbsorptionPartition, HomogeneousAbsorption, AbsorptionPartitionRe
        AbsorptionInvalidInput, AbsorptionIncompatibleInput, partition_absorption,
        absorption_valid, AbstractAntennaSelection, ChlorophyllOnly, CarotenoidAntenna,
        antenna_excitation, select_absorbed_photons, photosystem_excitation
-export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties, dirVector, dirVector_μ
+export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties,
+       DirectionCosine, direction_from_angles, dirVector, dirVector_μ
 export AbstractCanopyScatteringType, CanopyQuadrature, BiLambertianCanopyScattering,
        CompositeCanopyScattering, SpecularCanopyScattering,
        LambertianWoodCanopyScattering, LambertianWood

@@ -57,7 +57,7 @@ leaf = CanopyOptics.LeafProspectProProperties{Float64}(
     Cprot = 0.0, Ccbc = 0.0,
 )
 
-opti = CanopyOptics.createLeafOpticalStruct(400.0:1.0:2500.0)
+opti = CanopyOptics.LeafOpticalProperties(400.0:1.0:2500.0)
 T_grid, R_grid = CanopyOptics.prospect(leaf, opti)
 λ_grid   = [Float64(v.val) for v in opti.λ]
 grid_idx = [argmin(abs.(λ_grid .- λ)) for λ in lambda_nm]

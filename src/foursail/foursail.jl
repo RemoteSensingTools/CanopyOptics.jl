@@ -616,50 +616,10 @@ function _check_foursail_soil_dims(soil_ρ, nλ::Int, nangle::Int)
     return nothing
 end
 
-function _geometry_for_leaf(geoms::FourSAILGeometrySet, leaf_ρ::AbstractArray)
-    if leaf_ρ isa CUDA.CuArray
-        geoms.ks isa CUDA.CuArray && return geoms
-        return FourSAILGeometrySet(CUDA.CuArray(geoms.μs),
-                                   CUDA.CuArray(geoms.μo),
-                                   CUDA.CuArray(geoms.dϕ),
-                                   CUDA.CuArray(geoms.dso),
-                                   CUDA.CuArray(geoms.ks),
-                                   CUDA.CuArray(geoms.ko),
-                                   CUDA.CuArray(geoms.sob),
-                                   CUDA.CuArray(geoms.sof),
-                                   CUDA.CuArray(geoms.sdb),
-                                   CUDA.CuArray(geoms.sdf),
-                                   CUDA.CuArray(geoms.dob),
-                                   CUDA.CuArray(geoms.dof),
-                                   CUDA.CuArray(geoms.ddb),
-                                   CUDA.CuArray(geoms.ddf))
-    else
-        geoms.ks isa CUDA.CuArray || return geoms
-        return FourSAILGeometrySet(Array(geoms.μs),
-                                   Array(geoms.μo),
-                                   Array(geoms.dϕ),
-                                   Array(geoms.dso),
-                                   Array(geoms.ks),
-                                   Array(geoms.ko),
-                                   Array(geoms.sob),
-                                   Array(geoms.sof),
-                                   Array(geoms.sdb),
-                                   Array(geoms.sdf),
-                                   Array(geoms.dob),
-                                   Array(geoms.dof),
-                                   Array(geoms.ddb),
-                                   Array(geoms.ddf))
-    end
-end
+_geometry_for_leaf(geoms::FourSAILGeometrySet, ::AbstractArray) = geoms
 
-_array_for_leaf(x::Number, leaf_ρ::AbstractArray) = x
-function _array_for_leaf(x::AbstractArray, leaf_ρ::AbstractArray)
-    if leaf_ρ isa CUDA.CuArray
-        return x isa CUDA.CuArray ? x : CUDA.CuArray(x)
-    else
-        return x isa CUDA.CuArray ? Array(x) : x
-    end
-end
+_array_for_leaf(x::Number, ::AbstractArray) = x
+_array_for_leaf(x::AbstractArray, ::AbstractArray) = x
 
 function _allocate_foursail_result(leaf_ρ::AbstractVector, leaf_τ::AbstractVector,
                                    soil_ρ, geom::FourSAILGeometry, lai, hotspot)

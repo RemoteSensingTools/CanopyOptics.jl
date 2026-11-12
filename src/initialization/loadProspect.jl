@@ -1,30 +1,13 @@
-"""
-    createLeafOpticalStruct(λ_bnds)
-    createLeafOpticalStruct()
+@inline function _default_spectral_float(λ_bnds)
+    ET = eltype(λ_bnds)
+    return ET === Any ? Float64 : float(typeof(ustrip(zero(ET))))
+end
 
-Load the bundled PROSPECT-PRO leaf optical database (`400–2500 nm` at `1 nm`
-resolution, Féret et al., 2021) and bin-average refractive index and specific
-absorption cross-sections over spectral bin edges `λ_bnds`, returning a
-[`LeafOpticalProperties`](@ref) table.
-
-`λ_bnds` may carry any `Unitful` spectral unit (`u"nm"`, `u"μm"`, `u"cm^-1"`)
-or be unitless (interpreted as `nm` with a warning). Calling
-`createLeafOpticalStruct()` uses the native `(399.5:2500.5)u"nm"` `1 nm` grid.
-
-# Examples
-```jldoctest
-julia> using Unitful
-
-julia> opti = createLeafOpticalStruct((400.0:100.0:2400.0)u"nm");
-
-julia> length(opti.nᵣ)
-20
-```
-"""
-function createLeafOpticalStruct(λ_bnds)
+function LeafOpticalProperties{FT}(
+    λ_bnds::AbstractVector = (399.5:2500.5)u"nm",
+) where {FT<:AbstractFloat}
     N = length(λ_bnds) - 1
     N >= 1 || throw(ArgumentError("λ_bnds must contain at least 2 boundary points"))
-    FT = float(eltype(ustrip(first(λ_bnds))))
     λ_ref = unit2nm(λ_bnds)
 
     KS = readdlm(OPTI_2021, '\t', FT)
@@ -54,9 +37,25 @@ function createLeafOpticalStruct(λ_bnds)
     )
 end
 
-function createLeafOpticalStruct()
-    λ_bnds = (399.5:2500.5)u"nm"
-    return createLeafOpticalStruct(λ_bnds)
+function LeafOpticalProperties(
+    λ_bnds::AbstractVector = (399.5:2500.5)u"nm";
+    FT::Type{<:AbstractFloat} = _default_spectral_float(λ_bnds),
+)
+    return LeafOpticalProperties{FT}(λ_bnds)
+end
+
+"""
+    createLeafOpticalStruct(λ_bnds = (399.5:2500.5)u"nm")
+
+Deprecated constructor for [`LeafOpticalProperties`](@ref); call
+`LeafOpticalProperties(λ_bnds)` instead.
+"""
+function createLeafOpticalStruct(λ_bnds::AbstractVector = (399.5:2500.5)u"nm")
+    Base.depwarn(
+        "`createLeafOpticalStruct` is deprecated, use `LeafOpticalProperties` instead.",
+        :createLeafOpticalStruct,
+    )
+    return LeafOpticalProperties(λ_bnds)
 end
 
 """
@@ -122,9 +121,9 @@ function _bin_1nm_columns(
     λ_bnds,
     ::Type{FT},
 ) where {FT<:AbstractFloat}
-    λ_ref = unit2nm(λ_bnds)
     N = length(λ_bnds) - 1
     N >= 1 || throw(ArgumentError("λ_bnds must contain at least 2 boundary points"))
+    λ_ref = unit2nm(λ_bnds)
     λ_q = λ_1nm .* u"nm"
     outs = ntuple(_ -> zeros(FT, N), length(cols))
     i0_ref = firstindex(λ_ref)
@@ -145,40 +144,17 @@ function _bin_1nm_columns(
     return outs
 end
 
-"""
-    createMultiPigmentOpticalStruct(λ_bnds = (399.5:2500.5)u"nm"; basis::Symbol = :calibrated_in_vivo)
-
-Load a [`MultiPigmentOpticalProperties`](@ref) table with separate chlorophyll *a*
-(`Kchla`) and chlorophyll *b* (`Kchlb`) specific absorption cross-sections `[cm² µg⁻¹]`
-averaged onto `λ_bnds`, using consistent mass-based pigment units (`[cm² µg⁻¹]` for
-`Kchla`, `Kchlb`, `Kcar`, and `Kant`) matching Féret et al. (2017, 2021) `OPTI_2021`.
-
-Supported `basis` options:
-- `:calibrated_in_vivo` (default): Empirical in-vivo `Kchla, Kchlb` calibrated on
-  `ANGERS` (`400–800 nm`, inner 5-fold species-grouped cross-validation at `8°`
-  integrating-sphere incidence; `data/multi_pigment_chlab_in_vivo.csv`), spliced to
-  `OPTI_2021` for `λ > 800 nm`.
-- `:prospect_mp_2017`: Published Zhang et al. (2017, *Sci. Rep.* 7:6429) pseudo-Voigt
-  `Kchla, Kchlb, Kcar` on `400–800 nm` (`data/prospect_mp_voigt.toml`), spliced to
-  `OPTI_2021` for `λ > 800 nm` so Lorentzian wings do not leak absorption into NIR/SWIR.
-- `:prospect_mp_plus_2022`: Published Zhang et al. (2022, *Sensors* 22:3025) pseudo-Voigt
-  `Kchla, Kchlb, Kcar, Kant` on `400–800 nm` (`data/prospect_mp_voigt.toml`), spliced to
-  `OPTI_2021` for `λ > 800 nm`.
-- `:prospect_pro_pooled`: Baseline control with `Kchla == Kchlb == Kcab` from `OPTI_2021`.
-"""
-function createMultiPigmentOpticalStruct(
-    λ_bnds = (399.5:2500.5)u"nm";
+function MultiPigmentOpticalProperties{FT}(
+    λ_bnds::AbstractVector = (399.5:2500.5)u"nm";
     basis::Symbol = :calibrated_in_vivo,
-    FT::Type{<:AbstractFloat} = float(eltype(ustrip(first(λ_bnds)))),
-)
+) where {FT<:AbstractFloat}
+    length(λ_bnds) - 1 >= 1 || throw(ArgumentError("λ_bnds must contain at least 2 boundary points"))
     basis in (:calibrated_in_vivo, :prospect_mp_2017, :prospect_mp_plus_2022, :prospect_pro_pooled) ||
         throw(ArgumentError(
             "Unsupported multi-pigment basis :$(basis); expected :calibrated_in_vivo, :prospect_mp_2017, :prospect_mp_plus_2022, or :prospect_pro_pooled",
         ))
     if basis === :prospect_pro_pooled
-        ou_p = unit(first(λ_bnds))
-        bnds_ft = ou_p == NoUnits ? FT.(λ_bnds) : FT.(ustrip.(λ_bnds)) .* ou_p
-        return MultiPigmentOpticalProperties(createLeafOpticalStruct(bnds_ft))
+        return MultiPigmentOpticalProperties(LeafOpticalProperties{FT}(λ_bnds))
     end
     KS = readdlm(OPTI_2021, '\t', FT)
     λ_1nm = KS[:, 1]
@@ -231,8 +207,34 @@ function createMultiPigmentOpticalStruct(
     )
 end
 
+function MultiPigmentOpticalProperties(
+    λ_bnds::AbstractVector = (399.5:2500.5)u"nm";
+    basis::Symbol = :calibrated_in_vivo,
+    FT::Type{<:AbstractFloat} = _default_spectral_float(λ_bnds),
+)
+    return MultiPigmentOpticalProperties{FT}(λ_bnds; basis = basis)
+end
+
 """
-    load_wax_refractive_index(λ_bnds = (399.5:2500.5)u"nm")
+    createMultiPigmentOpticalStruct(λ_bnds = (399.5:2500.5)u"nm"; basis = :calibrated_in_vivo, FT = ...)
+
+Deprecated constructor for [`MultiPigmentOpticalProperties`](@ref); call
+`MultiPigmentOpticalProperties(λ_bnds; basis = ...)` instead.
+"""
+function createMultiPigmentOpticalStruct(
+    λ_bnds::AbstractVector = (399.5:2500.5)u"nm";
+    basis::Symbol = :calibrated_in_vivo,
+    FT::Type{<:AbstractFloat} = _default_spectral_float(λ_bnds),
+)
+    Base.depwarn(
+        "`createMultiPigmentOpticalStruct` is deprecated, use `MultiPigmentOpticalProperties` instead.",
+        :createMultiPigmentOpticalStruct,
+    )
+    return MultiPigmentOpticalProperties{FT}(λ_bnds; basis = basis)
+end
+
+"""
+    load_wax_refractive_index(λ_bnds = (399.5:2500.5)u"nm"; FT = ...)
 
 Load the Stuckens et al. (2009, *Remote Sens. Environ.* 113(12), 2560–2573;
 DOI `10.1016/j.rse.2009.07.014`) epicuticular
@@ -248,7 +250,7 @@ sustaining cuticular surface specular reflectance in the SWIR when passed via
 """
 function load_wax_refractive_index(
     λ_bnds = (399.5:2500.5)u"nm";
-    FT::Type{<:AbstractFloat} = float(eltype(ustrip(first(λ_bnds)))),
+    FT::Type{<:AbstractFloat} = _default_spectral_float(λ_bnds),
 )
     csv_path = joinpath(_PACKAGE_DATA_DIR, "epicuticular_wax_stuckens2009.csv")
     tab, _ = readdlm(csv_path, ',', FT; comments = true, comment_char = '#', header = true)

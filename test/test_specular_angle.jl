@@ -10,12 +10,12 @@ using Test, CanopyOptics, TOML
         for lad in distributions,mu_in in FT.(directions["incoming_cosines"]),
                 mu_out in FT.(directions["outgoing_cosines"]),fraction in FT.(directions["outgoing_azimuth_pi"])
             phi=fraction*FT(pi)
-            incoming=CanopyOptics.dirVector_μ(mu_in,zero(FT))
-            outgoing=CanopyOptics.dirVector_μ(mu_out,phi)
+            incoming=CanopyOptics.DirectionCosine(mu_in,zero(FT))
+            outgoing=CanopyOptics.DirectionCosine(mu_out,phi)
             expected=compute_reflection(model,incoming,outgoing,lad)
             actual=compute_reflection(model,
-                CanopyOptics.dirVector(acos(mu_in),zero(FT)),
-                CanopyOptics.dirVector(acos(mu_out),phi),lad)
+                CanopyOptics.direction_from_angles(acos(mu_in),zero(FT)),
+                CanopyOptics.direction_from_angles(acos(mu_out),phi),lad)
             @test actual isa FT
             @test isfinite(actual)
             @test actual>=zero(FT)

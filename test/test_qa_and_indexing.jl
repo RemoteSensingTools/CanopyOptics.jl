@@ -11,6 +11,10 @@ using Unitful
 @testset "Package QA, Generic Indexing, Stability & Equivalence" begin
     @testset "Aqua.jl hygiene" begin
         Aqua.test_all(CanopyOptics)
+        ext = Base.get_extension(CanopyOptics, :CanopyOpticsCUDAExt)
+        if ext !== nothing
+            @test isempty(Test.detect_ambiguities(CanopyOptics, ext; recursive = true))
+        end
     end
 
     if VERSION >= v"1.11"
@@ -73,18 +77,104 @@ using Unitful
         @test CanopyOptics.H(1.0, 0.0) == 0.0
         @test CanopyOptics.H(-1.0, 0.0) == 0.0
         @test (@inferred CanopyOptics.H(1.0f0, 0.0f0)) === 0.0f0
-        dv_clamp = dirVector_μ(1.0 + 1e-15, 0.25)
+        dv_clamp = DirectionCosine(1.0 + 1e-15, 0.25)
         @test CanopyOptics._unit_sin_from_cos(dv_clamp.μ) == 0.0
-        @test isfinite(dot(dv_clamp, dirVector_μ(0.5, 0.8)))
-        @test isfinite(ForwardDiff.derivative(μ -> dot(dirVector_μ(μ, 0.25), dirVector_μ(0.5, 0.8)), 0.75))
+        @test isfinite(dot(dv_clamp, DirectionCosine(0.5, 0.8)))
+        @test isfinite(ForwardDiff.derivative(μ -> dot(DirectionCosine(μ, 0.25), DirectionCosine(0.5, 0.8)), 0.75))
+
+        # DirectionCosine constructors, direction_from_angles, and deprecations
+        @test DirectionCosine(1, 0) === DirectionCosine{Float64}(1.0, 0.0)
+        @test DirectionCosine(μ = 0.6f0, ϕ = 0.2f0) === DirectionCosine{Float32}(0.6f0, 0.2f0)
+        @test DirectionCosine(θ = 0.5, ϕ = 1.1) === direction_from_angles(0.5, 1.1)
+        @test_throws ArgumentError DirectionCosine()
+        @test_throws ArgumentError DirectionCosine(μ = 0.5, θ = 0.5)
+        @test CanopyOptics.scattering_model_lambertian(
+            DirectionCosine(0.8, 0.0),
+            DirectionCosine(-0.5, 0.4),
+            DirectionCosine(1.0, 0.0),
+            0.4,
+            0.2,
+        ) ≈ 0.4 * 0.5 / π
+        @test (@test_deprecated dirVector(0.5, 1.1)) === direction_from_angles(0.5, 1.1)
+        @test Base.isdeprecated(CanopyOptics, :dirVector_μ)
+        @test getfield(CanopyOptics, :dirVector_μ)(0.8, 0.2) === DirectionCosine(0.8, 0.2)
+
+        # Primary optical constructors, parametric {FT} forms, mixed-real leaf constructors, and deprecations
+        bnds_short = (400.0:500.0:2400.0)u"nm"
+        opt32 = LeafOpticalProperties{Float32}(bnds_short)
+        @test opt32 isa LeafOpticalProperties{Float32}
+        @test LeafOpticalProperties(bnds_short; FT = Float32) == opt32
+        mp32 = MultiPigmentOpticalProperties{Float32}(bnds_short)
+        @test mp32 isa MultiPigmentOpticalProperties{Float32}
+        @test MultiPigmentOpticalProperties(bnds_short; FT = Float32) == mp32
+        @test (@test_deprecated createLeafOpticalStruct(bnds_short)) == LeafOpticalProperties(bnds_short)
+        @test (@test_deprecated createMultiPigmentOpticalStruct(bnds_short)) == MultiPigmentOpticalProperties(bnds_short)
+        @test_throws ArgumentError LeafOpticalProperties(Float64[])
+        @test_throws ArgumentError MultiPigmentOpticalProperties(Float64[])
+        @test_throws ArgumentError load_wax_refractive_index(Float64[])
+        @test LeafProspectProProperties(2, 40.0, 10, 0.5, 0, 0.012, 0, 0.001, 0.009) isa LeafProspectProProperties{Float64}
+        @test LeafMultiPigmentProperties(2, 30.0, 10, 10, 0.5, 0, 0.012, 0, 0.001, 0.009) isa LeafMultiPigmentProperties{Float64}
+        @test LeafSIPProperties(40, 0, 0, 10.0, 0.5, 0, 0.012, 0.008, 0, 0, 600, 2765.0, 102.8) isa LeafSIPProperties{Float64}
+
+        # Mixed-precision DiscreteAngularNormalization{Float32} with Float64 / Dual BiLambertianCanopyScattering
+        μ32, w32 = CanopyOptics.gauleg(6, 0.0f0, 1.0f0)
+        norm32 = DiscreteAngularNormalization(μ32, w32; atol = 1.0f-5)
+        lad32 = planophile_leaves(Float32)
+        Zpp_mp, Zmp_mp = compute_Z_matrices(
+            BiLambertianCanopyScattering(0.4, 0.3), μ32, lad32, 0:2;
+            angular_normalization = norm32,
+        )
+        @test eltype(Zpp_mp) === Float64 && eltype(Zmp_mp) === Float64
+        cols_mp = vec(transpose(Float64.(w32)) * (Zpp_mp[:, :, 1] + Zmp_mp[:, :, 1])) / 2.0
+        @test isapprox(cols_mp, ones(Float64, length(μ32)); atol = 1e-13, rtol = 1e-13)
+        f_mp(r) = sum(last(compute_Z_matrices(
+            BiLambertianCanopyScattering(r, 0.3), μ32, lad32, 0;
+            angular_normalization = norm32,
+        )))
+        dZ_mp = ForwardDiff.derivative(f_mp, 0.4)
+        @test isfinite(dZ_mp) && dZ_mp > 0
+        @test isapprox(dZ_mp, (f_mp(0.4 + 1e-6) - f_mp(0.4 - 1e-6)) / 2e-6; rtol = 1e-6)
+
+        # Mixed-precision / ForwardDiff.Dual DirectionCosine pairs in compute_Γ*
+        @test isfinite(ForwardDiff.derivative(
+            μ -> CanopyOptics.compute_Γ(
+                BiLambertianCanopyScattering(0.4, 0.3),
+                DirectionCosine(μ, 0.0),
+                DirectionCosine(0.5f0, 0.4f0),
+                lad,
+            ),
+            0.7,
+        ))
+        @test isfinite(ForwardDiff.derivative(
+            μ -> CanopyOptics.compute_Γ_isotropic(
+                BiLambertianCanopyScattering(0.4, 0.3),
+                DirectionCosine(μ, 0.0),
+                DirectionCosine(0.5f0, 0.4f0),
+            ),
+            0.7,
+        ))
+        @test isfinite(ForwardDiff.derivative(
+            μ -> compute_Γ_directional(
+                DorsiventralBiLambertianCanopyScattering(0.4, 0.3, 0.45, 0.3),
+                DirectionCosine(μ, 0.0),
+                DirectionCosine(0.5f0, 0.4f0),
+                lad,
+            ),
+            0.7,
+        ))
     end
 
     @testset "Base.:(==) and Base.hash invariant on container structs" begin
         bnds = (400.0:500.0:2400.0)u"nm"
+        μ_dn, w_dn = CanopyOptics.gauleg(6, 0.0, 1.0)
         pairs_to_check = [
             (planophile_leaves(Float64), planophile_leaves(Float64)),
-            (createLeafOpticalStruct(bnds), createLeafOpticalStruct(bnds)),
-            (createMultiPigmentOpticalStruct(bnds), createMultiPigmentOpticalStruct(bnds)),
+            (LeafOpticalProperties(bnds), LeafOpticalProperties(bnds)),
+            (MultiPigmentOpticalProperties(bnds), MultiPigmentOpticalProperties(bnds)),
+            (
+                DiscreteAngularNormalization(vcat(μ_dn, [0.5]), vcat(w_dn, [0.0]); atol = 1e-12),
+                DiscreteAngularNormalization(vcat(μ_dn, [0.5]), vcat(w_dn, [-0.0]); atol = 1e-12),
+            ),
             (
                 prepare_leaf_bsdf(
                     CoupledLeafBSDF(
@@ -94,7 +184,7 @@ using Unitful
                             surface_abaxial = RoughDielectricSurface(0.25, 1.0),
                         ),
                     ),
-                    createMultiPigmentOpticalStruct(bnds),
+                    MultiPigmentOpticalProperties(bnds),
                 ),
                 prepare_leaf_bsdf(
                     CoupledLeafBSDF(
@@ -104,7 +194,7 @@ using Unitful
                             surface_abaxial = RoughDielectricSurface(0.25, 1.0),
                         ),
                     ),
-                    createMultiPigmentOpticalStruct(bnds),
+                    MultiPigmentOpticalProperties(bnds),
                 ),
             ),
             (LUTWoodReflectance([400.0, 800.0], [0.1, 0.3]), LUTWoodReflectance([400.0, 800.0], [0.1, 0.3])),
@@ -132,13 +222,20 @@ using Unitful
         bnds_off = OffsetArray(bnds_vec, -3)
         bnds_vw  = @view bnds_vec[1:end]
 
-        opti_ref = createLeafOpticalStruct(bnds_vec)
-        @test createLeafOpticalStruct(bnds_off) == opti_ref
-        @test createLeafOpticalStruct(bnds_vw) == opti_ref
+        opti_ref = LeafOpticalProperties(bnds_vec)
+        @test LeafOpticalProperties(bnds_off) == opti_ref
+        @test LeafOpticalProperties(bnds_vw) == opti_ref
 
-        opti_mp = createMultiPigmentOpticalStruct(bnds_vec)
-        @test createMultiPigmentOpticalStruct(bnds_off) == opti_mp
-        @test createMultiPigmentOpticalStruct(bnds_vw) == opti_mp
+        opti_mp = MultiPigmentOpticalProperties(bnds_vec)
+        @test MultiPigmentOpticalProperties(bnds_off) == opti_mp
+        @test MultiPigmentOpticalProperties(bnds_vw) == opti_mp
+
+        μ_dn, w_dn = CanopyOptics.gauleg(6, 0.0, 1.0)
+        norm_ref = DiscreteAngularNormalization(μ_dn, w_dn; atol = 1e-12)
+        norm_off = DiscreteAngularNormalization(OffsetArray(μ_dn, -2), OffsetArray(w_dn, 5); atol = 1e-12)
+        @test norm_off == norm_ref
+        @test compute_Z_matrices(BiLambertianCanopyScattering(0.4, 0.3), OffsetArray(μ_dn, -4), spherical_leaves(), 0; angular_normalization = norm_ref) ==
+              compute_Z_matrices(BiLambertianCanopyScattering(0.4, 0.3), μ_dn, spherical_leaves(), 0; angular_normalization = norm_ref)
 
         nwax = load_wax_refractive_index(bnds_vec)
         @test load_wax_refractive_index(bnds_off) == nwax
@@ -251,7 +348,7 @@ using Unitful
 
         # Verify ForwardDiff gradients through dorsiventral_budget & leaf_bsdf_spectrum (including nadir μ = 1.0)
         bnds = (400.0:500.0:2400.0)u"nm"
-        opti_mp = createMultiPigmentOpticalStruct(bnds)
+        opti_mp = MultiPigmentOpticalProperties(bnds)
         f_dv = function (θ)
             lf = LeafMultiPigmentProperties(Cchla = θ[1], Cchlb = 10.0)
             dv = dorsiventral_from_traits(
@@ -333,7 +430,7 @@ using Unitful
         @test all(isfinite, g_sail_hs)
 
         # MultiPigmentOpticalProperties from OffsetArray spectral vectors, dry SoilMW mᵥ = 0, & mixed-FT LeafDistribution hash
-        mp_off = MultiPigmentOpticalProperties(createLeafOpticalStruct(bnds); Kchla = OffsetArray(opti_mp.Kchla, -3), nᵣ = OffsetArray(opti_mp.nᵣ, 4))
+        mp_off = MultiPigmentOpticalProperties(LeafOpticalProperties(bnds); Kchla = OffsetArray(opti_mp.Kchla, -3), nᵣ = OffsetArray(opti_mp.nᵣ, 4))
         @test mp_off.Kchla == opti_mp.Kchla && mp_off.nᵣ == opti_mp.nᵣ
         ε_dry = dielectric(SoilMW(0.4, 0.3, 0.0, 1.5), 290.0, 1.4)
         @test isfinite(real(ε_dry)) && iszero(imag(ε_dry))
