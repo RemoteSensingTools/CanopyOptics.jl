@@ -141,38 +141,12 @@ end
     return att12.transmission, a1, a2_rem
 end
 
-"""
-    single_slab_dorsiventral_budget(k_pal, k_spo, nr, surf_ad, surf_ab;
-                                    μ_ad = 1, μ_ab = 1, hemispherical = false,
-                                    n_surface_adaxial = nr, n_surface_abaxial = nr)
-
-Exact `N = 1` unbroken two-sublayer dorsiventral slab (`I_ad ⋆ S₂(k_pal, k_spo) ⋆ I_ab`)
-without any artificial internal air gap or `(2 E₃(k/2))²` splitting error.
-"""
-@inline function single_slab_dorsiventral_budget(
-    k_pal_in::FT1,
-    k_spo_in::FT2,
-    nr_in::FT3,
-    surf_ad::AbstractLeafSurface{FTS1},
-    surf_ab::AbstractLeafSurface{FTS2};
-    μ_ad::Real = 1,
-    μ_ab::Real = 1,
-    hemispherical::Bool = false,
-    n_surface_adaxial::Real = nr_in,
-    n_surface_abaxial::Real = nr_in,
-) where {FT1<:Real,FT2<:Real,FT3<:Real,FTS1<:Real,FTS2<:Real}
-    FT = promote_type(
-        FT1, FT2, FT3, FTS1, FTS2,
-        typeof(μ_ad), typeof(μ_ab),
-        typeof(n_surface_adaxial), typeof(n_surface_abaxial),
-    )
-    k_pal = FT(k_pal_in)
-    k_spo = FT(k_spo_in)
-    nr = FT(nr_in)
-
-    s_ad = surface_interface_optics(surf_ad, FT(μ_ad), nr; hemispherical, n_surface = FT(n_surface_adaxial))
-    s_ab = surface_interface_optics(surf_ab, FT(μ_ab), nr; hemispherical, n_surface = FT(n_surface_abaxial))
-
+@inline function _single_slab_dorsiventral_from_surfaces(
+    k_pal::FT,
+    k_spo::FT,
+    s_ad,
+    s_ab,
+) where {FT<:Real}
     τ_12, a1_dn, a2_dn = _sublayer_chord_split(k_pal, k_spo)
     _, a2_up, a1_up = _sublayer_chord_split(k_spo, k_pal)
     a_tot = a1_dn + a2_dn
@@ -191,7 +165,7 @@ without any artificial internal air gap or `(2 E₃(k/2))²` splitting error.
     as_ad = s_ad.t_ext * (a2_dn + τ_12 * r_ab_int * a2_up) * inv_d
 
     t_ab = s_ab.t_ext * τ_12 * s_ad.t_int_diffuse * inv_d
-    r_vol_ab = s_ab.t_ext * (τ_12 * τ_12 * r_ad_int * s_ab.t_int_diffuse) * inv_d
+    r_vol_ab = s_ab.t_ext * (τ_12 * τ_12 * r_ad_int * s_ad.t_int_diffuse) * inv_d
     r_ab = s_ab.r_ext + r_vol_ab
     ap_ab = s_ab.t_ext * (a1_up + τ_12 * r_ad_int * a1_dn) * inv_d
     as_ab = s_ab.t_ext * (a2_up + τ_12 * r_ad_int * a2_dn) * inv_d
@@ -217,28 +191,48 @@ without any artificial internal air gap or `(2 E₃(k/2))²` splitting error.
 end
 
 """
-Scalar two-zone dorsiventral mesophyll stack for `N_pal >= 1, N_spo >= 1`
-(`N = N_pal + N_spo >= 2`):
-`P_top(k_pal, surf_ad, int) ⋆ P_int(k_pal)^{N_pal - 1} ⋆ P_int(k_spo)^{N_spo - 1} ⋆ P_bot(k_spo, int, surf_ab)`
-where `k_pal` and `k_spo` are per-plate optical depths (`K_pal_zone / N_pal` and
-`K_spo_zone / N_spo`).
+    single_slab_dorsiventral_budget(k_pal, k_spo, nr, surf_ad, surf_ab;
+                                    μ_ad = 1, μ_ab = 1, hemispherical = false,
+                                    n_surface_adaxial = nr, n_surface_abaxial = nr)
+
+Exact `N = 1` unbroken two-sublayer dorsiventral slab (`I_ad ⋆ S₂(k_pal, k_spo) ⋆ I_ab`)
+without any artificial internal air gap or `(2 E₃(k/2))²` splitting error.
 """
-@inline function _two_zone_dorsiventral_scalar(
+@inline function single_slab_dorsiventral_budget(
+    k_pal_in::FT1,
+    k_spo_in::FT2,
+    nr_in::FT3,
+    surf_ad::AbstractLeafSurface{FTS1},
+    surf_ab::AbstractLeafSurface{FTS2};
+    μ_ad::Real = 1,
+    μ_ab::Real = 1,
+    hemispherical::Bool = false,
+    n_surface_adaxial::Real = nr_in,
+    n_surface_abaxial::Real = nr_in,
+) where {FT1<:Real,FT2<:Real,FT3<:Real,FTS1<:Real,FTS2<:Real}
+    FT = float(promote_type(
+        FT1, FT2, FT3, FTS1, FTS2,
+        typeof(μ_ad), typeof(μ_ab),
+        typeof(n_surface_adaxial), typeof(n_surface_abaxial),
+    ))
+    k_pal = FT(k_pal_in)
+    k_spo = FT(k_spo_in)
+    nr = FT(nr_in)
+
+    s_ad = surface_interface_optics(surf_ad, FT(μ_ad), nr; hemispherical, n_surface = FT(n_surface_adaxial))
+    s_ab = surface_interface_optics(surf_ab, FT(μ_ab), nr; hemispherical, n_surface = FT(n_surface_abaxial))
+    return _single_slab_dorsiventral_from_surfaces(k_pal, k_spo, s_ad, s_ab)
+end
+
+@inline function _two_zone_dorsiventral_from_surfaces(
     k_pal_unit::FT,
     N_pal::FT,
     k_spo_unit::FT,
     N_spo::FT,
     nr::FT,
-    surf_ad::AbstractLeafSurface,
-    surf_ab::AbstractLeafSurface,
-    μ_ad::FT,
-    μ_ab::FT,
-    hemispherical::Bool,
-    n_surf_ad::FT = nr,
-    n_surf_ab::FT = nr,
+    s_ad,
+    s_ab,
 ) where {FT<:Real}
-    s_ad = surface_interface_optics(surf_ad, μ_ad, nr; hemispherical, n_surface = n_surf_ad)
-    s_ab = surface_interface_optics(surf_ab, μ_ab, nr; hemispherical, n_surface = n_surf_ab)
     t12_int = calctav_smooth(FT(90), nr)
     t21_int = t12_int / (nr * nr)
     z = zero(FT)
@@ -301,6 +295,25 @@ where `k_pal` and `k_spo` are per-plate optical depths (`K_pal_zone / N_pal` and
             reflectance_volume = r_vol_ab,
         ),
     )
+end
+
+@inline function _two_zone_dorsiventral_scalar(
+    k_pal_unit::FT,
+    N_pal::FT,
+    k_spo_unit::FT,
+    N_spo::FT,
+    nr::FT,
+    surf_ad::AbstractLeafSurface,
+    surf_ab::AbstractLeafSurface,
+    μ_ad::FT,
+    μ_ab::FT,
+    hemispherical::Bool,
+    n_surf_ad::FT = nr,
+    n_surf_ab::FT = nr,
+) where {FT<:Real}
+    s_ad = surface_interface_optics(surf_ad, μ_ad, nr; hemispherical, n_surface = n_surf_ad)
+    s_ab = surface_interface_optics(surf_ab, μ_ab, nr; hemispherical, n_surface = n_surf_ab)
+    return _two_zone_dorsiventral_from_surfaces(k_pal_unit, N_pal, k_spo_unit, N_spo, nr, s_ad, s_ab)
 end
 
 @inline function _blend_dorsiventral_face(f1, f2, w1::FT, w2::FT) where {FT<:Real}
@@ -650,37 +663,29 @@ function dorsiventral_budget(
     μ_ad_ft = FT(μ_ad)
     μ_ab_ft = FT(μ_ab)
 
+    prep_ad = _prepare_surface_cheb(FT, leaf.surface_adaxial, μ_ad_ft, hemispherical)
+    prep_ab = _prepare_surface_cheb(FT, leaf.surface_abaxial, μ_ab_ft, hemispherical)
+    ns_ad_off = n_surface_adaxial === nothing ? 0 : firstindex(n_surface_adaxial) - 1
+    ns_ab_off = n_surface_abaxial === nothing ? 0 : firstindex(n_surface_abaxial) - 1
+
     @inbounds for idx in 1:nλ
         nr = FT(optics.nᵣ[idx])
-        ns_ad = n_surface_adaxial === nothing ? nr : FT(n_surface_adaxial[idx])
-        ns_ab = n_surface_abaxial === nothing ? nr : FT(n_surface_abaxial[idx])
+        ns_ad = n_surface_adaxial === nothing ? nr : FT(n_surface_adaxial[ns_ad_off + idx])
+        ns_ab = n_surface_abaxial === nothing ? nr : FT(n_surface_abaxial[ns_ab_off + idx])
+        s_ad = _eval_prepared_surface(leaf.surface_adaxial, prep_ad, μ_ad_ft, nr, ns_ad, hemispherical)
+        s_ab = _eval_prepared_surface(leaf.surface_abaxial, prep_ab, μ_ab_ft, nr, ns_ab, hemispherical)
         Kp = FT(K_pal_vec[idx])
         Ks = FT(K_spo_vec[idx])
 
         res = if leaf.single_slab || exact_one
-            single_slab_dorsiventral_budget(
-                Kp, Ks, nr, leaf.surface_adaxial, leaf.surface_abaxial;
-                μ_ad = μ_ad_ft, μ_ab = μ_ab_ft, hemispherical,
-                n_surface_adaxial = ns_ad, n_surface_abaxial = ns_ab,
-            )
+            _single_slab_dorsiventral_from_surfaces(Kp, Ks, s_ad, s_ab)
         elseif sub_two
-            bd_1 = single_slab_dorsiventral_budget(
-                Kp, Ks, nr, leaf.surface_adaxial, leaf.surface_abaxial;
-                μ_ad = μ_ad_ft, μ_ab = μ_ab_ft, hemispherical,
-                n_surface_adaxial = ns_ad, n_surface_abaxial = ns_ab,
-            )
-            bd_2 = _two_zone_dorsiventral_scalar(
-                Kp, one(FT), Ks, one(FT),
-                nr, leaf.surface_adaxial, leaf.surface_abaxial,
-                μ_ad_ft, μ_ab_ft, hemispherical, ns_ad, ns_ab,
-            )
+            bd_1 = _single_slab_dorsiventral_from_surfaces(Kp, Ks, s_ad, s_ab)
+            bd_2 = _two_zone_dorsiventral_from_surfaces(Kp, one(FT), Ks, one(FT), nr, s_ad, s_ab)
             _blend_dorsiventral_result(bd_1, bd_2, N_tot - one(FT))
         else
-            _two_zone_dorsiventral_scalar(
-                Kp / N_pal, N_pal,
-                Ks / N_spo, N_spo,
-                nr, leaf.surface_adaxial, leaf.surface_abaxial,
-                μ_ad_ft, μ_ab_ft, hemispherical, ns_ad, ns_ab,
+            _two_zone_dorsiventral_from_surfaces(
+                Kp / N_pal, N_pal, Ks / N_spo, N_spo, nr, s_ad, s_ab,
             )
         end
         ad, ab = res.adaxial, res.abaxial
@@ -745,37 +750,28 @@ function dorsiventral_budget(
     T_ad = Vector{FT}(undef, nλ); R_ad = Vector{FT}(undef, nλ); A_ad = Vector{FT}(undef, nλ); Rv_ad = Vector{FT}(undef, nλ)
     T_ab = Vector{FT}(undef, nλ); R_ab = Vector{FT}(undef, nλ); A_ab = Vector{FT}(undef, nλ); Rv_ab = Vector{FT}(undef, nλ)
 
+    prep_ad = _prepare_surface_cheb(FT, asym.surface_adaxial, μ_ad_ft, hemispherical)
+    prep_ab = _prepare_surface_cheb(FT, asym.surface_abaxial, μ_ab_ft, hemispherical)
+    ns_ad_off = n_surface_adaxial === nothing ? 0 : firstindex(n_surface_adaxial) - 1
+    ns_ab_off = n_surface_abaxial === nothing ? 0 : firstindex(n_surface_abaxial) - 1
+
     @inbounds for idx in 1:nλ
         nr = FT(optics.nᵣ[idx])
-        ns_ad = n_surface_adaxial === nothing ? nr : FT(n_surface_adaxial[idx])
-        ns_ab = n_surface_abaxial === nothing ? nr : FT(n_surface_abaxial[idx])
+        ns_ad = n_surface_adaxial === nothing ? nr : FT(n_surface_adaxial[ns_ad_off + idx])
+        ns_ab = n_surface_abaxial === nothing ? nr : FT(n_surface_abaxial[ns_ab_off + idx])
+        s_ad = _eval_prepared_surface(asym.surface_adaxial, prep_ad, μ_ad_ft, nr, ns_ad, hemispherical)
+        s_ab = _eval_prepared_surface(asym.surface_abaxial, prep_ab, μ_ab_ft, nr, ns_ab, hemispherical)
         K = FT(K_tot[idx])
         res = if exact_one
-            single_slab_dorsiventral_budget(
-                K * half, K * half, nr, asym.surface_adaxial, asym.surface_abaxial;
-                μ_ad = μ_ad_ft, μ_ab = μ_ab_ft, hemispherical,
-                n_surface_adaxial = ns_ad, n_surface_abaxial = ns_ab,
-            )
+            _single_slab_dorsiventral_from_surfaces(K * half, K * half, s_ad, s_ab)
         elseif sub_two
-            bd_1 = single_slab_dorsiventral_budget(
-                K * half, K * half, nr, asym.surface_adaxial, asym.surface_abaxial;
-                μ_ad = μ_ad_ft, μ_ab = μ_ab_ft, hemispherical,
-                n_surface_adaxial = ns_ad, n_surface_abaxial = ns_ab,
-            )
-            bd_2 = _two_zone_dorsiventral_scalar(
-                K * half, one(FT), K * half, one(FT), nr,
-                asym.surface_adaxial, asym.surface_abaxial,
-                μ_ad_ft, μ_ab_ft, hemispherical, ns_ad, ns_ab,
-            )
+            bd_1 = _single_slab_dorsiventral_from_surfaces(K * half, K * half, s_ad, s_ab)
+            bd_2 = _two_zone_dorsiventral_from_surfaces(K * half, one(FT), K * half, one(FT), nr, s_ad, s_ab)
             _blend_dorsiventral_result(bd_1, bd_2, N_ft - one(FT))
         else
             N_half = N_ft * half
             k_unit = K / N_ft
-            _two_zone_dorsiventral_scalar(
-                k_unit, N_half, k_unit, N_half, nr,
-                asym.surface_adaxial, asym.surface_abaxial,
-                μ_ad_ft, μ_ab_ft, hemispherical, ns_ad, ns_ab,
-            )
+            _two_zone_dorsiventral_from_surfaces(k_unit, N_half, k_unit, N_half, nr, s_ad, s_ab)
         end
         T_ad[idx] = res.adaxial.transmission; R_ad[idx] = res.adaxial.reflectance
         A_ad[idx] = res.adaxial.absorptance; Rv_ad[idx] = res.adaxial.reflectance_volume

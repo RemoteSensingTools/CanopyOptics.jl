@@ -1,51 +1,58 @@
 """
-    fresnel_components(n::FT, θᵢ::FT) where FT
+    fresnel_components(n, θᵢ)
 
-Returns the Fresnel amplitude reflectances `(r_s, r_p)` for an air–medium interface
-(refractive index of air = 1) at incidence angle `θᵢ` (radians).
+Compute real-dielectric Fresnel amplitude reflectances `(r_s, r_p)` for an
+air-to-medium interface (`n_air = 1`, medium refractive index `n >= 1`) at
+incidence angle `θᵢ` in radians (Born & Wolf, *Principles of Optics*,
+Eqs. 1.5.45–1.5.46):
 
-- `r_s`: s-polarization (TE, perpendicular) amplitude reflectance
-- `r_p`: p-polarization (TM, parallel) amplitude reflectance
+```math
+r_s = \\frac{\\cos\\theta_i - n\\cos\\theta_t}{\\cos\\theta_i + n\\cos\\theta_t},
+\\qquad
+r_p = \\frac{n\\cos\\theta_i - \\cos\\theta_t}{n\\cos\\theta_i + \\cos\\theta_t},
+```
 
-The refracted angle is computed via Snell's law: `sin θₜ = sin θᵢ / n`.
+where `sin θ_t = sin θ_i / n`.
 
-Fresnel equations (see Born & Wolf, *Principles of Optics*, Eqs. 1.5.45–1.5.46):
+# Examples
+```jldoctest
+julia> rs, rp = CanopyOptics.fresnel_components(1.5, 0.0);
 
-``r_s = \\frac{\\cos θᵢ - n \\cos θₜ}{\\cos θᵢ + n \\cos θₜ}``
-
-``r_p = \\frac{n \\cos θᵢ - \\cos θₜ}{n \\cos θᵢ + \\cos θₜ}``
-
-Note: `n` must be real. For full Stokes propagation in vSmartMOM.jl, use the
-individual components to form the Mueller reflection matrix:
-
-``M = \\begin{pmatrix} (r_s^2+r_p^2)/2 & (r_s^2-r_p^2)/2 & 0 & 0 \\\\
-                       (r_s^2-r_p^2)/2 & (r_s^2+r_p^2)/2 & 0 & 0 \\\\
-                       0 & 0 & r_s r_p & 0 \\\\
-                       0 & 0 & 0 & r_s r_p \\end{pmatrix}``
+julia> (round(rs; digits = 4), round(rp; digits = 4))
+(-0.2, 0.2)
+```
 """
-function fresnel_components(n::FTN, θᵢ::FTθ) where {FTN<:Real,FTθ<:Real}
-    FT = promote_type(FTN, FTθ)
+@inline function fresnel_components(n::FTN, θᵢ::FTθ) where {FTN<:Real,FTθ<:Real}
+    FT = float(promote_type(FTN, FTθ))
+    BFT = _leaf_base_float(FT)
     n_medium = FT(n)
     θ = FT(θᵢ)
-    nᵢ = FT(1)
-    θₜ = asin(nᵢ * sin(θ) / n_medium)
-    r_s = (nᵢ * cos(θ) - n_medium * cos(θₜ)) / (nᵢ * cos(θ) + n_medium * cos(θₜ))
-    r_p = (n_medium * cos(θ) - nᵢ * cos(θₜ)) / (n_medium * cos(θ) + nᵢ * cos(θₜ))
+    sθ, cθ = sincos(θ)
+    sin_t = sθ / n_medium
+    u_t = (one(FT) - sin_t) * (one(FT) + sin_t)
+    cθ_t = prospect_primal(u_t) <= zero(BFT) ? zero(FT) : sqrt(u_t)
+    nc_t = n_medium * cθ_t
+    nc_i = n_medium * cθ
+    r_s = (cθ - nc_t) / (cθ + nc_t)
+    r_p = (nc_i - cθ_t) / (nc_i + cθ_t)
     return r_s, r_p
 end
 
 """
-    Fᵣ(n::FT, θᵢ::FT) where FT
+    Fᵣ(n, θᵢ)
 
-Returns the unpolarized Fresnel reflectance `(r_s² + r_p²) / 2` for an air–medium
-interface at incidence angle `θᵢ` (radians), where `n` is the real refractive index
-of the medium (refractive index of air = 1).
+Compute unpolarized Fresnel power reflectance `(r_s² + r_p²) / 2` for an
+air-to-medium interface with real refractive index `n` at incidence angle `θᵢ`
+in radians. See [`fresnel_components`](@ref).
 
-Calls [`fresnel_components`](@ref) internally. For polarization-resolved output
-(needed for full Stokes vector propagation in vSmartMOM.jl), use `fresnel_components`
-directly to obtain `r_s` and `r_p` separately.
+# Examples
+```jldoctest
+julia> round(CanopyOptics.Fᵣ(1.5, 0.0); digits = 4)
+0.04
+```
 """
-function Fᵣ(n::FTN, θᵢ::FTθ) where {FTN<:Real,FTθ<:Real}
+@inline function Fᵣ(n::FTN, θᵢ::FTθ) where {FTN<:Real,FTθ<:Real}
     r_s, r_p = fresnel_components(n, θᵢ)
-    return (r_s^2 + r_p^2) / 2
+    FT = typeof(r_s)
+    return (r_s * r_s + r_p * r_p) / FT(2)
 end

@@ -197,12 +197,13 @@ function compute_Z_matrices_directional(
         )
     end
 
-    μ_vec = collect(μ)
+    μ_vec = μ isa Vector{FT} ? μ : copyto!(Vector{FT}(undef, length(μ)), μ)
     μ_work = ZFT.(μ_vec)
-    leaf_quad = _leaf_inclination_quadrature(LD, q.n_leaf, FT)
+    QFT = _leaf_base_float(ZFT)
+    leaf_quad = _leaf_inclination_quadrature(LD, q.n_leaf, QFT)
     θₗ = leaf_quad.θ
     w_measure = leaf_quad.w_measure
-    G_vec = ZFT.(vec(CanopyOptics.G(μ_vec, LD; quadrature = q)))
+    G_vec = ZFT.(vec(G(μ_vec, LD; quadrature = q)))
 
     Pꜜ = zeros(ZFT, nμ, nm)
     Nꜜ = zeros(ZFT, nμ, nm)
@@ -395,100 +396,48 @@ function compute_Z_matrices_coupled_bsdf(
     cn = ZFT(prep.c_norm[idx_λ])
     d_bar = ZFT(prep.d_bar[idx_λ])
     has_lobe = prospect_primal(η_t) > zero(BFT)
-    surf_ad_obj = RoughDielectricSurface{ZFT}(σ_ad, ns_ad)
-    surf_ab_obj = RoughDielectricSurface{ZFT}(σ_ab, ns_ab)
 
-    μ_vec = collect(μ)
-    G_vec = ZFT.(vec(CanopyOptics.G(μ_vec, LD; quadrature)))
-    leaf_quad = _leaf_inclination_quadrature(LD, quadrature.n_leaf, FT)
+    μ_vec = μ isa Vector{FT} ? μ : copyto!(Vector{FT}(undef, length(μ)), μ)
+    G_vec = ZFT.(vec(G(μ_vec, LD; quadrature)))
+    QFT = _leaf_base_float(ZFT)
+    leaf_quad = _leaf_inclination_quadrature(LD, quadrature.n_leaf, QFT)
     # Periodic midpoint quadrature on [0, 2π) with even N_ϕ: spectrally accurate on S^1
     # AND invariant under ϕ_L -> π - ϕ_L, preserving discrete 4-block reciprocity to ~1e-14!
     nL_ϕ = 2 * max(1, div(quadrature.n_azimuth + 1, 2))
-    dϕ_out, w_dϕ = gauleg(quadrature.n_azimuth, FT(0), FT(π)) # even symmetry in Δϕ!
+    dϕ_out, w_dϕ = gauleg(quadrature.n_azimuth, zero(QFT), QFT(π)) # even symmetry in Δϕ!
 
-    # Helper evaluating scalar leaf BSDF f(k_in -> k_out; n_ad) * |k_in ⋅ n_ad| * |k_out ⋅ n_ad|
     two = one(ZFT) + one(ZFT)
     four = two + two
+    half = inv(two)
     inv_pi = inv(ZFT(π))
-    inv_2pi = inv(two * ZFT(π))
 
     # Precompute 257-node 1D lookup tables on μ_loc ∈ [0, 1] for r_ext(μ) and L_s'(μ)
-    # so the 5D (j, i, Δϕ, ϕ_L, θ_L) canopy integration never repeats 2D quadrature in the inner loop.
+    # using exact slope-cdf directional reflectance and precomputed 12-node GL escape columns.
+    e_col_ad = view(prep.e_gl12_ad, :, idx_λ)
+    e_col_ab = view(prep.e_gl12_ab, :, idx_λ)
+    same_surf = _same_val_and_partials(σ_ad, σ_ab) &&
+                _same_val_and_partials(n_eff_ad, n_eff_ab) &&
+                _same_val_and_partials(th_ad, th_ab)
+
     n_lut = 256
     r_ext_ad_tab = Vector{ZFT}(undef, n_lut + 1)
     r_ext_ab_tab = Vector{ZFT}(undef, n_lut + 1)
-    L_ad_tab     = Vector{ZFT}(undef, n_lut + 1) # L_{surf_ad}(μ)
-    L_ab_tab     = Vector{ZFT}(undef, n_lut + 1) # L_{surf_ab}(μ)
+    L_ad_tab     = Vector{ZFT}(undef, n_lut + 1)
+    L_ab_tab     = Vector{ZFT}(undef, n_lut + 1)
     inv_nlut     = inv(ZFT(n_lut))
-    for kl in 0:n_lut
+    @inbounds for kl in 0:n_lut
         μ_q = max(ZFT(BFT(1e-6)), ZFT(kl) * inv_nlut)
-        r_ext_ad_tab[kl + 1] = microfacet_directional_reflectance(μ_q, n_eff_ad, σ_ad)
-        r_ext_ab_tab[kl + 1] = microfacet_directional_reflectance(μ_q, n_eff_ab, σ_ab)
+        r_ad = microfacet_directional_reflectance(μ_q, n_eff_ad, σ_ad)
+        r_ext_ad_tab[kl + 1] = r_ad
+        r_ext_ab_tab[kl + 1] = same_surf ? r_ad : microfacet_directional_reflectance(μ_q, n_eff_ab, σ_ab)
         if has_lobe
-            s_q = sqrt(max(zero(ZFT), one(ZFT) - μ_q * μ_q))
-            L_ad_tab[kl + 1] = _btdf_lobe_escape_integral(μ_q, s_q, surf_ad_obj, nsurf_ad, th_ad, γ_t, cn)
-            L_ab_tab[kl + 1] = _btdf_lobe_escape_integral(μ_q, s_q, surf_ab_obj, nsurf_ab, th_ab, γ_t, cn)
+            s_q = _unit_sin_from_cos(μ_q)
+            L_ad = _btdf_lobe_escape_integral_precomp(μ_q, s_q, e_col_ad, γ_t, cn)
+            L_ad_tab[kl + 1] = L_ad
+            L_ab_tab[kl + 1] = same_surf ? L_ad : _btdf_lobe_escape_integral_precomp(μ_q, s_q, e_col_ab, γ_t, cn)
         else
             L_ad_tab[kl + 1] = zero(ZFT)
             L_ab_tab[kl + 1] = zero(ZFT)
-        end
-    end
-
-    @inline function eval_leaf_kernel(kin, kout, om_l)
-        # om_l is downward abaxial normal; n_ad = -om_l
-        d_in = _dot3(kin, om_l)   # > 0 => hits adaxial; < 0 => hits abaxial
-        d_out = _dot3(kout, om_l) # < 0 => exits adaxial; > 0 => exits abaxial
-        (iszero(prospect_primal(d_in)) || iszero(prospect_primal(d_out))) && return zero(ZFT)
-
-        hit_ad = prospect_primal(d_in) > zero(BFT)
-        μi_loc = min(one(ZFT), hit_ad ? d_in : -d_in)
-
-        is_refl = (prospect_primal(d_in) * prospect_primal(d_out)) < zero(BFT)
-        μo_loc = min(one(ZFT), abs(d_out))
-
-        σ_i = hit_ad ? σ_ad : σ_ab
-        ne_i = hit_ad ? n_eff_ad : n_eff_ab
-        th_i = hit_ad ? th_ad : th_ab
-        r_ext_i = _interp_lut_01(hit_ad ? r_ext_ad_tab : r_ext_ab_tab, n_lut, μi_loc)
-        E_i = (one(ZFT) - r_ext_i) / th_i
-
-        if is_refl
-            # H = ω_i + ω_o = k_out - k_in
-            Hx = kout[1] - kin[1]; Hy = kout[2] - kin[2]; Hz = kout[3] - kin[3]
-            H2 = Hx * Hx + Hy * Hy + Hz * Hz
-            Hnorm = sqrt(H2)
-            Hz_loc = μi_loc + μo_loc
-            Hz_loc2 = Hz_loc * Hz_loc
-            tan2_th = max(zero(ZFT), H2 - Hz_loc2) / Hz_loc2
-            cos2_th = Hz_loc2 / H2
-            D = beckmann_D(tan2_th, cos2_th, σ_i)
-            G2 = smith_beckmann_G1(μi_loc, σ_i) * smith_beckmann_G1(μo_loc, σ_i)
-            c_loc = Hnorm / two
-            s_loc2 = max(zero(ZFT), one(ZFT) - c_loc * c_loc)
-            F = fresnel_unpolarized_cos(c_loc, s_loc2, ne_i)
-            # Note: μi_loc * μo_loc * f_surf == (D * G2 * F) / 4 analytically (no near-horizon 0/0)!
-            w_surf = (D * G2 * F) / four
-
-            r_ext_o = _interp_lut_01(hit_ad ? r_ext_ad_tab : r_ext_ab_tab, n_lut, μo_loc)
-            E_o = (one(ZFT) - r_ext_o) / th_i
-            rv_h = hit_ad ? rv_ad : rv_ab
-            f_vol = rv_h * inv_pi * E_i * E_o
-            return w_surf + μi_loc * μo_loc * f_vol
-        else
-            th_t = hit_ad ? th_ab : th_ad
-            r_ext_o = _interp_lut_01(hit_ad ? r_ext_ab_tab : r_ext_ad_tab, n_lut, μo_loc)
-            E_o = (one(ZFT) - r_ext_o) / th_t
-            if !has_lobe
-                return μi_loc * μo_loc * (t_hem * inv_pi * E_i * E_o)
-            else
-                c_dot = _dot3(kin, kout)
-                p_tilde = exp(γ_t * (c_dot - one(ZFT))) / cn
-                L_tr_i = _interp_lut_01(hit_ad ? L_ab_tab : L_ad_tab, n_lut, μi_loc)
-                L_in_o = _interp_lut_01(hit_ad ? L_ad_tab : L_ab_tab, n_lut, μo_loc)
-                closure = (one(ZFT) - L_tr_i) * (one(ZFT) - L_in_o) * inv_pi / d_bar
-                f_t = t_hem * E_i * E_o * ((one(ZFT) - η_t) * inv_pi + η_t * (p_tilde + closure))
-                return μi_loc * μo_loc * f_t
-            end
         end
     end
 
@@ -499,53 +448,66 @@ function compute_Z_matrices_coupled_bsdf(
     ω_down = zeros(ZFT, nμ)
     ω_up = zeros(ZFT, nμ)
 
-    # Precompute leaf normals (θ_L, ϕ_L) and weights on uniform periodic midpoint grid
+    # Precompute contiguous 1D leaf normals (θ_L, ϕ_L) and weights on uniform periodic midpoint grid
     nL_θ = length(leaf_quad.θ)
-    om_L_grid = Array{NTuple{3,ZFT}}(undef, nL_θ, nL_ϕ)
-    w_L_grid = Matrix{ZFT}(undef, nL_θ, nL_ϕ)
+    nL = nL_θ * nL_ϕ
+    om_x = Vector{ZFT}(undef, nL)
+    om_y = Vector{ZFT}(undef, nL)
+    om_z = Vector{ZFT}(undef, nL)
+    w_L_vec = Vector{ZFT}(undef, nL)
     w_az_unif = inv(ZFT(nL_ϕ))
     two_pi = two * ZFT(π)
-    for l in 1:nL_θ
-        μL = ZFT(cos(leaf_quad.θ[l]))
-        sL = ZFT(sin(leaf_quad.θ[l]))
-        wl = ZFT(leaf_quad.w_measure[l]) * w_az_unif
-        for ip in 1:nL_ϕ
-            p = two_pi * (ZFT(ip) - inv(two)) * w_az_unif
-            om_L_grid[l, ip] = (sL * cos(p), sL * sin(p), μL)
-            w_L_grid[l, ip] = wl
+    idx_fill = 0
+    @inbounds for ip in 1:nL_ϕ
+        p = two_pi * (ZFT(ip) - half) * w_az_unif
+        cp, sp = cos(p), sin(p)
+        for l in 1:nL_θ
+            idx_fill += 1
+            μL = ZFT(cos(leaf_quad.θ[l]))
+            sL = ZFT(sin(leaf_quad.θ[l]))
+            om_x[idx_fill] = sL * cp
+            om_y[idx_fill] = sL * sp
+            om_z[idx_fill] = μL
+            w_L_vec[idx_fill] = ZFT(leaf_quad.w_measure[l]) * w_az_unif
         end
     end
 
-    # Compute exact stream-dependent albedos ω_down[j], ω_up[j] from leaf directional albedos
-    for j in 1:nμ
+    μ_z = Vector{ZFT}(undef, nμ)
+    s_z = Vector{ZFT}(undef, nμ)
+    @inbounds for j in 1:nμ
         μj = ZFT(μ_vec[j])
-        sj = sqrt(max(zero(ZFT), one(ZFT) - μj * μj))
-        kin_dn = (sj, zero(ZFT), μj)
-        kin_up = (sj, zero(ZFT), -μj)
-        acc_dn = zero(ZFT)
-        acc_up = zero(ZFT)
-        acc_G_dn = zero(ZFT)
-        acc_G_up = zero(ZFT)
-        for ip in 1:nL_ϕ, l in 1:nL_θ
-            om_l = om_L_grid[l, ip]
-            wL = w_L_grid[l, ip]
-            for (kin, is_dn) in ((kin_dn, true), (kin_up, false))
-                d_in = _dot3(kin, om_l)
-                if !iszero(prospect_primal(d_in))
-                    hit_ad = prospect_primal(d_in) > zero(BFT)
-                    μi_loc = min(one(ZFT), abs(d_in))
-                    r_s = _interp_lut_01(hit_ad ? r_ext_ad_tab : r_ext_ab_tab, n_lut, μi_loc)
-                    E_i = (one(ZFT) - r_s) / (hit_ad ? th_ad : th_ab)
-                    a_loc = E_i * (hit_ad ? a_ad : a_ab)
-                    ω_loc = one(ZFT) - a_loc
-                    if is_dn
-                        acc_dn += wL * μi_loc * ω_loc
-                        acc_G_dn += wL * μi_loc
-                    else
-                        acc_up += wL * μi_loc * ω_loc
-                        acc_G_up += wL * μi_loc
-                    end
-                end
+        μ_z[j] = μj
+        s_z[j] = _unit_sin_from_cos(μj)
+    end
+
+    # Compute exact stream-dependent albedos ω_down[j], ω_up[j] from leaf directional albedos
+    @inbounds for j in 1:nμ
+        μj = μ_z[j]
+        sj = s_z[j]
+        acc_dn = zero(ZFT); acc_up = zero(ZFT)
+        acc_G_dn = zero(ZFT); acc_G_up = zero(ZFT)
+        for idx_L in 1:nL
+            ox = om_x[idx_L]; oz = om_z[idx_L]
+            wL = w_L_vec[idx_L]
+            d_dn = sj * ox + μj * oz
+            if !iszero(prospect_primal(d_dn))
+                hit_ad = prospect_primal(d_dn) > zero(BFT)
+                μi_loc = min(one(ZFT), abs(d_dn))
+                r_s = _interp_lut_01(hit_ad ? r_ext_ad_tab : r_ext_ab_tab, n_lut, μi_loc)
+                E_i = (one(ZFT) - r_s) / (hit_ad ? th_ad : th_ab)
+                ω_loc = one(ZFT) - E_i * (hit_ad ? a_ad : a_ab)
+                acc_dn += wL * μi_loc * ω_loc
+                acc_G_dn += wL * μi_loc
+            end
+            d_up = sj * ox - μj * oz
+            if !iszero(prospect_primal(d_up))
+                hit_ad = prospect_primal(d_up) > zero(BFT)
+                μi_loc = min(one(ZFT), abs(d_up))
+                r_s = _interp_lut_01(hit_ad ? r_ext_ad_tab : r_ext_ab_tab, n_lut, μi_loc)
+                E_i = (one(ZFT) - r_s) / (hit_ad ? th_ad : th_ab)
+                ω_loc = one(ZFT) - E_i * (hit_ad ? a_ad : a_ab)
+                acc_up += wL * μi_loc * ω_loc
+                acc_G_up += wL * μi_loc
             end
         end
         if prospect_primal(acc_G_dn) > zero(BFT)
@@ -556,38 +518,152 @@ function compute_Z_matrices_coupled_bsdf(
         end
     end
 
+    # Per-Δϕ ray × leaf scratch buffers (1..nμ = downward +μ, nμ+1..2nμ = upward -μ)
+    n_rays = 2 * nμ
+    din_mat    = Matrix{ZFT}(undef, nL, n_rays)
+    μi_mat     = Matrix{ZFT}(undef, nL, n_rays)
+    Ei_mat     = Matrix{ZFT}(undef, nL, n_rays)
+    G1i_mat    = Matrix{ZFT}(undef, nL, n_rays)
+    omL_tr_mat = Matrix{ZFT}(undef, nL, n_rays)
+
+    dout_mat   = Matrix{ZFT}(undef, nL, n_rays)
+    μo_mat     = Matrix{ZFT}(undef, nL, n_rays)
+    Eo_mat     = Matrix{ZFT}(undef, nL, n_rays)
+    G1o_mat    = Matrix{ZFT}(undef, nL, n_rays)
+    omL_in_mat = Matrix{ZFT}(undef, nL, n_rays)
+
+    cos_m_buf  = Vector{ZFT}(undef, nm)
+    rv_ad_pi   = rv_ad * inv_pi
+    rv_ab_pi   = rv_ab * inv_pi
+    closure_scale = has_lobe ? (η_t * inv_pi / d_bar) : zero(ZFT)
+    diff_t_const  = (one(ZFT) - η_t) * inv_pi
+
+    @inline function eval_pair_sum(s_in::Int, s_out::Int, kin, kout)
+        Hx = kout[1] - kin[1]; Hy = kout[2] - kin[2]; Hz = kout[3] - kin[3]
+        H2 = Hx * Hx + Hy * Hy + Hz * Hz
+        has_H = prospect_primal(H2) > zero(BFT)
+        inv_H2 = has_H ? inv(H2) : zero(ZFT)
+        c_loc = has_H ? sqrt(H2) * half : one(ZFT)
+        s_loc2 = max(zero(ZFT), one(ZFT) - c_loc * c_loc)
+        F_ad_q = has_H ? fresnel_unpolarized_cos(c_loc, s_loc2, n_eff_ad) / four : zero(ZFT)
+        F_ab_q = has_H ? fresnel_unpolarized_cos(c_loc, s_loc2, n_eff_ab) / four : zero(ZFT)
+        base_diff_t = diff_t_const + (has_lobe ? η_t * (exp(γ_t * (_dot3(kin, kout) - one(ZFT))) / cn) : zero(ZFT))
+
+        acc = zero(ZFT)
+        @inbounds for idx_L in 1:nL
+            d_in = din_mat[idx_L, s_in]
+            d_out = dout_mat[idx_L, s_out]
+            p_in = prospect_primal(d_in)
+            p_out = prospect_primal(d_out)
+            if !(iszero(p_in) || iszero(p_out))
+                μi_loc = μi_mat[idx_L, s_in]
+                μo_loc = μo_mat[idx_L, s_out]
+                Ei = Ei_mat[idx_L, s_in]
+                Eo = Eo_mat[idx_L, s_out]
+                wL = w_L_vec[idx_L]
+                if p_in * p_out < zero(BFT)
+                    hit_ad = p_in > zero(BFT)
+                    Hz_loc = μi_loc + μo_loc
+                    Hz_loc2 = Hz_loc * Hz_loc
+                    tan2_th = max(zero(ZFT), H2 - Hz_loc2) / Hz_loc2
+                    cos2_th = Hz_loc2 * inv_H2
+                    D = beckmann_D(tan2_th, cos2_th, hit_ad ? σ_ad : σ_ab)
+                    G2 = G1i_mat[idx_L, s_in] * G1o_mat[idx_L, s_out]
+                    w_surf = D * G2 * (hit_ad ? F_ad_q : F_ab_q)
+                    f_vol = (hit_ad ? rv_ad_pi : rv_ab_pi) * Ei * Eo
+                    acc += wL * (w_surf + μi_loc * μo_loc * f_vol)
+                else
+                    f_t = t_hem * Ei * Eo * (base_diff_t + closure_scale * omL_tr_mat[idx_L, s_in] * omL_in_mat[idx_L, s_out])
+                    acc += wL * (μi_loc * μo_loc * f_t)
+                end
+            end
+        end
+        return acc
+    end
+
     # Assemble Z blocks using symmetric half-azimuths (-Δϕ/2 -> +Δϕ/2) so discrete time-reversal
     # maps ϕ_L -> π - ϕ_L and preserves 4-block Helmholtz reciprocity to machine precision!
-    half = inv(two)
-    for j in 1:nμ
-        μj = ZFT(μ_vec[j])
-        sj = sqrt(max(zero(ZFT), one(ZFT) - μj * μj))
+    @inbounds for idp in eachindex(dϕ_out)
+        dϕ = ZFT(dϕ_out[idp])
+        wd = two * ZFT(w_dϕ[idp]) # factor 2 maps [0, π] -> [0, 2π]
+        ch, sh = cos(dϕ * half), sin(dϕ * half)
+        for k in 1:nm
+            cos_m_buf[k] = cos(ZFT(k - 1) * dϕ) * wd
+        end
 
-        for i in 1:nμ
-            μi = ZFT(μ_vec[i])
-            si = sqrt(max(zero(ZFT), one(ZFT) - μi * μi))
-            for idp in eachindex(dϕ_out)
-                dϕ = ZFT(dϕ_out[idp])
-                wd = two * ZFT(w_dϕ[idp]) # factor 2 maps [0, π] -> [0, 2π]
-                ch, sh = cos(dϕ * half), sin(dϕ * half)
-                kin_dn  = (sj * ch, -sj * sh, μj)
-                kin_up  = (sj * ch, -sj * sh, -μj)
-                kout_dn = (si * ch,  si * sh, μi)
-                kout_up = (si * ch,  si * sh, -μi)
+        for s in 1:nμ
+            μs = μ_z[s]; ss = s_z[s]
+            kx = ss * ch
+            ky_in = -ss * sh
+            ky_out = ss * sh
+            s_up = nμ + s
 
-                f_pp = zero(ZFT); f_mp = zero(ZFT)
-                f_pm = zero(ZFT); f_mm = zero(ZFT)
-                @inbounds for ip in 1:nL_ϕ, l in 1:nL_θ
-                    om_l = om_L_grid[l, ip]
-                    wL = w_L_grid[l, ip]
-                    f_pp += wL * eval_leaf_kernel(kin_dn, kout_dn, om_l)
-                    f_mp += wL * eval_leaf_kernel(kin_dn, kout_up, om_l)
-                    f_pm += wL * eval_leaf_kernel(kin_up, kout_dn, om_l)
-                    f_mm += wL * eval_leaf_kernel(kin_up, kout_up, om_l)
+            for idx_L in 1:nL
+                ox = om_x[idx_L]; oy = om_y[idx_L]; oz = om_z[idx_L]
+                xy_in  = kx * ox + ky_in * oy
+                xy_out = kx * ox + ky_out * oy
+                z_term = μs * oz
+
+                # Incoming downward (+μs) and upward (-μs)
+                for (col, d_in) in ((s, xy_in + z_term), (s_up, xy_in - z_term))
+                    din_mat[idx_L, col] = d_in
+                    if iszero(prospect_primal(d_in))
+                        μi_mat[idx_L, col] = zero(ZFT)
+                        Ei_mat[idx_L, col] = zero(ZFT)
+                        G1i_mat[idx_L, col] = zero(ZFT)
+                        omL_tr_mat[idx_L, col] = zero(ZFT)
+                    else
+                        hit_ad = prospect_primal(d_in) > zero(BFT)
+                        μi_loc = min(one(ZFT), hit_ad ? d_in : -d_in)
+                        r_ext_i = _interp_lut_01(hit_ad ? r_ext_ad_tab : r_ext_ab_tab, n_lut, μi_loc)
+                        μi_mat[idx_L, col] = μi_loc
+                        Ei_mat[idx_L, col] = (one(ZFT) - r_ext_i) / (hit_ad ? th_ad : th_ab)
+                        G1i_mat[idx_L, col] = smith_beckmann_G1(μi_loc, hit_ad ? σ_ad : σ_ab)
+                        omL_tr_mat[idx_L, col] = has_lobe ?
+                            (one(ZFT) - _interp_lut_01(hit_ad ? L_ab_tab : L_ad_tab, n_lut, μi_loc)) : zero(ZFT)
+                    end
                 end
 
-                @inbounds for k in 1:nm
-                    cm = cos(ZFT(k - 1) * dϕ) * wd
+                # Outgoing downward (+μs) and upward (-μs)
+                for (col, d_out) in ((s, xy_out + z_term), (s_up, xy_out - z_term))
+                    dout_mat[idx_L, col] = d_out
+                    if iszero(prospect_primal(d_out))
+                        μo_mat[idx_L, col] = zero(ZFT)
+                        Eo_mat[idx_L, col] = zero(ZFT)
+                        G1o_mat[idx_L, col] = zero(ZFT)
+                        omL_in_mat[idx_L, col] = zero(ZFT)
+                    else
+                        exit_ad = prospect_primal(d_out) < zero(BFT)
+                        μo_loc = min(one(ZFT), exit_ad ? -d_out : d_out)
+                        r_ext_o = _interp_lut_01(exit_ad ? r_ext_ad_tab : r_ext_ab_tab, n_lut, μo_loc)
+                        μo_mat[idx_L, col] = μo_loc
+                        Eo_mat[idx_L, col] = (one(ZFT) - r_ext_o) / (exit_ad ? th_ad : th_ab)
+                        G1o_mat[idx_L, col] = smith_beckmann_G1(μo_loc, exit_ad ? σ_ad : σ_ab)
+                        omL_in_mat[idx_L, col] = has_lobe ?
+                            (one(ZFT) - _interp_lut_01(!exit_ad ? L_ad_tab : L_ab_tab, n_lut, μo_loc)) : zero(ZFT)
+                    end
+                end
+            end
+        end
+
+        for j in 1:nμ
+            μj = μ_z[j]; sj = s_z[j]
+            kin_dn = (sj * ch, -sj * sh, μj)
+            kin_up = (sj * ch, -sj * sh, -μj)
+            j_up = nμ + j
+            for i in 1:nμ
+                μi = μ_z[i]; si = s_z[i]
+                kout_dn = (si * ch, si * sh, μi)
+                kout_up = (si * ch, si * sh, -μi)
+                i_up = nμ + i
+
+                f_pp = eval_pair_sum(j,    i,    kin_dn, kout_dn)
+                f_mp = eval_pair_sum(j,    i_up, kin_dn, kout_up)
+                f_pm = eval_pair_sum(j_up, i,    kin_up, kout_dn)
+                f_mm = eval_pair_sum(j_up, i_up, kin_up, kout_up)
+
+                for k in 1:nm
+                    cm = cos_m_buf[k]
                     Zpp[i, j, k] += cm * f_pp
                     Zmp[i, j, k] += cm * f_mp
                     Zpm[i, j, k] += cm * f_pm

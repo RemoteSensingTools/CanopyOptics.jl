@@ -2,8 +2,9 @@ using Test
 using CanopyOptics
 using ForwardDiff
 using LinearAlgebra
+using Unitful
 
-const _u_nm = CanopyOptics.Unitful.u"nm"
+const _u_nm = u"nm"
 
 @testset "Leaf Model Families & Coupled BSDF / Canopy Extensions" begin
     opti64_full = createLeafOpticalStruct(400.0:100.0:2400.0)
@@ -755,7 +756,7 @@ const _u_nm = CanopyOptics.Unitful.u"nm"
             @test all(mp64.Kcar .>= 0.0) && all(mp64.Kant .>= 0.0)
 
             # Consistent [cm² µg⁻¹] anthocyanin units across all 4 bases (~0.07 at 535 nm)
-            wl_nm = CanopyOptics.Unitful.ustrip.(mp64.λ)
+            wl_nm = ustrip.(mp64.λ)
             idx_535 = argmin(abs.(wl_nm .- 535.0))
             @test 0.05 <= mp64.Kant[idx_535] <= 0.11
 

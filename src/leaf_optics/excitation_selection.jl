@@ -1,7 +1,15 @@
-"""Rule for transferring absorbed constituent photons into an antenna excitation pool."""
+"""
+    AbstractAntennaSelection
+
+Rule for transferring absorbed constituent photons into an antenna excitation pool.
+"""
 abstract type AbstractAntennaSelection end
 
-"""Only chlorophyll absorption enters the antenna pool; requires `:chlorophyll`."""
+"""
+    ChlorophyllOnly()
+
+Transfer only chlorophyll absorption into the antenna pool (requires `:chlorophyll`).
+"""
 struct ChlorophyllOnly <: AbstractAntennaSelection end
 
 """

@@ -1,6 +1,19 @@
 [deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[compat]
+Aqua = "0.8"
+Documenter = "1"
+ExplicitImports = "1"
+ForwardDiff = "0.10, 1"
+OffsetArrays = "1"
+Unitful = "1"

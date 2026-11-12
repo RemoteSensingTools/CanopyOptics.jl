@@ -47,6 +47,7 @@ function build()
         size_threshold_warn = nothing,
         example_size_threshold = nothing,
         )
+    DocMeta.setdocmeta!(CanopyOptics, :DocTestSetup, :(using CanopyOptics); recursive = true)
     makedocs(
             sitename = "Canopy Optics",
             format = format,

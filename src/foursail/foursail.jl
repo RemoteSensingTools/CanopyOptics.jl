@@ -109,9 +109,11 @@ function FourSAILGeometry(LAD::AbstractLeafDistribution;
     μo > zero(FT) || throw(ArgumentError("vza_deg must be less than 90 degrees"))
 
     dϕ = _foursail_wrap_azimuth(deg2rad(FT(raa_deg)))
-    tan_s = sqrt(max(zero(FT), one(FT) - μs^2)) / μs
-    tan_o = sqrt(max(zero(FT), one(FT) - μo^2)) / μo
-    dso = sqrt(max(zero(FT), tan_s^2 + tan_o^2 - 2 * tan_s * tan_o * cos(dϕ)))
+    sints = sind(FT(sza_deg))
+    sinto = sind(FT(vza_deg))
+    tan_s = sints / μs
+    tan_o = sinto / μo
+    dso = _planar_tan_distance(tan_s, tan_o, dϕ)
 
     ks = zero(FT); ko = zero(FT); bf = zero(FT)
     sob = zero(FT); sof = zero(FT)
@@ -121,7 +123,7 @@ function FourSAILGeometry(LAD::AbstractLeafDistribution;
 
     for i in eachindex(θl)
         weight = leaf_quad.w_measure[i]
-        χs, χo, frho, ftau = _foursail_volscatt(μs, μo, dϕ, θl[i])
+        χs, χo, frho, ftau = _foursail_volscatt(μs, sints, μo, sinto, dϕ, θl[i])
         ks += weight * χs / μs
         ko += weight * χo / μo
         bf += weight * cos(θl[i])^2
@@ -153,11 +155,41 @@ Base.length(geoms::FourSAILGeometrySet) = length(geoms.ks)
                             geoms.ddb[i], geoms.ddf[i])
 end
 
+function Base.:(==)(a::FourSAILGeometrySet, b::FourSAILGeometrySet)
+    return a.μs == b.μs && a.μo == b.μo && a.dϕ == b.dϕ && a.dso == b.dso &&
+           a.ks == b.ks && a.ko == b.ko && a.sob == b.sob && a.sof == b.sof &&
+           a.sdb == b.sdb && a.sdf == b.sdf && a.dob == b.dob && a.dof == b.dof &&
+           a.ddb == b.ddb && a.ddf == b.ddf
+end
+
+function Base.hash(a::FourSAILGeometrySet, h::UInt)
+    h = hash(:FourSAILGeometrySet, h)
+    for f in (a.μs, a.μo, a.dϕ, a.dso, a.ks, a.ko, a.sob, a.sof,
+              a.sdb, a.sdf, a.dob, a.dof, a.ddb, a.ddf)
+        h = hash(f, h)
+    end
+    return h
+end
+
+function Base.:(==)(a::FourSAILResult, b::FourSAILResult)
+    return a.rddt == b.rddt && a.rsdt == b.rsdt && a.rdot == b.rdot &&
+           a.rsot == b.rsot && a.taus == b.taus && a.rsos == b.rsos &&
+           a.rsost == b.rsost && a.rsodt == b.rsodt
+end
+
+function Base.hash(a::FourSAILResult, h::UInt)
+    h = hash(:FourSAILResult, h)
+    for f in (a.rddt, a.rsdt, a.rdot, a.rsot, a.taus, a.rsos, a.rsost, a.rsodt)
+        h = hash(f, h)
+    end
+    return h
+end
+
 @inline _foursail_len(x::AbstractVector) = length(x)
 @inline _foursail_len(x) = 1
 
 @inline function _foursail_param_at(x::AbstractVector, i::Int, n::Int)
-    return length(x) == 1 ? x[1] : x[i]
+    return length(x) == 1 ? first(x) : x[firstindex(x) + i - 1]
 end
 @inline _foursail_param_at(x, i::Int, n::Int) = x
 
@@ -220,16 +252,21 @@ FourSAILGeometrySet(; LAD=spherical_leaves(), kwargs...) =
 end
 
 @inline function _foursail_wrap_azimuth(ϕ::FT) where {FT<:Real}
+    BFT = _leaf_base_float(FT)
     twopi = FT(2π)
-    ψ = mod(abs(ϕ), twopi)
-    return ψ > FT(π) ? twopi - ψ : ψ
+    aϕ = abs(ϕ)
+    k = floor(prospect_primal(aϕ) / BFT(2π))
+    ψ = aϕ - FT(k) * twopi
+    return prospect_primal(ψ) > BFT(π) ? twopi - ψ : ψ
 end
 
 function _foursail_volscatt(μs::FT, μo::FT, dϕ::FT, θl::FT) where {FT<:Real}
+    return _foursail_volscatt(μs, _unit_sin_from_cos(μs), μo, _unit_sin_from_cos(μo), dϕ, θl)
+end
+
+function _foursail_volscatt(μs::FT, sints::FT, μo::FT, sinto::FT, dϕ::FT, θl::FT) where {FT<:Real}
     costs = μs
     costo = μo
-    sints = sqrt(max(zero(FT), one(FT) - μs^2))
-    sinto = sqrt(max(zero(FT), one(FT) - μo^2))
     cospsi = cos(dϕ)
 
     costl = cos(θl)
@@ -556,6 +593,17 @@ end
 
 _soil_eltype(x::AbstractArray) = eltype(x)
 _soil_eltype(x::Number) = typeof(x)
+_soil_require_one_based(::Number) = nothing
+_soil_require_one_based(x::AbstractArray) = Base.require_one_based_indexing(x)
+
+function _require_one_based_geomset(geoms::FourSAILGeometrySet)
+    Base.require_one_based_indexing(
+        geoms.μs, geoms.μo, geoms.dϕ, geoms.dso, geoms.ks, geoms.ko,
+        geoms.sob, geoms.sof, geoms.sdb, geoms.sdf, geoms.dob, geoms.dof,
+        geoms.ddb, geoms.ddf,
+    )
+    return nothing
+end
 
 function _check_foursail_soil_dims(soil_ρ, nλ::Int, nangle::Int)
     if soil_ρ isa AbstractMatrix
@@ -615,6 +663,8 @@ end
 
 function _allocate_foursail_result(leaf_ρ::AbstractVector, leaf_τ::AbstractVector,
                                    soil_ρ, geom::FourSAILGeometry, lai, hotspot)
+    Base.require_one_based_indexing(leaf_ρ, leaf_τ)
+    _soil_require_one_based(soil_ρ)
     n = length(leaf_ρ)
     length(leaf_τ) == n ||
         throw(DimensionMismatch("leaf_reflectance and leaf_transmittance must have the same length"))
@@ -634,6 +684,9 @@ end
 
 function _allocate_foursail_result(leaf_ρ::AbstractVector, leaf_τ::AbstractVector,
                                    soil_ρ, geoms::FourSAILGeometrySet, lai, hotspot)
+    Base.require_one_based_indexing(leaf_ρ, leaf_τ)
+    _soil_require_one_based(soil_ρ)
+    _require_one_based_geomset(geoms)
     nλ = length(leaf_ρ)
     nangle = length(geoms)
     length(leaf_τ) == nλ ||
@@ -651,26 +704,6 @@ function _allocate_foursail_result(leaf_ρ::AbstractVector, leaf_τ::AbstractVec
                           similar(leaf_ρ, OT, nλ, nangle))
 end
 
-"""
-    foursail!(rddt, rsdt, rdot, rsot, taus,
-              leaf_reflectance, leaf_transmittance, soil_reflectance,
-              geometry, LAI; hotspot=0)
-    foursail!(rddt, rsdt, rdot, rsot, taus,
-              leaf_reflectance, leaf_transmittance, soil_reflectance,
-              geometry_set, LAI; hotspot=0, mode=:full)
-
-Evaluate 4SAIL over a wavelength vector using one KernelAbstractions work item
-per wavelength. `soil_reflectance` may be a scalar or a vector matching the
-leaf spectra.
-
-For a [`FourSAILGeometrySet`](@ref), outputs are matrices of size
-`(n_wavelength, n_angle)` and the kernel evaluates all wavelength-angle pairs.
-Full-mode results also carry the bidirectional decomposition `rsost` and
-`rsodt`, where `rsost` is the direct/direct term (leaf single scattering plus
-directly transmitted soil) and `rsot = rsost + rsodt`. Use `mode=:single` only
-when you want to skip the diffuse equations entirely; in that mode `rsot` equals
-`rsost`, `rsodt` is zero, and diffuse-stream outputs are filled with zero.
-"""
 function _foursail!(rddt::AbstractVector, rsdt::AbstractVector,
                     rdot::AbstractVector, rsot::AbstractVector,
                     taus::AbstractVector, rsos::AbstractVector,
@@ -678,6 +711,10 @@ function _foursail!(rddt::AbstractVector, rsdt::AbstractVector,
                     leaf_ρ::AbstractVector, leaf_τ::AbstractVector,
                     soil_ρ, geom::FourSAILGeometry, lai::Real;
                     hotspot::Real=0, mode::Symbol=:full)
+    Base.require_one_based_indexing(
+        rddt, rsdt, rdot, rsot, taus, rsos, rsost, rsodt, leaf_ρ, leaf_τ,
+    )
+    _soil_require_one_based(soil_ρ)
     n = length(leaf_ρ)
     length(leaf_τ) == n ||
         throw(DimensionMismatch("leaf_reflectance and leaf_transmittance must have the same length"))
@@ -705,50 +742,6 @@ function _foursail!(rddt::AbstractVector, rsdt::AbstractVector,
     return FourSAILResult(rddt, rsdt, rdot, rsot, taus, rsos, rsost, rsodt)
 end
 
-"""
-    foursail!(rddt, rsdt, rdot, rsot, taus, leaf_ρ, leaf_τ, soil_ρ,
-              geom, lai; hotspot=0, mode=:full)
-    foursail!(result::FourSAILResult, leaf_ρ, leaf_τ, soil_ρ,
-              geom, lai; hotspot=0, mode=:full)
-
-In-place 4SAIL evaluation: writes canopy + soil reflectance and
-transmittance factors into the supplied output arrays (or
-[`FourSAILResult`](@ref)) for one geometry or a batched
-[`FourSAILGeometrySet`](@ref). Outputs are dispatched on the shape of
-the inputs:
-
-- vector outputs + a [`FourSAILGeometry`](@ref) → one wavelength per
-  vector element, one geometry.
-- matrix outputs + a [`FourSAILGeometrySet`](@ref) → wavelengths along
-  rows, geometries along columns; the GPU-friendly batched path.
-
-The full 4SAIL bidirectional reflectance factor `rsot` is decomposed
-as `rsot = rsost + rsodt`, where `rsost` is the direct/direct branch
-(single scattering plus directly transmitted soil reflectance) and
-`rsodt` is the diffuse / multiple-scattering remainder — see
-[`FourSAILResult`](@ref).
-
-Allocating wrappers: see [`foursail`](@ref).
-
-# Reference
-Verhoef, W. (1984). *Light scattering by leaf layers with application
-to canopy reflectance modeling: the SAIL model.* Remote Sens. Env. 16,
-125–141. Extended in Verhoef et al. (2007), 4SAIL.
-"""
-function foursail!(rddt::AbstractVector, rsdt::AbstractVector,
-                   rdot::AbstractVector, rsot::AbstractVector,
-                   taus::AbstractVector,
-                   leaf_ρ::AbstractVector, leaf_τ::AbstractVector,
-                   soil_ρ, geom::FourSAILGeometry, lai::Real;
-                   hotspot::Real=0, mode::Symbol=:full)
-    rsos = similar(rsot)
-    rsost = similar(rsot)
-    rsodt = similar(rsot)
-    return _foursail!(rddt, rsdt, rdot, rsot, taus, rsos, rsost, rsodt,
-                      leaf_ρ, leaf_τ, soil_ρ, geom, lai;
-                      hotspot=hotspot, mode=mode)
-end
-
 function _foursail!(rddt::AbstractMatrix, rsdt::AbstractMatrix,
                     rdot::AbstractMatrix, rsot::AbstractMatrix,
                     taus::AbstractMatrix, rsos::AbstractMatrix,
@@ -756,6 +749,11 @@ function _foursail!(rddt::AbstractMatrix, rsdt::AbstractMatrix,
                     leaf_ρ::AbstractVector, leaf_τ::AbstractVector,
                     soil_ρ, geoms::FourSAILGeometrySet, lai::Real;
                     hotspot::Real=0, mode::Symbol=:full)
+    Base.require_one_based_indexing(
+        rddt, rsdt, rdot, rsot, taus, rsos, rsost, rsodt, leaf_ρ, leaf_τ,
+    )
+    _soil_require_one_based(soil_ρ)
+    _require_one_based_geomset(geoms)
     nλ = length(leaf_ρ)
     nangle = length(geoms)
     length(leaf_τ) == nλ ||
@@ -800,6 +798,46 @@ function _foursail!(rddt::AbstractMatrix, rsdt::AbstractMatrix,
     end
     KernelAbstractions.synchronize(backend)
     return FourSAILResult(rddt, rsdt, rdot, rsot, taus, rsos, rsost, rsodt)
+end
+
+"""
+    foursail!(rddt, rsdt, rdot, rsot, taus, leaf_ρ, leaf_τ, soil_ρ,
+              geom, lai; hotspot=0, mode=:full)
+    foursail!(result::FourSAILResult, leaf_ρ, leaf_τ, soil_ρ,
+              geom, lai; hotspot=0, mode=:full)
+
+Evaluate 4SAIL in place over a wavelength vector using one `KernelAbstractions`
+work item per wavelength (or `(wavelength, angle)` pair for [`FourSAILGeometrySet`](@ref))
+and return the populated [`FourSAILResult`](@ref).
+
+`soil_ρ` may be a scalar, a wavelength vector, or (for `FourSAILGeometrySet`) a
+`(n_wavelength, n_angle)` matrix. All array arguments must use 1-based indexing
+(throws `ArgumentError` on offset axes).
+
+In `:full` mode, `rsot = rsost + rsodt` decomposes the bidirectional reflectance
+factor into direct/direct (`rsost`) and diffuse/multiple-scattering (`rsodt`)
+contributions. In `:single` mode, diffuse equations are skipped (`rsot = rsost`,
+`rsodt = 0`, and diffuse-stream outputs are filled with zero).
+
+See also [`foursail`](@ref), [`FourSAILGeometry`](@ref), [`FourSAILGeometrySet`](@ref).
+
+# Reference
+Verhoef, W. (1984). *Light scattering by leaf layers with application to canopy
+reflectance modeling: the SAIL model.* Remote Sens. Env. 16, 125–141; extended
+in Verhoef et al. (2007), 4SAIL.
+"""
+function foursail!(rddt::AbstractVector, rsdt::AbstractVector,
+                   rdot::AbstractVector, rsot::AbstractVector,
+                   taus::AbstractVector,
+                   leaf_ρ::AbstractVector, leaf_τ::AbstractVector,
+                   soil_ρ, geom::FourSAILGeometry, lai::Real;
+                   hotspot::Real=0, mode::Symbol=:full)
+    rsos = similar(rsot)
+    rsost = similar(rsot)
+    rsodt = similar(rsot)
+    return _foursail!(rddt, rsdt, rdot, rsot, taus, rsos, rsost, rsodt,
+                      leaf_ρ, leaf_τ, soil_ρ, geom, lai;
+                      hotspot=hotspot, mode=mode)
 end
 
 function foursail!(rddt::AbstractMatrix, rsdt::AbstractMatrix,

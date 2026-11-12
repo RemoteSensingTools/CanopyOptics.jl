@@ -1,75 +1,87 @@
 """
-    $(FUNCTIONNAME)(λ_bnds)
+    createLeafOpticalStruct(λ_bnds)
+    createLeafOpticalStruct()
 
-    Loads in the PROSPECT-PRO database of pigments (and other) absorption cross section in leaves, returns a [`LeafOpticalProperties`](@ref) type struct with spectral units attached.
-# Arguments
-    - `λ_bnds` an array (with or without a spectral grid unit) that defines the upper and lower limits over which to average the absorption cross sections
+Load the bundled PROSPECT-PRO leaf optical database (`400–2500 nm` at `1 nm`
+resolution, Féret et al., 2021) and bin-average refractive index and specific
+absorption cross-sections over spectral bin edges `λ_bnds`, returning a
+[`LeafOpticalProperties`](@ref) table.
+
+`λ_bnds` may carry any `Unitful` spectral unit (`u"nm"`, `u"μm"`, `u"cm^-1"`)
+or be unitless (interpreted as `nm` with a warning). Calling
+`createLeafOpticalStruct()` uses the native `(399.5:2500.5)u"nm"` `1 nm` grid.
 
 # Examples
-```julia-repl
-julia> using Unitful                                                               # Need to include Unitful package 
-julia> opti = createLeafOpticalStruct((400.0:5:2400)*u"nm");                       # in nm
-julia> opti = createLeafOpticalStruct((0.4:0.1:2.4)*u"μm");                        # in μm
-julia> opti = CanopyOptics.createLeafOpticalStruct((10000.0:100:25000.0)u"1/cm");  # in wavenumber (cm⁻¹)
+```jldoctest
+julia> using Unitful
+
+julia> opti = createLeafOpticalStruct((400.0:100.0:2400.0)u"nm");
+
+julia> length(opti.nᵣ)
+20
 ```
 """
 function createLeafOpticalStruct(λ_bnds)
-    FT = eltype(ustrip(λ_bnds[1]))
-    # Reference input grid converted to nm:
+    N = length(λ_bnds) - 1
+    N >= 1 || throw(ArgumentError("λ_bnds must contain at least 2 boundary points"))
+    FT = float(eltype(ustrip(first(λ_bnds))))
     λ_ref = unit2nm(λ_bnds)
-    
-    KS = readdlm(OPTI_2021, '\t',FT)
-    N  = length(λ_bnds)-1
-    λ_out, nᵣ, Kcab, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc = [zeros(FT, N) for _ = 1:10];
+
+    KS = readdlm(OPTI_2021, '\t', FT)
+    λ_out, nᵣ, Kcab, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc = ntuple(_ -> zeros(FT, N), 10)
     vars = (λ_out, nᵣ, Kcab, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc)
-    λ     = KS[:,1]*u"nm";
-    @inbounds for i=1:N
-        start = min(λ_ref[i],λ_ref[i+1])
-        stop  = max(λ_ref[i],λ_ref[i+1])
-        ind_all = findall((λ .≥ start) .& (λ .< stop) )
-        isempty(ind_all) ? (@warn "Some λ_bnds bins are empty, better coarsen the input grid $(λ_bnds[i]) -> $(λ_bnds[i+1])" ) : nothing
+    λ = KS[:, 1] .* u"nm"
+    i0_ref = firstindex(λ_ref)
+    i0_bnds = firstindex(λ_bnds)
+    @inbounds for i in 1:N
+        r1 = λ_ref[i0_ref + i - 1]
+        r2 = λ_ref[i0_ref + i]
+        start = min(r1, r2)
+        stop  = max(r1, r2)
+        ind_all = findall((λ .≥ start) .& (λ .< stop))
+        if isempty(ind_all)
+            @warn "Some λ_bnds bins are empty, better coarsen the input grid $(λ_bnds[i0_bnds + i - 1]) -> $(λ_bnds[i0_bnds + i])"
+        end
         for j in eachindex(vars)
-            vars[j][i] =  mean(view(KS,ind_all,j)); 
+            vars[j][i] = mean(view(KS, ind_all, j))
         end
     end
-    # Get output unit:
-    ou = unit(λ_bnds[1])
-    (typeof(ou) <: Unitful.FreeUnits{(), NoDims, nothing}) ? out_unit = u"nm"  : out_unit = ou
-    return LeafOpticalProperties(uconvSpectral(λ_out*u"nm",out_unit), 
-                                nᵣ, 
-                                Kcab,
-                                Kcar,
-                                Kant,
-                                Kb,
-                                Kw,
-                                Km,
-                                Kp,
-                                Kcbc)
+    ou = unit(first(λ_bnds))
+    out_unit = ou == NoUnits ? u"nm" : ou
+    return LeafOpticalProperties(
+        uconvSpectral(λ_out .* u"nm", out_unit),
+        nᵣ, Kcab, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc,
+    )
 end
 
-"""
-    $(FUNCTIONNAME)()
-    As in $(FUNCTIONNAME)(λ_bnds) but reads in the in Prospect-PRO database at original resolution (400-2500nm in 1nm steps)
-"""
 function createLeafOpticalStruct()
     λ_bnds = (399.5:2500.5)u"nm"
-    createLeafOpticalStruct(λ_bnds)
+    return createLeafOpticalStruct(λ_bnds)
 end
 
-"Convert an input array with Spectral units (or none) to a grid in nm"
+"""
+    unit2nm(λ_bnds)
+
+Convert a spectral grid `λ_bnds` with `Unitful` spectral units (or unitless
+values assumed to be in `nm`) to nanometers (`u"nm"`).
+"""
 function unit2nm(λ_bnds)
     try
-        return uconvSpectral(λ_bnds, u"nm");
-    catch e # Assume without unit is in "nm" already
+        return uconvSpectral(λ_bnds, u"nm")
+    catch
         @warn "Assuming unit of [nm] here for optical struct"
-        return λ_bnds*u"nm"
-    end 
+        return λ_bnds .* u"nm"
+    end
 end
 
-"Avoiding annoying issues with uconvert for Spectra() (can't do nm->nm!)"
-# From unit of `in` to `out_unit` (just attaching out_unit if unit is missing)
-function uconvSpectral(in,out_unit)
-    unit(in[1]) == out_unit ? in : uconvert.(out_unit, in, Spectral())
+"""
+    uconvSpectral(x, out_unit)
+
+Convert spectral array `x` to `out_unit` using `UnitfulEquivalences.Spectral()`,
+returning `x` unchanged when `unit(first(x)) == out_unit`.
+"""
+function uconvSpectral(in_arr, out_unit)
+    return unit(first(in_arr)) == out_unit ? in_arr : uconvert.(out_unit, in_arr, Spectral())
 end
 
 const _PACKAGE_DATA_DIR = normpath(joinpath(@__DIR__, "..", "..", "data"))
@@ -115,12 +127,16 @@ function _bin_1nm_columns(
     N >= 1 || throw(ArgumentError("λ_bnds must contain at least 2 boundary points"))
     λ_q = λ_1nm .* u"nm"
     outs = ntuple(_ -> zeros(FT, N), length(cols))
+    i0_ref = firstindex(λ_ref)
+    i0_bnds = firstindex(λ_bnds)
     @inbounds for i in 1:N
-        start = min(λ_ref[i], λ_ref[i + 1])
-        stop = max(λ_ref[i], λ_ref[i + 1])
+        r1 = λ_ref[i0_ref + i - 1]
+        r2 = λ_ref[i0_ref + i]
+        start = min(r1, r2)
+        stop = max(r1, r2)
         ind_all = findall((λ_q .>= start) .& (λ_q .< stop))
         if isempty(ind_all)
-            @warn "Some λ_bnds bins are empty, better coarsen the input grid $(λ_bnds[i]) -> $(λ_bnds[i + 1])"
+            @warn "Some λ_bnds bins are empty, better coarsen the input grid $(λ_bnds[i0_bnds + i - 1]) -> $(λ_bnds[i0_bnds + i])"
         end
         for j in eachindex(cols)
             outs[j][i] = mean(view(cols[j], ind_all))
@@ -153,15 +169,15 @@ Supported `basis` options:
 function createMultiPigmentOpticalStruct(
     λ_bnds = (399.5:2500.5)u"nm";
     basis::Symbol = :calibrated_in_vivo,
-    FT::Type{<:AbstractFloat} = float(eltype(ustrip(λ_bnds[1]))),
+    FT::Type{<:AbstractFloat} = float(eltype(ustrip(first(λ_bnds)))),
 )
     basis in (:calibrated_in_vivo, :prospect_mp_2017, :prospect_mp_plus_2022, :prospect_pro_pooled) ||
         throw(ArgumentError(
             "Unsupported multi-pigment basis :$(basis); expected :calibrated_in_vivo, :prospect_mp_2017, :prospect_mp_plus_2022, or :prospect_pro_pooled",
         ))
     if basis === :prospect_pro_pooled
-        ou_p = unit(λ_bnds[1])
-        bnds_ft = (typeof(ou_p) <: Unitful.FreeUnits{(),NoDims,nothing}) ? FT.(λ_bnds) : FT.(ustrip.(λ_bnds)) .* ou_p
+        ou_p = unit(first(λ_bnds))
+        bnds_ft = ou_p == NoUnits ? FT.(λ_bnds) : FT.(ustrip.(λ_bnds)) .* ou_p
         return MultiPigmentOpticalProperties(createLeafOpticalStruct(bnds_ft))
     end
     KS = readdlm(OPTI_2021, '\t', FT)
@@ -207,10 +223,10 @@ function createMultiPigmentOpticalStruct(
         λ_bnds,
         FT,
     )
-    ou = unit(λ_bnds[1])
-    out_unit = (typeof(ou) <: Unitful.FreeUnits{(),NoDims,nothing}) ? u"nm" : ou
+    ou = unit(first(λ_bnds))
+    out_unit = ou == NoUnits ? u"nm" : ou
     return MultiPigmentOpticalProperties(
-        uconvSpectral(λ_out * u"nm", out_unit),
+        uconvSpectral(λ_out .* u"nm", out_unit),
         nᵣ, Kchla, Kchlb, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc,
     )
 end
@@ -232,7 +248,7 @@ sustaining cuticular surface specular reflectance in the SWIR when passed via
 """
 function load_wax_refractive_index(
     λ_bnds = (399.5:2500.5)u"nm";
-    FT::Type{<:AbstractFloat} = float(eltype(ustrip(λ_bnds[1]))),
+    FT::Type{<:AbstractFloat} = float(eltype(ustrip(first(λ_bnds)))),
 )
     csv_path = joinpath(_PACKAGE_DATA_DIR, "epicuticular_wax_stuckens2009.csv")
     tab, _ = readdlm(csv_path, ',', FT; comments = true, comment_char = '#', header = true)
@@ -242,4 +258,3 @@ function load_wax_refractive_index(
     (nwax_out,) = _bin_1nm_columns(λ_1nm, (nwax_1nm,), λ_bnds, FT)
     return nwax_out
 end
-

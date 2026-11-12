@@ -1,129 +1,140 @@
 """
-    $(FUNCTIONNAME)(θₗ, s)
+    βparameters(θₗ, s)
 
-Returns Beta distribution parameters `(α, β)` from the mean leaf inclination angle `θₗ`
-and its standard deviation `s` (both in radians), following Bonan Eqs. 2.9–2.10:
+Compute `Beta(α, β)` shape parameters `(α, β)` on `[0, 1]` from mean leaf
+inclination angle `θₗ` and standard deviation `s` (both in radians), following
+Bonan (2019, Table 2.1, Eqs. 2.9–2.10):
 
-``α = \\frac{1 - (s^2 + θₗ^2)/(θₗ π/2)}{(s^2 + θₗ^2)/θₗ^2 - 1}``
+```math
+\\alpha = \\frac{1 - (s^2 + \\theta_l^2)/(\\theta_l \\pi / 2)}{(s^2 + \\theta_l^2)/\\theta_l^2 - 1},
+\\qquad
+\\beta = \\left(\\frac{\\pi / 2}{\\theta_l} - 1\\right) \\alpha .
+```
 
-``β = \\left(\\frac{π/2}{θₗ} - 1\\right) α``
+# Examples
+```jldoctest
+julia> α, β = βparameters(deg2rad(45.0), deg2rad(16.27));
 
-The resulting `Beta(α, β)` distribution is defined on `[0, 1]`, which maps to leaf
-zenith angles `[0, π/2]` via `θ_L = (π/2) u` for `u ~ Beta(α, β)`.
+julia> round.((α, β); digits = 3)
+(3.325, 3.325)
+```
 """
-function βparameters(θₗ,s)
-    α = (1 - (s^2+θₗ^2) / (θₗ*π/2) ) / ( ((s^2+θₗ^2) / θₗ^2) - 1 )
-    β = ( (π/2)/θₗ -1 ) * α
-    return α,β
+function βparameters(θₗ::Real, s::Real)
+    FT = float(promote_type(typeof(θₗ), typeof(s)))
+    θ = FT(θₗ)
+    σ = FT(s)
+    half_pi = FT(π) / FT(2)
+    m2 = σ * σ + θ * θ
+    α = (one(FT) - m2 / (θ * half_pi)) / (m2 / (θ * θ) - one(FT))
+    β = (half_pi / θ - one(FT)) * α
+    return α, β
 end
 
 """
-    $(FUNCTIONNAME)(μ::FT, μₗ::FT) where FT
+    H(μ, μₗ)
 
-Computes the conditional scattering function `H(μ, μₗ)` for direction cosine `μ = cos θ`
-and leaf inclination cosine `μₗ = cos θₗ`, following Shultis & Myneni (1988) Eq. (46).
+Evaluate the one-sided azimuthally averaged leaf projection factor `H(μ, μₗ)`
+for stream polar cosine `μ = cos θ ∈ [-1, 1]` and leaf-normal cosine
+`μₗ = cos θₗ ∈ [-1, 1]` (Shultis & Myneni, 1988, Eqs. 46–47):
 
-Evaluated piecewise via Eq. (47): let `r = cot θ · cot θₗ`, then
+```math
+H(\\mu, \\mu_L) = \\frac{1}{2\\pi} \\int_0^{2\\pi} \\max\\!\\big(0,\\; \\mu\\mu_L + \\sqrt{1-\\mu^2}\\sqrt{1-\\mu_L^2}\\cos\\phi\\big)\\,d\\phi .
+```
 
-``H(μ, μₗ) = \\begin{cases}
-  μ μₗ & r > 1 \\\\
-  0    & r < -1 \\\\
-  \\frac{1}{π}\\!\\left[μ μₗ \\,ϕ_0 + \\sin θ \\sin θₗ \\sin ϕ_0\\right] & \\text{otherwise}
-\\end{cases}``
+Evaluated algebraically without `cot(acos(⋅))` singularities so boundary inputs
+(`|μ| == 1` or `μₗ == 0`) remain finite and `ForwardDiff`-compatible. Assembles
+the azimuthally averaged `Ψ` kernels in [`compute_Ψ`](@ref).
 
-where `ϕ_0 = arccos(−r)`.  Used to build the `Ψ` matrices via [`compute_Ψ`](@ref).
+# Examples
+```jldoctest
+julia> CanopyOptics.H(1.0, 0.0)
+0.0
+```
 """
-function H(μ::FT,μₗ::FT) where FT
-    # cot(θ) * cot(θₗ)
-    r = cot(acos(μ)) * cot(acos(μₗ));
-    if r > 1
-        return μ * μₗ
-    elseif r < -1
-        return FT(0)
+@inline function H(μ_in::FT1, μₗ_in::FT2) where {FT1<:Real,FT2<:Real}
+    FT = float(promote_type(FT1, FT2))
+    BFT = _leaf_base_float(FT)
+    μ = clamp(FT(μ_in), -one(FT), one(FT))
+    μₗ = clamp(FT(μₗ_in), -one(FT), one(FT))
+    s = _unit_sin_from_cos(μ)
+    sₗ = _unit_sin_from_cos(μₗ)
+    a = μ * μₗ
+    b = s * sₗ
+    a_p = prospect_primal(a)
+    b_p = prospect_primal(b)
+    if a_p >= b_p
+        return a
+    elseif a_p <= -b_p
+        return zero(FT)
     else
-        # Eq 47
-        ϕ = acos(-r);
-        return FT(1/π) * (μ*μₗ*ϕ + sqrt(FT(1)-μ^2) * sqrt(1-μₗ^2) * sin(ϕ)) 
+        r = clamp(-a / b, -one(FT), one(FT))
+        ϕ = acos(r)
+        rad = (b - a) * (b + a)
+        term_sin = prospect_primal(rad) <= zero(BFT) ? zero(FT) : sqrt(rad)
+        return (a * ϕ + term_sin) / FT(π)
     end
 end
 
 """
-    $(FUNCTIONNAME)(μ::AbstractArray{FT,1}, μₗ::FT) where FT
-    $(FUNCTIONNAME)(μ::AbstractArray{FT,1}, μꜛ::AbstractArray{FT,1}, μₗ::FT) where FT
+    compute_Ψ(μ::AbstractVector, μₗ::Real)
+    compute_Ψ(μ::AbstractVector, μꜛ::AbstractVector, μₗ::Real)
 
-Computes the azimuthally-averaged Ψ matrices for a single leaf inclination cosine `μₗ`,
-following Shultis & Myneni (1988) Eq. (45):
+Compute the azimuthally averaged `(Ψ⁺, Ψ⁻)` coupling matrices at leaf-normal
+cosine `μₗ` following Shultis & Myneni (1988, Eq. 45):
 
-``Ψ^+(μ, μ') = H(μ, μₗ)\\,H(μ', μₗ) + H(-μ, μₗ)\\,H(-μ', μₗ)``
+```math
+\\Psi^+(\\mu, \\mu') = H(\\mu, \\mu_L) H(\\mu', \\mu_L) + H(-\\mu, \\mu_L) H(-\\mu', \\mu_L),
+```
+```math
+\\Psi^-(\\mu, \\mu') = H(\\mu, \\mu_L) H(-\\mu', \\mu_L) + H(-\\mu, \\mu_L) H(\\mu', \\mu_L).
+```
 
-``Ψ^-(μ, μ') = H(μ, μₗ)\\,H(-μ', μₗ) + H(-μ, μₗ)\\,H(μ', μₗ)``
-
-Returns `(Ψ⁺, Ψ⁻)` as matrices of size `(length(μ), length(μ'))`.
-`Ψ⁺` couples same-side directions (transmission-like); `Ψ⁻` couples opposite-side
-directions (reflection-like).  The one-array form uses `μ' = μ`.
+Returns `(Ψ⁺, Ψ⁻)` of size `(length(μ), length(μ'))`, preserving the index axes
+of `μ` and `μꜛ`. The two-argument method sets `μꜛ = μ`.
 """
-function compute_Ψ(μ::AbstractArray{FT,1}, μₗ::FT) where FT
-    H⁺ = H.(μ,μₗ)
-    H⁻ = H.(-μ,μₗ)
+function compute_Ψ(μ::AbstractVector, μₗ::Real)
+    FT = float(promote_type(eltype(μ), typeof(μₗ)))
+    μₗ_ft = FT(μₗ)
+    H⁺ = H.(FT.(μ), μₗ_ft)
+    H⁻ = H.(-FT.(μ), μₗ_ft)
     Ψ⁺ = H⁺ * H⁺' + H⁻ * H⁻'
     Ψ⁻ = H⁺ * H⁻' + H⁻ * H⁺'
     return Ψ⁺, Ψ⁻
 end
 
-"""
-    $(FUNCTIONNAME)(μ::AbstractArray{FT,1}, μꜛ::AbstractArray{FT,1}, μₗ::FT) where FT
-
-Two-array form of [`compute_Ψ`](@ref): allows distinct incoming (`μ`) and outgoing
-(`μꜛ`) quadrature grids.  See the one-array docstring for the full equations.
-"""
-function compute_Ψ(μ::AbstractArray{FT,1},μꜛ::AbstractArray{FT,1}, μₗ::FT) where FT
-    Ψ⁺ = H.(μ,μₗ) * H.(μꜛ,μₗ)'  + H.(-μ,μₗ) * H.(-μꜛ,μₗ)'
-    Ψ⁻ = H.(μ,μₗ) * H.(-μꜛ,μₗ)' + H.(-μ,μₗ) * H.(+μꜛ,μₗ)'
+function compute_Ψ(μ::AbstractVector, μꜛ::AbstractVector, μₗ::Real)
+    FT = float(promote_type(eltype(μ), eltype(μꜛ), typeof(μₗ)))
+    μₗ_ft = FT(μₗ)
+    H₁⁺ = H.(FT.(μ), μₗ_ft)
+    H₁⁻ = H.(-FT.(μ), μₗ_ft)
+    H₂⁺ = H.(FT.(μꜛ), μₗ_ft)
+    H₂⁻ = H.(-FT.(μꜛ), μₗ_ft)
+    Ψ⁺ = H₁⁺ * H₂⁺' + H₁⁻ * H₂⁻'
+    Ψ⁻ = H₁⁺ * H₂⁻' + H₁⁻ * H₂⁺'
     return Ψ⁺, Ψ⁻
 end
 
 """
-    $(FUNCTIONNAME)(Ωⁱⁿ::dirVector, Ωᵒᵘᵗ::dirVector, Ωᴸ::dirVector, r, t)
+    scattering_model_lambertian(Ωⁱⁿ::dirVector, Ωᵒᵘᵗ::dirVector, Ωᴸ::dirVector, r, t)
 
-Returns the single-leaf bi-Lambertian phase function for incoming direction `Ωⁱⁿ`,
-outgoing direction `Ωᵒᵘᵗ`, leaf normal `Ωᴸ`, leaf reflectance `r`, and transmittance
-`t`, following Shultis & Myneni (1988) Eq. (37):
+Evaluate the single-leaf bi-Lambertian phase function `γ(Ωⁱⁿ → Ωᵒᵘᵗ; Ωᴸ)` for
+leaf reflectance `r` and transmittance `t` (Shultis & Myneni, 1988, Eq. 37):
 
-``γ(Ω' \\to Ω;\\,Ωᴸ) = \\begin{cases}
-  r\\,|Ω \\cdot Ωᴸ| / π & (Ω' \\cdot Ωᴸ)(Ω \\cdot Ωᴸ) < 0 \\quad (\\text{reflection}) \\\\
-  t\\,|Ω \\cdot Ωᴸ| / π & (Ω' \\cdot Ωᴸ)(Ω \\cdot Ωᴸ) > 0 \\quad (\\text{transmission})
-\\end{cases}``
+```math
+\\gamma(\\Omega' \\to \\Omega;\\,\\Omega_L) = \\begin{cases}
+  r\\,|\\Omega \\cdot \\Omega_L| / \\pi & (\\Omega' \\cdot \\Omega_L)(\\Omega \\cdot \\Omega_L) < 0, \\\\
+  t\\,|\\Omega \\cdot \\Omega_L| / \\pi & (\\Omega' \\cdot \\Omega_L)(\\Omega \\cdot \\Omega_L) \\ge 0 .
+\\end{cases}
+```
 """
-function scattering_model_lambertian(Ωⁱⁿ::dirVector, Ωᵒᵘᵗ::dirVector, Ωᴸ::dirVector, r, t)
-    α = (Ωⁱⁿ ⋅ Ωᴸ) * (Ωᵒᵘᵗ ⋅ Ωᴸ)
-    if α<0
-        return r * abs(Ωᵒᵘᵗ ⋅ Ωᴸ) / π
-    else
-        return t * abs(Ωᵒᵘᵗ ⋅ Ωᴸ) / π
-    end
+function scattering_model_lambertian(Ωⁱⁿ::dirVector, Ωᵒᵘᵗ::dirVector, Ωᴸ::dirVector, r::Real, t::Real)
+    d_in = Ωⁱⁿ ⋅ Ωᴸ
+    d_out = Ωᵒᵘᵗ ⋅ Ωᴸ
+    FT = float(promote_type(typeof(d_in), typeof(d_out), typeof(r), typeof(t)))
+    coeff = prospect_primal(d_in * d_out) < 0 ? FT(r) : FT(t)
+    return coeff * abs(FT(d_out)) / FT(π)
 end
 
-"""
-    $(FUNCTIONNAME)(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where FT
-    $(FUNCTIONNAME)(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
-
-Returns the specular leaf normal direction `Ωᴸ` that satisfies the specular reflection
-condition for incoming direction `Ωⁱⁿ` and outgoing direction `Ωᵒᵘᵗ`.
-
-The leaf normal bisects `Ωⁱⁿ` and `Ωᵒᵘᵗ`, i.e. it lies along `Ωⁱⁿ + Ωᵒᵘᵗ` (normalised).
-The incidence half-angle is `α = arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ) / 2`.
-See Eq. 18 in Knyazikhin & Marshak, *Discrete Ordinates Method for Photon Transport
-in Leaf Canopies*.
-
-Here `Ωⁱⁿ` points toward the illumination source (`-k_in`) and `Ωᵒᵘᵗ` points toward
-the outgoing ray (`+k_out`), so the specular leaf normal bisects `(Ωⁱⁿ, Ωᵒᵘᵗ)`
-and satisfies `Ωⁱⁿ ⋅ Ωᴸ ≈ Ωᵒᵘᵗ ⋅ Ωᴸ`. At the antipodal grazing limit (`Ωᵒᵘᵗ ≈ -Ωⁱⁿ`,
-`α = π/2`), returns a deterministic unit leaf normal orthogonal to `Ωⁱⁿ` without
-singularity or `ForwardDiff.Dual` `NaN` tangents.
-
-- The `dirVector` variant returns only `Ωᴸ`.
-- The `dirVector_μ` variant returns `(Ωᴸ, α)` for direct use in [`compute_reflection`](@ref).
-"""
 @inline function _azimuth_0_2pi(
     y::FT,
     x::FT,
@@ -137,7 +148,22 @@ singularity or `ForwardDiff.Dual` `NaN` tangents.
     return prospect_primal(θ) < zero(BFT) ? θ + FT(2) * FT(π) : θ
 end
 
-function getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where FT
+"""
+    getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) -> dirVector{FT}
+    getSpecularΩ(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) -> (dirVector_μ{FT}, FT)
+
+Compute the unit specular leaf normal `Ωᴸ` bisecting incoming source direction
+`Ωⁱⁿ` (`-k_in`) and outgoing ray direction `Ωᵒᵘᵗ` (`+k_out`), together with the
+local incidence half-angle `α = arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ) / 2` (Knyazikhin & Marshak,
+1991, Eq. 18).
+
+At the antipodal forward-grazing limit (`Ωᵒᵘᵗ ≈ -Ωⁱⁿ`, `α = π/2`), returns a
+deterministic unit normal orthogonal to `Ωⁱⁿ` without coordinate singularity or
+`ForwardDiff.Dual` `NaN` tangents.
+- The [`dirVector`](@ref) method returns `Ωᴸ`.
+- The [`dirVector_μ`](@ref) method returns `(Ωᴸ, α)`.
+"""
+function getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where {FT}
     BFT = _leaf_base_float(FT)
     in_μ = dirVector_μ(cos(Ωⁱⁿ.θ), Ωⁱⁿ.ϕ)
     out_μ = dirVector_μ(cos(Ωᵒᵘᵗ.θ), Ωᵒᵘᵗ.ϕ)
@@ -148,7 +174,7 @@ function getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) wher
     return dirVector(θ_L, Ωᴸ_μ.ϕ)
 end
 
-function getSpecularΩ(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
+function getSpecularΩ(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where {FT}
     BFT = _leaf_base_float(FT)
     μ1 = clamp(Ωⁱⁿ.μ, -one(FT), one(FT))
     μ2 = clamp(Ωᵒᵘᵗ.μ, -one(FT), one(FT))

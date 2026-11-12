@@ -1,13 +1,34 @@
-using SpecialFunctions: erfcx
-
 # `_leaf_base_float` and `prospect_primal` are defined in `src/types/canopy_types.jl`.
 
-# Precomputed Gauss-Legendre nodes/weights on [-1, 1] (cast to BFT at point of use; zero heap allocation)
+# Precomputed Gauss-Legendre nodes/weights and Chebyshev-Gauss-Lobatto tables (zero heap allocation)
 const _SURF_GL5_X, _SURF_GL5_W = gausslegendre(5)
 const _SURF_GL12_X, _SURF_GL12_W = gausslegendre(12)
 const _SURF_GL16_X, _SURF_GL16_W = gausslegendre(16)
 const _SURF_GL20_X, _SURF_GL20_W = gausslegendre(20)
 const _SURF_GL24_X, _SURF_GL24_W = gausslegendre(24)
+
+const _SURF_GL12_V = Tuple((_SURF_GL12_X .+ 1.0) .* 0.5)
+const _SURF_GL12_WV = Tuple(_SURF_GL12_W .* 0.5)
+const _SURF_GL12_MU = Tuple(sqrt.(_SURF_GL12_V))
+const _SURF_GL12_STH = Tuple(sqrt.(max.(0.0, 1.0 .- _SURF_GL12_V)))
+const _SURF_GL12_COS_DPHI = Tuple(cos.((_SURF_GL12_X .+ 1.0) .* (π * 0.5)))
+
+const _SURF_GL20_S = Tuple((_SURF_GL20_X .+ 1.0) .* 0.5)
+const _SURF_GL20_W_TUP = Tuple(_SURF_GL20_W)
+const _SURF_GL24_COS_PHIH = Tuple(cos.((_SURF_GL24_X .+ 1.0) .* (π * 0.5)))
+const _SURF_GL24_WP = Tuple(_SURF_GL24_W .* 0.5)
+
+const _CHEB32_M = 32
+const _CHEB32_C = ntuple(j -> (1.0 + cos(π * (j - 1) / (_CHEB32_M - 1))) * 0.5, _CHEB32_M)
+const _CHEB32_S2 = ntuple(j -> max(0.0, 1.0 - _CHEB32_C[j]^2), _CHEB32_M)
+const _CHEB32_CT = ntuple(_CHEB32_M) do j
+    pj = (j == 1 || j == _CHEB32_M) ? 2.0 : 1.0
+    ntuple(_CHEB32_M) do kp1
+        k = kp1 - 1
+        pk = (k == 0 || k == _CHEB32_M - 1) ? 2.0 : 1.0
+        (2.0 / ((_CHEB32_M - 1) * pk * pj)) * cos(π * k * (j - 1) / (_CHEB32_M - 1))
+    end
+end
 
 """
     AbstractLeafSurface{FT<:Real}
@@ -280,14 +301,33 @@ end
     BFT = _leaf_base_float(FT)
     g1i = smith_beckmann_G1(μi, σ)
     two = one(FT) + one(FT)
-    half = inv(two)
-    pi_half = FT(π) * half
-    acc = zero(FT)
 
+    if iszero(prospect_primal(sθi)) && _same_val_and_partials(sθi, zero(FT))
+        t_max = inv(μi)
+        arg = -(t_max * t_max) / (σ * σ)
+        u_min = prospect_primal(arg) < BFT(-80) ? zero(FT) : exp(arg)
+        du_span = one(FT) - u_min
+        acc_nadir = zero(FT)
+        @inbounds for ku in 1:20
+            s = BFT(_SURF_GL20_S[ku])
+            u = max(FT(floatmin(BFT)), one(FT) - du_span * (s * s))
+            wu = BFT(_SURF_GL20_W_TUP[ku]) * s * du_span
+            t = σ * sqrt(-log(u))
+            μh = inv(sqrt(one(FT) + t * t))
+            ci = μi * μh
+            μo = clamp(two * ci * μh - μi, FT(eps(BFT)), one(FT))
+            si2 = max(zero(FT), one(FT) - ci * ci)
+            F = fresnel_unpolarized_cos(ci, si2, n_eff)
+            g1o = smith_beckmann_G1(μo, σ)
+            acc_nadir += wu * g1o * F * (ci / (μi * μh))
+        end
+        return g1i * acc_nadir
+    end
+
+    acc = zero(FT)
     @inbounds for kp in 1:24
-        ϕh = (BFT(_SURF_GL24_X[kp]) + one(BFT)) * pi_half
-        wp = BFT(_SURF_GL24_W[kp]) * BFT(0.5)
-        b = sθi * cos(ϕh)
+        wp = BFT(_SURF_GL24_WP[kp])
+        b = sθi * BFT(_SURF_GL24_COS_PHIH[kp])
         disc = sqrt(b * b + μi * μi)
         # Exact upper horizon root t_max > 0 of μ_o = (-μ_i t^2 + 2 b t + μ_i)/(1 + t^2) = 0,
         # paired with u = 1 - (1 - u_min) s^2 so sqrt(-log u) ~ s is C^∞ smooth at u = 1!
@@ -298,9 +338,9 @@ end
 
         acc_u = zero(FT)
         for ku in 1:20
-            s = (BFT(_SURF_GL20_X[ku]) + one(BFT)) * BFT(0.5)
+            s = BFT(_SURF_GL20_S[ku])
             u = max(FT(floatmin(BFT)), one(FT) - du_span * (s * s))
-            wu = BFT(_SURF_GL20_W[ku]) * s * du_span
+            wu = BFT(_SURF_GL20_W_TUP[ku]) * s * du_span
             t = σ * sqrt(-log(u))
             μh = inv(sqrt(one(FT) + t * t))
             sθh = t * μh
@@ -314,6 +354,207 @@ end
         acc += wp * acc_u
     end
     return g1i * acc
+end
+
+@inline function _accum_cheb32_moments!(
+    moms::Vector{FT},
+    μi::FT,
+    sθi::FT,
+    σ::FT,
+    weight_outer::FT,
+) where {FT<:Real}
+    BFT = _leaf_base_float(FT)
+    g1i = smith_beckmann_G1(μi, σ) * weight_outer
+    two = one(FT) + one(FT)
+
+    if iszero(prospect_primal(sθi)) && _same_val_and_partials(sθi, zero(FT))
+        t_max = inv(μi)
+        arg = -(t_max * t_max) / (σ * σ)
+        u_min = prospect_primal(arg) < BFT(-80) ? zero(FT) : exp(arg)
+        du_span = one(FT) - u_min
+        @inbounds for ku in 1:20
+            s = BFT(_SURF_GL20_S[ku])
+            u = max(FT(floatmin(BFT)), one(FT) - du_span * (s * s))
+            wu = BFT(_SURF_GL20_W_TUP[ku]) * s * du_span
+            t = σ * sqrt(-log(u))
+            μh = inv(sqrt(one(FT) + t * t))
+            ci = μi * μh
+            μo = clamp(two * ci * μh - μi, FT(eps(BFT)), one(FT))
+            g1o = smith_beckmann_G1(μo, σ)
+            wq = g1i * wu * g1o * (ci / (μi * μh))
+            x = two * ci - one(FT)
+            t0 = one(FT)
+            t1 = x
+            moms[1] += wq * t0
+            moms[2] += wq * t1
+            for k in 3:_CHEB32_M
+                tk = two * x * t1 - t0
+                moms[k] += wq * tk
+                t0 = t1
+                t1 = tk
+            end
+        end
+        return moms
+    end
+
+    @inbounds for kp in 1:24
+        wp = BFT(_SURF_GL24_WP[kp])
+        b = sθi * BFT(_SURF_GL24_COS_PHIH[kp])
+        disc = sqrt(b * b + μi * μi)
+        t_max = prospect_primal(b) >= zero(BFT) ? (b + disc) / μi : μi / (disc - b)
+        arg = -(t_max * t_max) / (σ * σ)
+        u_min = prospect_primal(arg) < BFT(-80) ? zero(FT) : exp(arg)
+        du_span = one(FT) - u_min
+
+        for ku in 1:20
+            s = BFT(_SURF_GL20_S[ku])
+            u = max(FT(floatmin(BFT)), one(FT) - du_span * (s * s))
+            wu = BFT(_SURF_GL20_W_TUP[ku]) * s * du_span
+            t = σ * sqrt(-log(u))
+            μh = inv(sqrt(one(FT) + t * t))
+            sθh = t * μh
+            ci = b * sθh + μi * μh
+            μo = clamp(two * ci * μh - μi, FT(eps(BFT)), one(FT))
+            g1o = smith_beckmann_G1(μo, σ)
+            wq = g1i * wp * wu * g1o * (ci / (μi * μh))
+            x = two * ci - one(FT)
+            t0 = one(FT)
+            t1 = x
+            moms[1] += wq * t0
+            moms[2] += wq * t1
+            for k in 3:_CHEB32_M
+                tk = two * x * t1 - t0
+                moms[k] += wq * tk
+                t0 = t1
+                t1 = tk
+            end
+        end
+    end
+    return moms
+end
+
+@inline function _moments_to_cheb32_weights(moms::Vector{FT}) where {FT<:Real}
+    BFT = _leaf_base_float(FT)
+    return ntuple(Val(_CHEB32_M)) do j
+        cj = _CHEB32_CT[j]
+        acc = zero(FT)
+        @inbounds for k in 1:_CHEB32_M
+            acc = muladd(BFT(cj[k]), moms[k], acc)
+        end
+        acc
+    end
+end
+
+@inline function _microfacet_dir_cheb32_weights(::Type{FT}, μi::FT, sθi::FT, σ::FT) where {FT<:Real}
+    moms = zeros(FT, _CHEB32_M)
+    _accum_cheb32_moments!(moms, μi, sθi, σ, one(FT))
+    return _moments_to_cheb32_weights(moms)
+end
+
+@inline function _eval_cheb32_fresnel(w::NTuple{_CHEB32_M,FT}, n_eff::FT) where {FT<:Real}
+    BFT = _leaf_base_float(FT)
+    acc = zero(FT)
+    @inbounds for j in 1:_CHEB32_M
+        Fj = fresnel_unpolarized_cos(FT(BFT(_CHEB32_C[j])), FT(BFT(_CHEB32_S2[j])), n_eff)
+        acc = muladd(w[j], Fj, acc)
+    end
+    return acc
+end
+
+struct _PreparedRoughSurfaceCheb{FT<:Real}
+    σ::FT
+    n_scale::FT
+    hemispherical::Bool
+    fallback_direct::Bool
+    w_hem::NTuple{_CHEB32_M,FT}
+    w_dir::NTuple{_CHEB32_M,FT}
+end
+
+@inline _prepare_surface_cheb(::Type{FT}, ::ConeSurface, ::FT, ::Bool) where {FT<:Real} = nothing
+
+function _prepare_surface_cheb(
+    ::Type{FT},
+    surface::RoughDielectricSurface,
+    μ_in::FT,
+    hemispherical::Bool,
+) where {FT<:Real}
+    BFT = _leaf_base_float(FT)
+    σ = FT(surface.σ)
+    n_scale = FT(surface.n_scale)
+
+    moms_hem = zeros(FT, _CHEB32_M)
+    @inbounds for k in 1:12
+        wv = FT(BFT(_SURF_GL12_WV[k]))
+        μ = FT(BFT(_SURF_GL12_MU[k]))
+        sθ = FT(BFT(_SURF_GL12_STH[k]))
+        _accum_cheb32_moments!(moms_hem, μ, sθ, σ, wv)
+    end
+    w_hem = _moments_to_cheb32_weights(moms_hem)
+
+    if hemispherical
+        return _PreparedRoughSurfaceCheb{FT}(σ, n_scale, true, false, w_hem, w_hem)
+    end
+
+    u_sin2 = one(FT) - μ_in * μ_in
+    if prospect_primal(u_sin2) <= zero(BFT)
+        if u_sin2 isa ForwardDiff.Dual && !_same_val_and_partials(u_sin2, zero(FT))
+            return _PreparedRoughSurfaceCheb{FT}(σ, n_scale, false, true, w_hem, w_hem)
+        end
+        w_dir = _microfacet_dir_cheb32_weights(FT, one(FT), zero(FT), σ)
+        return _PreparedRoughSurfaceCheb{FT}(σ, n_scale, false, false, w_hem, w_dir)
+    end
+
+    w_dir = _microfacet_dir_cheb32_weights(FT, μ_in, sqrt(u_sin2), σ)
+    return _PreparedRoughSurfaceCheb{FT}(σ, n_scale, false, false, w_hem, w_dir)
+end
+
+@inline function _eval_prepared_surface(
+    surface::ConeSurface,
+    ::Nothing,
+    μ_in::FT,
+    nr::FT,
+    n_surf::FT,
+    hemispherical::Bool,
+) where {FT<:Real}
+    return surface_interface_optics(surface, μ_in, nr; hemispherical, n_surface = n_surf)
+end
+
+@inline function _eval_prepared_surface(
+    surface::RoughDielectricSurface,
+    prep::_PreparedRoughSurfaceCheb{FT},
+    μ_in::FT,
+    nr::FT,
+    n_surf::FT,
+    hemispherical::Bool,
+) where {FT<:Real}
+    BFT = _leaf_base_float(FT)
+    n_eff = prep.n_scale * n_surf
+    (isfinite(prospect_primal(nr)) && prospect_primal(nr) > one(BFT)) ||
+        throw(ArgumentError("Mesophyll refractive index nr must be finite and exceed 1"))
+    (isfinite(prospect_primal(n_eff)) && prospect_primal(n_eff) > one(BFT)) ||
+        throw(ArgumentError("Effective surface refractive index n_eff = n_scale * n_surface must be finite and exceed 1"))
+
+    if prep.fallback_direct || prospect_primal(n_eff) < BFT(1.08)
+        return surface_interface_optics(surface, μ_in, nr; hemispherical, n_surface = n_surf)
+    end
+
+    r_hem_ext = zero(FT)
+    r_dir = zero(FT)
+    wh = prep.w_hem
+    wd = prep.w_dir
+    @inbounds for j in 1:_CHEB32_M
+        Fj = fresnel_unpolarized_cos(FT(BFT(_CHEB32_C[j])), FT(BFT(_CHEB32_S2[j])), n_eff)
+        r_hem_ext = muladd(wh[j], Fj, r_hem_ext)
+        if !hemispherical
+            r_dir = muladd(wd[j], Fj, r_dir)
+        end
+    end
+    r_ext = hemispherical ? r_hem_ext : r_dir
+    t_hem_ext = one(FT) - r_hem_ext
+    t_ext = one(FT) - r_ext
+    t_int_diffuse = t_hem_ext / (nr * nr)
+    r_int_diffuse = one(FT) - t_int_diffuse
+    return (; r_ext, t_ext, r_int_diffuse, t_int_diffuse, t_hem_ext, n_eff)
 end
 
 """
@@ -385,10 +626,9 @@ Hemispherical-hemispherical single-bounce reflectance
 
     acc = zero(FT)
     @inbounds for k in 1:12
-        v = (BFT(_SURF_GL12_X[k]) + one(BFT)) * BFT(0.5)
-        w = BFT(_SURF_GL12_W[k]) * BFT(0.5)
-        μ = sqrt(v)
-        sθ = sqrt(one(BFT) - v)
+        w = BFT(_SURF_GL12_WV[k])
+        μ = BFT(_SURF_GL12_MU[k])
+        sθ = BFT(_SURF_GL12_STH[k])
         acc += w * _microfacet_directional_reflectance_core(FT(μ), FT(sθ), n_eff, σ)
     end
     return acc

@@ -64,9 +64,9 @@ Simple empirical angular clumping model:
 The default shape gives `Ω(0) = Ω₀` at nadir and approaches one toward the
 horizon, where clumping is visually less apparent along the slant path.
 
-This is a compact directional parameterization, not the full Chen-Leblanc
-row/crown gap-size model. `ChenLeblancClumping` remains as a compatibility
-alias for older code that used the previous name.
+This is a compact directional parameterization rather than the full Chen-Leblanc
+row/crown gap-size model. [`ChenLeblancClumping`](@ref) is provided as a
+compatibility alias.
 """
 struct EmpiricalDirectionalClumping{FT<:Real} <: AbstractClumping{FT}
     Ω₀::FT
@@ -83,6 +83,12 @@ EmpiricalDirectionalClumping{FT}(; Ω₀ = FT(0.7), c = FT(2), e = FT(2)) where 
     EmpiricalDirectionalClumping{FT}(FT(Ω₀), FT(c), FT(e))
 
 const ChenLeblancClumping = EmpiricalDirectionalClumping
+
+@doc """
+    ChenLeblancClumping
+
+Compatibility alias for [`EmpiricalDirectionalClumping`](@ref).
+""" ChenLeblancClumping
 
 """
     clumping_index(model, μ)

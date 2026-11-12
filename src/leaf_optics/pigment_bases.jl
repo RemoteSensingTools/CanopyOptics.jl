@@ -117,16 +117,16 @@ struct MultiPigmentOpticalProperties{FT<:Real,FT2} <: AbstractProspectProperties
 
     function MultiPigmentOpticalProperties{FT,FT2}(
         λ::FT2,
-        nᵣ::Vector{FT},
-        Kchla::Vector{FT},
-        Kchlb::Vector{FT},
-        Kcar::Vector{FT},
-        Kant::Vector{FT},
-        Kb::Vector{FT},
-        Kw::Vector{FT},
-        Km::Vector{FT},
-        Kp::Vector{FT},
-        Kcbc::Vector{FT},
+        nᵣ::AbstractVector,
+        Kchla::AbstractVector,
+        Kchlb::AbstractVector,
+        Kcar::AbstractVector,
+        Kant::AbstractVector,
+        Kb::AbstractVector,
+        Kw::AbstractVector,
+        Km::AbstractVector,
+        Kp::AbstractVector,
+        Kcbc::AbstractVector,
     ) where {FT<:Real,FT2}
         nλ = length(nᵣ)
         nλ > 0 || throw(ArgumentError("MultiPigmentOpticalProperties requires non-empty spectra"))
@@ -134,7 +134,11 @@ struct MultiPigmentOpticalProperties{FT<:Real,FT2} <: AbstractProspectProperties
             throw(DimensionMismatch("All optical coefficient vectors must have length $(nλ)"))
         length(λ) == nλ ||
             throw(DimensionMismatch("Wavelength grid length $(length(λ)) must match optical vectors $(nλ)"))
-        return new{FT,FT2}(λ, nᵣ, Kchla, Kchlb, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc)
+        conv(v) = v isa Vector{FT} ? v : copyto!(Vector{FT}(undef, nλ), v)
+        return new{FT,FT2}(
+            λ, conv(nᵣ), conv(Kchla), conv(Kchlb), conv(Kcar),
+            conv(Kant), conv(Kb), conv(Kw), conv(Km), conv(Kp), conv(Kcbc),
+        )
     end
 end
 
@@ -156,10 +160,7 @@ function MultiPigmentOpticalProperties(
         eltype(Kb), eltype(Kw), eltype(Km), eltype(Kp), eltype(Kcbc),
     ))
     return MultiPigmentOpticalProperties{FT,typeof(λ)}(
-        λ,
-         Vector{FT}(nᵣ), Vector{FT}(Kchla), Vector{FT}(Kchlb), Vector{FT}(Kcar),
-        Vector{FT}(Kant), Vector{FT}(Kb), Vector{FT}(Kw), Vector{FT}(Km),
-        Vector{FT}(Kp), Vector{FT}(Kcbc),
+        λ, nᵣ, Kchla, Kchlb, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc,
     )
 end
 
@@ -181,11 +182,22 @@ function MultiPigmentOpticalProperties(
         eltype(Kb), eltype(Kw), eltype(Km), eltype(Kp), eltype(Kcbc),
     ))
     return MultiPigmentOpticalProperties{OFT,FT2}(
-        base.λ,
-        Vector{OFT}(nᵣ), Vector{OFT}(Kchla), Vector{OFT}(Kchlb), Vector{OFT}(Kcar),
-        Vector{OFT}(Kant), Vector{OFT}(Kb), Vector{OFT}(Kw), Vector{OFT}(Km),
-        Vector{OFT}(Kp), Vector{OFT}(Kcbc),
+        base.λ, nᵣ, Kchla, Kchlb, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc,
     )
+end
+
+function Base.:(==)(a::MultiPigmentOpticalProperties, b::MultiPigmentOpticalProperties)
+    return a.λ == b.λ && a.nᵣ == b.nᵣ && a.Kchla == b.Kchla && a.Kchlb == b.Kchlb &&
+           a.Kcar == b.Kcar && a.Kant == b.Kant && a.Kb == b.Kb && a.Kw == b.Kw &&
+           a.Km == b.Km && a.Kp == b.Kp && a.Kcbc == b.Kcbc
+end
+
+function Base.hash(a::MultiPigmentOpticalProperties, h::UInt)
+    h = hash(:MultiPigmentOpticalProperties, h)
+    for f in (a.λ, a.nᵣ, a.Kchla, a.Kchlb, a.Kcar, a.Kant, a.Kb, a.Kw, a.Km, a.Kp, a.Kcbc)
+        h = hash(f, h)
+    end
+    return h
 end
 
 function prospect_constituent_coefficients(
@@ -505,12 +517,14 @@ function prospect_budget(
 
     N_ft = FT(leaf.N)
     μ_ft = FT(μ_in)
+    prep_surf = _prepare_surface_cheb(FT, surface, μ_ft, false)
+    ns_off = n_surface === nothing ? 0 : firstindex(n_surface) - 1
 
     @inbounds for idx in 1:nλ
         nr = FT(optics.nᵣ[idx])
-        ns_idx = n_surface === nothing ? nr : FT(n_surface[idx])
+        ns_idx = n_surface === nothing ? nr : FT(n_surface[ns_off + idx])
         k_unit = FT(K_total[idx]) / N_ft
-        surf_opt = surface_interface_optics(surface, μ_ft, nr; n_surface = ns_idx)
+        surf_opt = _eval_prepared_surface(surface, prep_surf, μ_ft, nr, ns_idx, false)
         b = _asymmetric_top_prospect_budget(
             k_unit, N_ft, surf_opt.t_ext, surf_opt.t_int_diffuse, nr,
         )
@@ -793,6 +807,8 @@ function leaf_sip_budget(
     A_vec = Vector{FT}(undef, nλ)
 
     elem_scale = FT(lma_eff) * FT(leaf.alpha_lma)
+    prep_surf_top = surface === nothing ? nothing : _prepare_surface_cheb(FT, surface, μ_ft, false)
+    ns_off = n_surface === nothing ? 0 : firstindex(n_surface) - 1
 
     @inbounds for idx in 1:nλ
         k_chl = if optics isa MultiPigmentOpticalProperties
@@ -826,14 +842,13 @@ function leaf_sip_budget(
             A_vec[idx] = a_int
         else
             nr = FT(optics.nᵣ[idx])
-            ns_idx = n_surface === nothing ? nr : FT(n_surface[idx])
-            s_top = surface_interface_optics(surface, μ_ft, nr; n_surface = ns_idx)
-            s_hem = surface_interface_optics(surface, FT(90), nr; hemispherical = true, n_surface = ns_idx)
-            # Couple external dielectric interfaces I_top ⋆ M_sip ⋆ I_bot without air gaps
+            ns_idx = n_surface === nothing ? nr : FT(n_surface[ns_off + idx])
+            s_top = _eval_prepared_surface(surface, prep_surf_top, μ_ft, nr, ns_idx, false)
+            # Note: s_top.r_int_diffuse and s_top.t_int_diffuse already use t_hem_ext / nr^2!
             b = _couple_external_interfaces_to_medium(
                 s_top.r_ext, s_top.t_ext, s_top.r_int_diffuse, s_top.t_int_diffuse,
                 r_int, t_int, a_int, r_int, t_int, a_int,
-                s_hem.r_int_diffuse, s_hem.t_int_diffuse,
+                s_top.r_int_diffuse, s_top.t_int_diffuse,
             )
             T_vec[idx] = b.transmission
             R_vec[idx] = b.reflectance

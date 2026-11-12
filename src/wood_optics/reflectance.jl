@@ -78,8 +78,8 @@ function LUTWoodReflectance(grid::AbstractVector{<:Real},
         throw(ArgumentError("extrapolation must be :clamp or :error"))
 
     FT = _wood_parameter_type(grid..., R...)
-    g = FT.(grid)
-    r = FT.(R)
+    g = copyto!(Vector{FT}(undef, length(grid)), grid)
+    r = copyto!(Vector{FT}(undef, length(R)), R)
     sp = sortperm(g)
     g = g[sp]
     r = r[sp]
@@ -91,6 +91,19 @@ end
 LUTWoodReflectance(; grid, R, grid_unit::Symbol = :nm,
                    extrapolation::Symbol = :clamp) =
     LUTWoodReflectance(grid, R; grid_unit, extrapolation)
+
+function Base.:(==)(a::LUTWoodReflectance, b::LUTWoodReflectance)
+    return a.grid == b.grid && a.R == b.R &&
+           a.grid_unit == b.grid_unit && a.extrapolation == b.extrapolation
+end
+
+function Base.hash(a::LUTWoodReflectance, h::UInt)
+    h = hash(:LUTWoodReflectance, h)
+    h = hash(a.grid, h)
+    h = hash(a.R, h)
+    h = hash(a.grid_unit, h)
+    return hash(a.extrapolation, h)
+end
 
 """
     PolynomialWoodReflectance(coeffs; grid_unit = :nm, x_offset = 0, x_scale = 1)
@@ -126,12 +139,25 @@ function PolynomialWoodReflectance(coeffs::AbstractVector{<:Real};
     offset = x_offset === nothing ? zero(FT) : FT(x_offset)
     scale = x_scale === nothing ? one(FT) : FT(x_scale)
     scale != zero(FT) || throw(ArgumentError("x_scale must be non-zero"))
-    return PolynomialWoodReflectance{FT}(FT.(coeffs), grid_unit, offset, scale)
+    return PolynomialWoodReflectance{FT}(copyto!(Vector{FT}(undef, length(coeffs)), coeffs), grid_unit, offset, scale)
 end
 
 PolynomialWoodReflectance(; coeffs, grid_unit::Symbol = :nm,
                           x_offset = nothing, x_scale = nothing) =
     PolynomialWoodReflectance(coeffs; grid_unit, x_offset, x_scale)
+
+function Base.:(==)(a::PolynomialWoodReflectance, b::PolynomialWoodReflectance)
+    return a.coeffs == b.coeffs && a.grid_unit == b.grid_unit &&
+           a.x_offset == b.x_offset && a.x_scale == b.x_scale
+end
+
+function Base.hash(a::PolynomialWoodReflectance, h::UInt)
+    h = hash(:PolynomialWoodReflectance, h)
+    h = hash(a.coeffs, h)
+    h = hash(a.grid_unit, h)
+    h = hash(a.x_offset, h)
+    return hash(a.x_scale, h)
+end
 
 """
     wood_reflectance(model, x; grid_unit = :nm)
@@ -145,10 +171,15 @@ wood_reflectance(model::ConstantWoodReflectance) = model.R
 wood_reflectance(model::ConstantWoodReflectance, x::Real; grid_unit::Symbol = :nm) =
     model.R + zero(_spectral_coordinate(x, grid_unit, grid_unit))
 
-function wood_reflectance(model::AbstractWoodReflectance,
+function wood_reflectance(model::AbstractWoodReflectance{FTM},
                           grid::AbstractVector{<:Real};
-                          grid_unit::Symbol = :nm)
-    return [wood_reflectance(model, x; grid_unit) for x in grid]
+                          grid_unit::Symbol = :nm) where {FTM}
+    OutFT = float(promote_type(FTM, eltype(grid)))
+    out = similar(grid, OutFT)
+    @inbounds for i in eachindex(out, grid)
+        out[i] = wood_reflectance(model, grid[i]; grid_unit)
+    end
+    return out
 end
 
 function wood_reflectance(model::LUTWoodReflectance{FT},
@@ -158,11 +189,11 @@ function wood_reflectance(model::LUTWoodReflectance{FT},
     g = model.grid
     r = model.R
 
-    if x_model <= g[1]
-        model.extrapolation == :clamp && return r[1] + zero(x_model)
+    if x_model <= first(g)
+        model.extrapolation == :clamp && return first(r) + zero(x_model)
         throw(ArgumentError("spectral coordinate is below the LUT range"))
-    elseif x_model >= g[end]
-        model.extrapolation == :clamp && return r[end] + zero(x_model)
+    elseif x_model >= last(g)
+        model.extrapolation == :clamp && return last(r) + zero(x_model)
         throw(ArgumentError("spectral coordinate is above the LUT range"))
     end
 
@@ -181,7 +212,7 @@ function wood_reflectance(model::PolynomialWoodReflectance{FT},
                           grid_unit::Symbol = :nm) where {FT<:Real}
     x_model = _spectral_coordinate(x, grid_unit, model.grid_unit)
     xhat = (x_model - model.x_offset) / model.x_scale
-    value = zero(model.coeffs[end] + xhat)
+    value = zero(last(model.coeffs) + xhat)
     for c in Iterators.reverse(model.coeffs)
         value = value * xhat + c
     end
@@ -214,6 +245,12 @@ function LambertianWoodCanopyScattering(; R = 0.25, reflectance = nothing)
 end
 
 const LambertianWood = LambertianWoodCanopyScattering
+
+@doc """
+    LambertianWood
+
+Shorthand alias for [`LambertianWoodCanopyScattering`](@ref).
+""" LambertianWood
 
 wood_reflectance(model::LambertianWoodCanopyScattering, args...; kwargs...) =
     wood_reflectance(model.reflectance, args...; kwargs...)

@@ -67,7 +67,7 @@ CanopyOptics
 ```@autodocs
 Modules = [CanopyOptics]
 Private = false
-Order = [:type]
+Order = [:type, :constant]
 ```
 
 ### Functions

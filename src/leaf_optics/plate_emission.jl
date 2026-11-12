@@ -1,7 +1,15 @@
-"""Normalized internal photon birth-depth distribution; independent of yield and spectrum."""
+"""
+    AbstractLeafBirthProfile
+
+Normalized internal photon birth-depth distribution, independent of yield and spectrum.
+"""
 abstract type AbstractLeafBirthProfile end
 
-"""Uniform photon production over dimensionless depth `0 ≤ z ≤ 1`."""
+"""
+    UniformBirthProfile()
+
+Uniform photon production over dimensionless depth `0 ≤ z ≤ 1`.
+"""
 struct UniformBirthProfile <: AbstractLeafBirthProfile end
 
 """

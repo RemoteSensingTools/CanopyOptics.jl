@@ -1,210 +1,242 @@
-
 """
-$(FUNCTIONNAME)(mod::LiquidSaltWater, T::FT,f::FT)
+    dielectric(mod::LiquidSaltWater, T, f)
 
-Computes the complex dieletric of liquid salty walter (Ulaby & Long book)
+Compute the complex relative permittivity `ε(T, f)` of saline liquid water
+following Ulaby & Long (2014, Chapter 4, Eqs. 4.19–4.21), using the `+i ε''`
+loss sign convention.
+
 # Arguments
-- `mod` an [`LiquidSaltWater`](@ref) type struct, provide Salinity in PSU 
-- `T`  Temperature in `[⁰K]`
-- `f`  Frequency in `[GHz]`
-- `S`  Salinity in `[PSU]` comes from the `mod` [`LiquidSaltWater`](@ref) struct
+- `mod::LiquidSaltWater`: saline water model supplying salinity `S` in `[0, 45]` `PSU`.
+- `T::Real`: temperature in `K` (`265 <= T <= 310`).
+- `f::Real`: frequency in `GHz`.
 
 # Examples
-```julia-repl
-julia> w = CanopyOptics.LiquidSaltWater(S=10.0)     # Create struct for salty seawater
-julia> CanopyOptics.dielectric(w,283.0,10.0)
-51.79254073931596 + 38.32304044382495im
+```jldoctest
+julia> w = LiquidSaltWater(S = 10.0);
+
+julia> round(dielectric(w, 283.0, 10.0); digits = 4)
+51.7925 + 38.323im
 ```
 """
-function dielectric(mod::LiquidSaltWater, T::FT,f::FT) where FT<:Real
-    (;S)  = mod
-    0 ≤ S ≤ 45     || throw(ArgumentError("Salinity must be ∈ [0, 45] PSU (got $S)"))
-    265 ≤ T ≤ 310  || throw(ArgumentError("Temperature must be ∈ [265, 310] K (got $T)"))
-    # Equations were tuned for ⁰C but want K input!
-    T = T - FT(273)        
-    # Compute σ (Eqs 4.21 - 4.21 in Ulaby and Long)
-    σ₃₅ = TempPoly(T)
-    P   = S * SalPoly1(S) / SalPoly2(S)
-    Q   = FT(1) + (α₀PolNom(S)/α₀PolDenom(S) * (T - FT(15)))/(T + α₁(T));
-        
-    σ = σ₃₅ * P * Q
- 
-    ϵS   = FT(87.85306) * exp(FT(-0.00456992)*T - aU[1]*S - aU[2]*S^2 - aU[3]*S*T);
-    ϵOne =  aU[4] * exp(-aU[5]*T - aU[6]*S - aU[7]*S*T);
-    # Relaxation time constants
-    τ1   = (aU[8]  + aU[9] *S) * exp(aU[10] / (T+aU[11]));
-    τ2   = (aU[12] + aU[13]*S) * exp(aU[14] / (T+aU[15]));
-    ϵInf =  aU[16] + aU[17]*T  + aU[18]*S;
+function dielectric(mod::LiquidSaltWater{FTS}, T_in::FTT, f_in::FTF) where {FTS<:Real,FTT<:Real,FTF<:Real}
+    FT = float(promote_type(FTS, FTT, FTF))
+    BFT = _leaf_base_float(FT)
+    S = FT(mod.S)
+    T_k = FT(T_in)
+    f = FT(f_in)
+    S_p = prospect_primal(S)
+    T_p = prospect_primal(T_k)
+    zero(BFT) <= S_p <= BFT(45) ||
+        throw(ArgumentError("Salinity must be ∈ [0, 45] PSU (got $S_p)"))
+    BFT(265) <= T_p <= BFT(310) ||
+        throw(ArgumentError("Temperature must be ∈ [265, 310] K (got $T_p)"))
 
-    # Complex Permittivity Calculation
-    ϵ = ((ϵS-ϵOne) / (FT(1) - 1im * 2π * f * τ1)) + ((ϵOne-ϵInf) / (1-1im * 2π * f * τ2)) + (ϵInf) + 1im*((FT(17.9751)*σ) /f);
+    T = T_k - BFT(273)
+    σ35 = evalpoly(T, BFT.(_TEMP_POLY_COEFFS))
+    P   = S * evalpoly(S, BFT.(_SAL_POLY1_COEFFS)) / evalpoly(S, BFT.(_SAL_POLY2_COEFFS))
+    α0  = evalpoly(S, BFT.(_ALPHA0_NOM_COEFFS)) / evalpoly(S, BFT.(_ALPHA0_DEN_COEFFS))
+    Q   = one(FT) + (α0 * (T - BFT(15))) / (T + evalpoly(T, BFT.(_ALPHA1_COEFFS)))
+    σ   = σ35 * P * Q
+
+    au = BFT.(_ULABY_WATER_AU)
+    ϵS   = BFT(87.85306) * exp(BFT(-0.00456992) * T - au[1] * S - au[2] * S^2 - au[3] * S * T)
+    ϵOne = au[4] * exp(-au[5] * T - au[6] * S - au[7] * S * T)
+    τ1   = (au[8]  + au[9]  * S) * exp(au[10] / (T + au[11]))
+    τ2   = (au[12] + au[13] * S) * exp(au[14] / (T + au[15]))
+    ϵInf = au[16] + au[17] * T + au[18] * S
+
+    two_pi_f = (BFT(2) * FT(π)) * f
+    return (ϵS - ϵOne) / Complex(one(FT), -two_pi_f * τ1) +
+           (ϵOne - ϵInf) / Complex(one(FT), -two_pi_f * τ2) +
+           ϵInf + Complex(zero(FT), (BFT(17.9751) * σ) / f)
 end
 
 """
-$(FUNCTIONNAME)(mod::LiquidPureWater, T::FT,f::FT)
+    dielectric(mod::LiquidPureWater, T, f)
 
-Computes the complex dieletric of liquid pure walter (Ulaby & Long book)
+Compute the complex relative permittivity `ε(T, f)` of pure liquid water
+following Ulaby & Long (2014, Chapter 4), using the `+i ε''` loss sign
+convention.
+
 # Arguments
-- `mod` an [`LiquidSaltWater`](@ref) type struct
-- `T`  Temperature in `[⁰K]`
-- `f`  Frequency in `[GHz]`
+- `mod::LiquidPureWater`: pure liquid water tag.
+- `T::Real`: temperature in `K` (`265 <= T <= 310`).
+- `f::Real`: frequency in `GHz`.
 
 # Examples
-```julia-repl
-julia> w = CanopyOptics.LiquidPureWater()     # Create struct for salty seawater
-julia> CanopyOptics.dielectric(w,283.0,10.0)
-53.45306674215052 + 38.068642430090044im
+```jldoctest
+julia> round(dielectric(LiquidPureWater(), 283.0, 10.0); digits = 4)
+53.4531 + 38.0686im
 ```
 """
-function dielectric(mod::LiquidPureWater, T::FT,f::FT) where FT<:Real
-    265 ≤ T ≤ 310 || throw(ArgumentError("Temperature must be ∈ [265, 310] K (got $T)"))
-    # Equations were tuned for ⁰C but want K input!
-    T = T - FT(273)
+function dielectric(::LiquidPureWater, T_in::FTT, f_in::FTF) where {FTT<:Real,FTF<:Real}
+    FT = float(promote_type(FTT, FTF))
+    BFT = _leaf_base_float(FT)
+    T_k = FT(T_in)
+    f = FT(f_in)
+    T_p = prospect_primal(T_k)
+    BFT(265) <= T_p <= BFT(310) ||
+        throw(ArgumentError("Temperature must be ∈ [265, 310] K (got $T_p)"))
 
-    ϵS   =  FT(87.85306) * exp(FT(-0.00456992)*T);
-    ϵOne =  aU[4]  * exp(-aU[5]*T);
-    τ1   =  aU[8]  * exp(aU[10] / (T+aU[11]));
-    τ2   =  aU[12] * exp(aU[14] / (T+aU[15]));
-    ϵInf =  aU[16] + aU[17]*T;
-    # Complex Permittivity Calculation
-    ϵ = ((ϵS-ϵOne) / (FT(1) - 1im * 2π * f * τ1)) + ((ϵOne-ϵInf)./(1-1im * 2π * f * τ2)) + (ϵInf);
+    T = T_k - BFT(273)
+    au = BFT.(_ULABY_WATER_AU)
+    ϵS   = BFT(87.85306) * exp(BFT(-0.00456992) * T)
+    ϵOne = au[4]  * exp(-au[5] * T)
+    τ1   = au[8]  * exp(au[10] / (T + au[11]))
+    τ2   = au[12] * exp(au[14] / (T + au[15]))
+    ϵInf = au[16] + au[17] * T
+
+    two_pi_f = (BFT(2) * FT(π)) * f
+    return (ϵS - ϵOne) / Complex(one(FT), -two_pi_f * τ1) +
+           (ϵOne - ϵInf) / Complex(one(FT), -two_pi_f * τ2) +
+           ϵInf
 end
 
 """
-$(FUNCTIONNAME)(mod::PureIce, T::FT,f::FT)
+    dielectric(mod::PureIce, T, f)
 
-Computes the complex dielectric constant of pure ice (Ulaby & Long book, Eqs. 4.22–4.25).
-Valid temperature range: 233–273.15 K.
+Compute the complex relative permittivity `ε(T, f)` of pure water ice following
+Ulaby & Long (2014, Chapter 4, Eqs. 4.22–4.25), valid for `233 <= T <= 273.15` `K`.
+
 # Arguments
-- `mod` a [`PureIce`](@ref) type struct
-- `T`  Temperature in `[K]`, must be ∈ [233, 273.15]
-- `f`  Frequency in `[GHz]`
+- `mod::PureIce`: pure water ice tag.
+- `T::Real`: temperature in `K` (`233 <= T <= 273.15`).
+- `f::Real`: frequency in `GHz`.
 
 # Examples
-```julia-repl
-julia> w = CanopyOptics.PureIce()
-julia> CanopyOptics.dielectric(w, 253.0, 10.0)   # T = -20°C, f = 10 GHz
-# Real part ≈ 3.17 (ice has low imaginary dielectric compared to liquid water)
+```jldoctest
+julia> round(real(dielectric(PureIce(), 253.0, 10.0)); digits = 4)
+3.1702
 ```
 """
-function dielectric(mod::PureIce, T::FT, f::FT) where FT
-    233 ≤ T ≤ 273.15 || throw(ArgumentError("Temperature must be ∈ [233, 273.15] K (got $T)"))
-    # Some constants first
-    θ  = (FT(300)/T) - FT(1);
-    B1 = FT(0.0207);
-    B2 = FT(1.16e-11);
-    b  = FT(335);
-    # Eqs 4.22-4.25
-    α = (FT(0.00504) + FT(0.0062) * θ) * exp(-FT(22.1) * θ);
-    βₘ  = (B1/T) * exp(b/T) / (exp(b/T)-FT(1))^2  + B2 * f^2;
-    δβ  = exp(-FT(9.963) + FT(0.0372) * (T-FT(273.16)));
-    
-    β = βₘ + δβ;
-    ϵ = FT(3.1884) + FT(9.1e-4) *(T-FT(273)) + (α/f + β*f)im;
+function dielectric(::PureIce, T_in::FTT, f_in::FTF) where {FTT<:Real,FTF<:Real}
+    FT = float(promote_type(FTT, FTF))
+    BFT = _leaf_base_float(FT)
+    T = FT(T_in)
+    f = FT(f_in)
+    T_p = prospect_primal(T)
+    BFT(233) <= T_p <= BFT(273.15) ||
+        throw(ArgumentError("Temperature must be ∈ [233, 273.15] K (got $T_p)"))
+
+    θ  = (BFT(300) / T) - one(FT)
+    B1 = BFT(0.0207)
+    B2 = BFT(1.16e-11)
+    b  = BFT(335)
+
+    α  = (BFT(0.00504) + BFT(0.0062) * θ) * exp(-BFT(22.1) * θ)
+    eb = exp(b / T)
+    βₘ = (B1 / T) * eb / (eb - one(FT))^2 + B2 * f^2
+    δβ = exp(-BFT(9.963) + BFT(0.0372) * (T - BFT(273.16)))
+    β  = βₘ + δβ
+
+    return Complex(BFT(3.1884) + BFT(9.1e-4) * (T - BFT(273)), α / f + β * f)
 end
 
 """
-$(FUNCTIONNAME)(mod::SoilMW, T::FT,f::FT)
+    dielectric(mod::SoilMW, T, f)
 
-Computes the complex dielectric constant of moist soil (Ulaby & Long book, Eqs. 4.66–4.70).
+Compute the complex relative permittivity `ε(T, f)` of moist soil following the
+Dobson semi-empirical mixing model in Ulaby & Long (2014, Chapter 4, Eqs. 4.66–4.70).
+
 # Arguments
-- `mod` a `SoilMW` type struct (fields: `sand_frac`, `clay_frac`, `mᵥ`, `ρ`)
-- `T`  Temperature in `[K]`
-- `f`  Frequency in `[GHz]`
+- `mod::SoilMW`: soil texture, moisture, and bulk-density parameters.
+- `T::Real`: temperature in `K` (`265 <= T <= 310`).
+- `f::Real`: frequency in `GHz`.
 
 # Examples
-```julia-repl
-julia> w = SoilMW(sand_frac=0.2, clay_frac=0.2, mᵥ=0.3, ρ=1.7)
-julia> dielectric(w, 283.0, 10.0)
+```jldoctest
+julia> s = SoilMW(sand_frac = 0.2, clay_frac = 0.2, mᵥ = 0.3, ρ = 1.7);
+
+julia> real(dielectric(s, 283.0, 10.0)) > 10
+true
 ```
 """
-function dielectric(mod::SoilMW{FT}, T::FT,f::FT) where FT
-    (;sand_frac, clay_frac, mᵥ, ρ) = mod 
-    # T = Tk - FT(273)
-    f_hz = f * FT(1e9);    #  transform from GHz to Hz
+function dielectric(mod::SoilMW{FTS}, T_in::FTT, f_in::FTF) where {FTS<:Real,FTT<:Real,FTF<:Real}
+    FT = float(promote_type(FTS, FTT, FTF))
+    BFT = _leaf_base_float(FT)
+    sand_frac = FT(mod.sand_frac)
+    clay_frac = FT(mod.clay_frac)
+    mᵥ = FT(mod.mᵥ)
+    ρ = FT(mod.ρ)
+    T = FT(T_in)
+    f = FT(f_in)
+    f_p = prospect_primal(f)
 
-    α  = FT(0.65);   # eq: 4.68a
-    β₁ = FT(1.27) - FT(0.519) * sand_frac - FT(0.152) * clay_frac; # eq: 4.68b
-    β₂ = FT(2.06) - FT(0.928) * sand_frac - FT(0.255) * clay_frac; # eq: 4.68c 
-    
-    ϵ₀ = FT(8.854e-12); 
+    f_hz = f * BFT(1e9)
+    α  = BFT(0.65)
+    β₁ = BFT(1.27) - BFT(0.519) * sand_frac - BFT(0.152) * clay_frac
+    β₂ = BFT(2.06) - BFT(0.928) * sand_frac - BFT(0.255) * clay_frac
+    ϵ₀ = BFT(8.854e-12)
 
-    if f > 1.3
-        σ = FT(-1.645) + FT(1.939) * ρ - FT(2.256) * sand_frac + FT(1.594) * clay_frac;  # eq: 4.68d
-    elseif 0.3 ≤ f ≤ 1.3
-        σ = FT(0.0467) + FT(0.22)  * ρ - FT(0.411) * sand_frac + FT(0.661) * clay_frac;  # eq: 4.70
+    σ = if f_p > BFT(1.3)
+        BFT(-1.645) + BFT(1.939) * ρ - BFT(2.256) * sand_frac + BFT(1.594) * clay_frac
+    elseif BFT(0.3) <= f_p <= BFT(1.3)
+        BFT(0.0467) + BFT(0.22) * ρ - BFT(0.411) * sand_frac + BFT(0.661) * clay_frac
     else
-        σ = FT(0)
+        zero(FT)
     end
 
-    # Dielectric Constant of Pure Water
-    ϵw =  dielectric(LiquidPureWater(),T,f)
-    # Add conductivity term to ϵ'' (eq. 4.67b)
-    ϵw += im*((FT(2.65)-ρ) / FT(2.65 * mᵥ) * σ / (2π * ϵ₀ * f_hz))
+    if iszero(prospect_primal(mᵥ)) && _same_val_and_partials(mᵥ, zero(FT))
+        return Complex((one(FT) + BFT(0.66) * ρ)^inv(α), zero(FT))
+    end
 
-    # calculating dielectric constant of soil using eq. 4.66a and 4.66b
-    epsr = (FT(1) + FT(0.66) * ρ + mᵥ^β₁ * real(ϵw).^α - mᵥ)^(1/α);
-    epsi = mᵥ^β₂ .* imag(ϵw);
-    epsr + epsi*im
+    ϵw = dielectric(LiquidPureWater(), T, f)
+    cond_term = ((BFT(2.65) - ρ) / BFT(2.65)) * σ / ((BFT(2) * FT(π)) * ϵ₀ * f_hz)
+    epsr = (one(FT) + BFT(0.66) * ρ + mᵥ^β₁ * real(ϵw)^α - mᵥ)^inv(α)
+    epsi = mᵥ^β₂ * imag(ϵw) + mᵥ^(β₂ - one(FT)) * cond_term
+    return Complex(epsr, epsi)
 end
 
-# === Vegetation dielectric models ============================================
-
 """
-$(FUNCTIONNAME)(mod::LeafUlabyElRayes1987, T, f)
+    dielectric(mod::LeafUlabyElRayes1987, T, f)
 
-Complex relative permittivity ε(f) of a fresh leaf with gravimetric
-moisture `mod.M_g`, at frequency `f` [GHz]. Implements the dual-Debye
-mixing model of Ulaby & El-Rayes (1987):
+Compute the complex relative permittivity `ε(f)` of a fresh leaf with
+gravimetric moisture `mod.M_g` at frequency `f` in `GHz` (`0.2 <= f <= 20`)
+following Ulaby & El-Rayes (1987):
 
 ```math
 \\varepsilon = \\varepsilon_r + v_{fw}\\,\\varepsilon_{fw}
-             + v_b\\,\\varepsilon_b
+             + v_b\\,\\varepsilon_b .
 ```
 
-where the residual, free-water and bound-water volume fractions are
-fitted from `M_g`, and ``\\varepsilon_{fw}``, ``\\varepsilon_b`` are
-the free- and bound-water dispersions. The temperature `T` [K] is
-accepted for signature consistency with the other [`dielectric`](@ref)
-methods but is not used by this model.
-
-Sign convention: `+i ε''` (loss positive in imaginary part), matching
-[`LiquidPureWater`](@ref) and [`SoilMW`](@ref) in this package.
+Temperature `T` in `K` is accepted for signature consistency with other
+[`dielectric`](@ref) methods. Uses the `+i ε''` loss sign convention.
 
 # Examples
-```julia-repl
+```jldoctest
 julia> leaf = LeafUlabyElRayes1987(M_g = 0.5);
 
-julia> dielectric(leaf, 295.0, 5.0)         # C-band, mid-moisture
-14.400774… + 4.689454…im
+julia> round(dielectric(leaf, 295.0, 5.0); digits = 4)
+14.4008 + 4.6895im
 ```
 
 # Reference
-Ulaby & El-Rayes 1987, IEEE TGRS 25(5), 550–557 (Eqs. 11–14);
-Ulaby & Long 2014, §11-9.
+Ulaby & El-Rayes (1987), IEEE TGRS 25(5), 550–557 (Eqs. 11–14);
+Ulaby & Long (2014), Chapter 11, Section 11-9.
 """
-function dielectric(mod::LeafUlabyElRayes1987, T::Real, f::Real)
-    (; M_g, σ) = mod
-    0 ≤ M_g ≤ 0.7   || throw(ArgumentError("Gravimetric moisture must be ∈ [0, 0.7] (got $M_g)"))
-    0.2 ≤ f ≤ 20    || throw(ArgumentError("Frequency must be ∈ [0.2, 20] GHz for Ulaby & El-Rayes 1987 (got $f)"))
+function dielectric(mod::LeafUlabyElRayes1987{FTM}, ::Real, f_in::FTF) where {FTM<:Real,FTF<:Real}
+    FT = float(promote_type(FTM, FTF))
+    BFT = _leaf_base_float(FT)
+    M_g = FT(mod.M_g)
+    σ = FT(mod.σ)
+    f = FT(f_in)
+    M_p = prospect_primal(M_g)
+    f_p = prospect_primal(f)
+    zero(BFT) <= M_p <= BFT(0.7) ||
+        throw(ArgumentError("Gravimetric moisture must be ∈ [0, 0.7] (got $M_p)"))
+    BFT(0.2) <= f_p <= BFT(20) ||
+        throw(ArgumentError("Frequency must be ∈ [0.2, 20] GHz for Ulaby & El-Rayes 1987 (got $f_p)"))
 
-    FT = promote_type(typeof(M_g), typeof(σ), typeof(f))
+    v_fw = M_g * (BFT(0.55) * M_g - BFT(0.076))
+    v_b  = BFT(4.64) * M_g^2 / (one(FT) + BFT(7.36) * M_g^2)
+    ε_r  = BFT(1.7) - BFT(0.74) * M_g + BFT(6.16) * M_g^2
 
-    # Volume fractions of free and bound water (Eqs. 12, 13)
-    v_fw = M_g * (FT(0.55) * M_g - FT(0.076))
-    v_b  = FT(4.64) * M_g^2 / (FT(1) + FT(7.36) * M_g^2)
+    ε_fw = BFT(4.9) + BFT(75.0) / Complex(one(FT), -f / BFT(18.0)) +
+           Complex(zero(FT), BFT(17.9751) * σ / f)
 
-    # Non-dispersive residual (Eq. 11)
-    ε_r  = FT(1.7) - FT(0.74) * M_g + FT(6.16) * M_g^2
-
-    # Free-water Debye + ionic conductivity loss (Eq. 14a, physics convention)
-    # Conductivity coefficient 17.9751 = 1/(2π ε₀) with f in GHz, σ in S/m
-    # — same constant used by LiquidSaltWater above.
-    ε_fw = FT(4.9) + FT(75.0) / (FT(1) - 1im * f / FT(18.0)) +
-           1im * FT(17.9751) * σ / f
-
-    # Bound-water dispersion (Eq. 14b)
-    ε_b  = FT(2.9) + FT(55.0) / (FT(1) + sqrt(-1im * f / FT(0.18)))
+    # sqrt(-i * x) = sqrt(x / 2) * (1 - i) for real x > 0 (AD-safe on Complex{Dual}!)
+    s_half = sqrt(f / BFT(0.36))
+    ε_b  = BFT(2.9) + BFT(55.0) / Complex(one(FT) + s_half, -s_half)
 
     return ε_r + v_fw * ε_fw + v_b * ε_b
 end

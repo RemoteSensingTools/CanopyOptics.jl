@@ -1,4 +1,8 @@
-"""Physical rule for assigning spectral material absorption to constituents."""
+"""
+    AbstractAbsorptionPartition
+
+Physical rule for assigning spectral material absorption to constituents.
+"""
 abstract type AbstractAbsorptionPartition end
 
 """
@@ -10,13 +14,42 @@ path. This does not describe spatially segregated pigments in layered mesophyll.
 """
 struct HomogeneousAbsorption <: AbstractAbsorptionPartition end
 
-"""Availability/compatibility of a constituent absorption calculation."""
+"""
+    AbsorptionPartitionStatus
+
+Status code reporting the availability and compatibility of a constituent
+absorption partition calculation.
+"""
 @enum AbsorptionPartitionStatus::UInt8 begin
     AbsorptionPartitionValid
     AbsorptionNoMaterial
     AbsorptionInvalidInput
     AbsorptionIncompatibleInput
 end
+
+@doc """
+    AbsorptionPartitionValid
+
+Valid constituent absorption partition (including zero illumination of absorbing material).
+""" AbsorptionPartitionValid
+
+@doc """
+    AbsorptionNoMaterial
+
+Zero material absorption coefficient paired with zero total absorbed photons.
+""" AbsorptionNoMaterial
+
+@doc """
+    AbsorptionInvalidInput
+
+Negative or nonfinite total absorbed photons or constituent absorption coefficients.
+""" AbsorptionInvalidInput
+
+@doc """
+    AbsorptionIncompatibleInput
+
+Positive total absorbed photons supplied with an empty or all-zero constituent set.
+""" AbsorptionIncompatibleInput
 
 """
     AbsorptionPartitionResult(total_absorbed, constituents, fractions, status)
@@ -37,7 +70,12 @@ struct AbsorptionPartitionResult{FT,C<:NamedTuple}
     status::AbsorptionPartitionStatus
 end
 
-"""True for evaluated absorption, including material with zero absorption coefficient."""
+"""
+    absorption_valid(result::AbsorptionPartitionResult) -> Bool
+
+Return `true` when `result` represents a valid absorption partition, including
+material with zero absorption coefficient (`AbsorptionNoMaterial`).
+"""
 @inline absorption_valid(result::AbsorptionPartitionResult) =
     result.status == AbsorptionPartitionValid || result.status == AbsorptionNoMaterial
 

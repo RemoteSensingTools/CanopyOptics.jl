@@ -73,10 +73,9 @@ function hotspot_separation(μ_s::Real, μ_o::Real, dϕ::Real, h::Real)
     h′ = FT(h)
     _hotspot_value(h′) <= 0 && return FT(Inf)
 
-    tan_s = sqrt(max(zero(FT), one(FT) - μs^2)) / μs
-    tan_o = sqrt(max(zero(FT), one(FT) - μo^2)) / μo
-    Δ² = tan_s^2 + tan_o^2 - 2 * tan_s * tan_o * cos(FT(dϕ))
-    return sqrt(max(zero(FT), Δ²)) / h′
+    tan_s = _unit_sin_from_cos(μs) / μs
+    tan_o = _unit_sin_from_cos(μo) / μo
+    return _planar_tan_distance(tan_s, tan_o, FT(dϕ)) / h′
 end
 
 """

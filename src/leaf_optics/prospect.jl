@@ -1,17 +1,26 @@
 """
-    $(FUNCTIONNAME)(leaf::LeafProspectProProperties{FT},
-                    optis) where {FT<:AbstractFloat}
+    prospect(leaf, optics[, surface]; n_surface = nothing, μ_in = 1) -> (T, R)
 
-Computes leaf optical properties (reflectance and transmittance) based on PROSPECT-PRO.
-See [`prospect_budget`](@ref) for the validated input domain and direct absorptance.
-# Arguments
-- `leaf`  [`LeafProspectProProperties`](@ref) type struct which provides leaf composition
-- `optis` [`LeafOpticalProperties`](@ref) type struct, which provides absorption cross sections and spectral grid
+Compute leaf spectral transmittance `T` and reflectance `R` from a
+[`LeafProspectProProperties`](@ref) or [`LeafMultiPigmentProperties`](@ref) state
+and an [`AbstractProspectProperties`](@ref) optical database.
+
+Optionally supply an [`AbstractLeafSurface`](@ref) (`ConeSurface` or
+`RoughDielectricSurface`) and cuticular refractive-index vector `n_surface`.
+See [`prospect_budget`](@ref) for the full conserved `(; transmission, reflectance, absorptance)` budget.
+
 # Examples
-```julia-repl
-julia> opti = createLeafOpticalStruct((400.0:5:2400)*u"nm");
-julia> leaf = LeafProspectProProperties{Float64}(Ccab=30.0);
-julia> T,R = prospect(leaf,opti);
+```jldoctest
+julia> using Unitful
+
+julia> opti = createLeafOpticalStruct((400.0:500.0:2400.0)u"nm");
+
+julia> leaf = LeafProspectProProperties(Ccab = 30.0);
+
+julia> T, R = prospect(leaf, opti);
+
+julia> length(T) == length(R) == 4 && all(0 .< T .+ R .<= 1)
+true
 ```
 """
 function prospect(leaf::LeafProspectProProperties, optis)
@@ -25,15 +34,15 @@ end
 PROSPECT-PRO transmission, reflection and directly integrated material absorption.
 Returns a named tuple of spectral arrays. Unlike `1-R-T`, the local absorptance
 remains meaningful in the nonabsorbing/weak-absorption limit. No flux is clipped
-or rescaled. `prospect` retains its original `(T,R)` return interface.
+or rescaled. `prospect` retains its `(T, R)` return interface.
 Absorptance is the monochromatic fraction of incident energy (equivalently photon
 count) absorbed by all material, not chlorophyll-only absorption or energy retained
 after fluorescence emission.
 
-Requires finite N>=1, finite nonnegative constituent contents/absorption coefficients
-and refractive indices >1. N>=1 is now enforced for both entry points. The original
+Requires finite `N >= 1`, finite nonnegative constituent contents/absorption coefficients
+and refractive indices `> 1`. Both `prospect` and `prospect_budget` enforce `N >= 1`. The
 PROSPECT first-surface 40-degree and internal diffuse 90-degree conventions and
-Fresnel routine are retained. Its accuracy is tested across the optical database's
+Fresnel routine are used. Its accuracy is tested across the optical database's
 index range; the nearly index-matched limit is ill-conditioned and is not covered
 by that accuracy claim. Invalid computed surface transmissions are rejected.
 CPU and first-order ForwardDiff paths are

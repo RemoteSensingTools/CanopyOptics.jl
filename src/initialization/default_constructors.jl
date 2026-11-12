@@ -1,96 +1,107 @@
 """
-    $(FUNCTIONNAME)(FT=Float64)
+    planophile_leaves(FT = Float64)
 
-Creates a `LeafDistribution` following a planophile (mostly horizontal) distribution using a Beta distribution
+Construct a planophile (predominantly horizontal) [`LeafDistribution`](@ref)
+from a `Beta` distribution with mean inclination `26.76°` and standard
+deviation `18.51°` (Bonan, 2019, Table 2.1).
 
-Standard values for θₗ (26.76) and s (18.51) from Bonan https://doi.org/10.1017/9781107339217.003, Table 2.1
+# Examples
+```jldoctest
+julia> planophile_leaves(Float64) isa LeafDistribution{Float64}
+true
+```
 """
-function planophile_leaves(FT=Float64)
-    θ = FT(26.76)
-    s = FT(18.51)
-    α, β =  βparameters(deg2rad(θ), deg2rad(s));
-    return LeafDistribution(Beta(FT(α), FT(β)), FT(2/π));
+function planophile_leaves(::Type{FT} = Float64) where {FT<:Real}
+    α, β = βparameters(deg2rad(FT(26.76)), deg2rad(FT(18.51)))
+    return LeafDistribution(Beta(FT(α), FT(β)), FT(2) / FT(π))
 end
 
 """
-    $(FUNCTIONNAME)(FT=Float64)
+    planophile_leaves2(FT = Float64)
 
-Creates a `LeafDistribution` following a planophile distribution using Beta(1, 2.768),
-an analytically convenient approximation to Bunnik's planophile distribution.
-See Shultis & Myneni (1988) Eq. (59): g_L(θ_L) = (2/π)(1 + cos 2θ_L).
+Construct a `Beta(1, 2.768)` planophile [`LeafDistribution`](@ref)
+approximating Bunnik's `g_L(θ_L) = (2/π)(1 + cos 2θ_L)` distribution
+(Shultis & Myneni, 1988, Eq. 59).
 """
-function planophile_leaves2(FT=Float64)
-    return LeafDistribution(Beta(FT(1), FT(2.768)), FT(2/π));
+function planophile_leaves2(::Type{FT} = Float64) where {FT<:Real}
+    return LeafDistribution(Beta(one(FT), FT(2.768)), FT(2) / FT(π))
 end
 
 """
-    $(FUNCTIONNAME)(FT=Float64)
+    uniform_leaves(FT = Float64)
 
-Creates a `LeafDistribution` following a uniform distribution (all angles equally likely)
+Construct a uniform [`LeafDistribution`](@ref) (`g_L(θ_L) = 2/π` over
+`θ_L ∈ [0, π/2]`).
 """
-function uniform_leaves(FT=Float64)
-    return LeafDistribution(Uniform(FT(0), FT(1)),FT(2/π));
+function uniform_leaves(::Type{FT} = Float64) where {FT<:Real}
+    return LeafDistribution(Uniform(zero(FT), one(FT)), FT(2) / FT(π))
 end
 
 """
-    $(FUNCTIONNAME)(FT=Float64)
+    plagiophile_leaves(FT = Float64)
 
-Creates a `LeafDistribution` following a plagiophile (mostly 45degrees) distribution using a Beta distribution
-
-Standard values for θₗ (45.0) and s (16.27) from Bonan https://doi.org/10.1017/9781107339217.003, Table 2.1
+Construct a plagiophile (predominantly `45°`) [`LeafDistribution`](@ref) from a
+`Beta` distribution with mean inclination `45.0°` and standard deviation
+`16.27°` (Bonan, 2019, Table 2.1).
 """
-function plagiophile_leaves(FT=Float64)
-    θ = FT(45)
-    s = FT(16.27)
-    α, β =  βparameters(deg2rad(θ), deg2rad(s));
-    return LeafDistribution(Beta(FT(α), FT(β)), FT(2/π));
+function plagiophile_leaves(::Type{FT} = Float64) where {FT<:Real}
+    α, β = βparameters(deg2rad(FT(45)), deg2rad(FT(16.27)))
+    return LeafDistribution(Beta(FT(α), FT(β)), FT(2) / FT(π))
 end
 
 """
-    $(FUNCTIONNAME)(FT=Float64)
+    erectophile_leaves(FT = Float64)
 
-Creates a `LeafDistribution` following a erectophile (mostly vertical) distribution using a Beta distribution
-
-Standard values for θₗ (63.24) and s (18.5) from Bonan https://doi.org/10.1017/9781107339217.003, Table 2.1
+Construct an erectophile (predominantly vertical) [`LeafDistribution`](@ref)
+from a `Beta` distribution with mean inclination `63.24°` and standard
+deviation `18.5°` (Bonan, 2019, Table 2.1).
 """
-function erectophile_leaves(FT=Float64)
-    θ = FT(63.24)
-    s = FT(18.5)
-    α, β =  βparameters(deg2rad(θ), deg2rad(s));
-    return LeafDistribution(Beta(FT(α), FT(β)), FT(2/π));
+function erectophile_leaves(::Type{FT} = Float64) where {FT<:Real}
+    α, β = βparameters(deg2rad(FT(63.24)), deg2rad(FT(18.5)))
+    return LeafDistribution(Beta(FT(α), FT(β)), FT(2) / FT(π))
 end
 
 """
-    $(FUNCTIONNAME)(FT=Float64)
+    spherical_leaves(FT = Float64)
 
-Creates a `LeafDistribution` following a spherical (distributed as facets on a sphere) distribution using a Beta distribution
+Construct a spherical [`LeafDistribution`](@ref) (`G(μ) ≈ 0.5`) from a `Beta`
+distribution with mean inclination `57.3°` and standard deviation `21.55°`
+(Bonan, 2019, Table 2.1).
 
-Standard values for θₗ (57.3) and s (21.55) from Bonan https://doi.org/10.1017/9781107339217.003, Table 2.1
+# Examples
+```jldoctest
+julia> isapprox(only(G([0.5], spherical_leaves())), 0.5; atol = 2e-2)
+true
+```
 """
-function spherical_leaves(FT=Float64)
-    θ = FT(57.3)
-    s = FT(21.55)
-    α, β =  βparameters(deg2rad(θ), deg2rad(s));
-    return LeafDistribution(Beta(FT(α), FT(β)), FT(2/π));
+function spherical_leaves(::Type{FT} = Float64) where {FT<:Real}
+    α, β = βparameters(deg2rad(FT(57.3)), deg2rad(FT(21.55)))
+    return LeafDistribution(Beta(FT(α), FT(β)), FT(2) / FT(π))
 end
 
 """
-    $(FUNCTIONNAME)(FT=Float64)
+    flat_leaves(FT = Float64)
 
-Creates a `LeafDistribution` representing nearly horizontal (flat) leaves using a
-strongly planophile Beta(1, 100) distribution, which peaks sharply near θ_L ≈ 0.
+Construct a nearly horizontal [`LeafDistribution`](@ref) (`Beta(1, 100)`)
+peaked sharply near `θ_L ≈ 0`.
 """
-function flat_leaves(FT=Float64)
-    return LeafDistribution(Beta(FT(1), FT(100)), FT(2/π));
+function flat_leaves(::Type{FT} = Float64) where {FT<:Real}
+    return LeafDistribution(Beta(one(FT), FT(100)), FT(2) / FT(π))
 end
 
 """
-    $(FUNCTIONNAME)(α::FT, β::FT) where FT
+    beta_leaves(α, β)
 
-Creates a `LeafDistribution` from an arbitrary Beta(α, β) distribution over [0, π/2].
-The parameters α and β correspond to ν and μ in the RAMI benchmark convention.
-Use `planophile_leaves`, `spherical_leaves`, etc. for standard named distributions.
+Construct a [`LeafDistribution`](@ref) over `[0, π/2]` from arbitrary `Beta(α, β)`
+shape parameters (corresponding to `(ν, μ)` in the RAMI benchmark convention).
+
+# Examples
+```jldoctest
+julia> beta_leaves(2.0, 2.0) isa LeafDistribution{Float64}
+true
+```
 """
-function beta_leaves(α::FT,β::FT) where FT
-    return LeafDistribution(Beta(α, β), FT(2/π));
+function beta_leaves(α_in::Real, β_in::Real)
+    FT = float(promote_type(typeof(α_in), typeof(β_in)))
+    return LeafDistribution(Beta(FT(α_in), FT(β_in)), FT(2) / FT(π))
 end

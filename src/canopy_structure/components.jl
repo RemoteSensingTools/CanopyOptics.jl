@@ -31,12 +31,8 @@ function CanopyComponent(scatterer::AbstractCanopyScatteringType,
                          LAD::AbstractLeafDistribution,
                          area_index::Real;
                          clumping = nothing)
-    # Promote without an artificial Float64 anchor: the resulting FT
-    # is the natural promotion of the user-supplied types (scatterer,
-    # LAD, area_index, and clumping if provided). The previous
-    # `clumping === nothing ? Float64 : ...` term silently forced
-    # everything to Float64 whenever the caller didn't pass an
-    # explicit clumping model — defeating type-stable Float32 paths.
+    # Promote naturally across user-supplied types (scatterer, LAD, area_index,
+    # and clumping when provided) so Float32 inputs stay Float32 end-to-end.
     FT = if clumping === nothing
         float(promote_type(_canopy_scattering_ft(scatterer),
                            _lad_ft(LAD),
@@ -100,14 +96,14 @@ the component's clumping model.
 """
 function component_G(component::CanopyComponent, μ::AbstractVector; clumped::Bool = false,
                      quadrature::CanopyQuadrature = CanopyQuadrature())
-    G_raw = vec(G(μ, component.LAD; quadrature))
+    G_raw = G(μ, component.LAD; quadrature)
     return clumped ? effective_G(component.clumping, G_raw, μ) : G_raw
 end
 
 """
     bulk_G(canopy, μ; clumped = true, quadrature = CanopyQuadrature())
 
-Area-index-weighted canopy projected area:
+Compute the area-index-weighted canopy projected area:
 
 ```math
 G_{bulk}(μ) = \\sum_c AI_c G_c(μ),
@@ -124,10 +120,11 @@ function bulk_G(canopy::MixedCanopy, μ::AbstractVector; clumped::Bool = true,
         FT = promote_type(FT, eltype(Gc), typeof(component.area_index))
     end
 
-    total = zeros(FT, length(μ))
+    total = similar(μ, FT)
+    fill!(total, zero(FT))
     for component in canopy.components
         Gc = component_G(component, μ; clumped = clumped, quadrature)
-        @inbounds for i in eachindex(total)
+        @inbounds for i in eachindex(total, Gc)
             total[i] += FT(component.area_index) * FT(Gc[i])
         end
     end

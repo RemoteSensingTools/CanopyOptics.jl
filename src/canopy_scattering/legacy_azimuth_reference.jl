@@ -1,59 +1,8 @@
 """
-Legacy and reference azimuth-integration paths for bi-Lambertian canopy
-scattering.
-
-The production bi-Lambertian Z assembly is
-[`compute_Z_matrices_aniso_analytic`](@ref). The methods in this file are kept
-for compatibility with older callers and for cross-checking analytic Fourier
-moments against direct azimuth integration.
+Reference azimuth-integration paths for bi-Lambertian canopy scattering,
+kept for cross-checking [`compute_Z_matrices_aniso_analytic`](@ref) against
+direct azimuth integration.
 """
-
-"""
-    compute_Γ_isotropic(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT},
-                        Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
-
-Analytic area scattering transfer function assuming an isotropic (spherical) leaf
-angle distribution, following Shultis & Myneni (1988) Eq. (40):
-
-``Γ_{\\mathrm{iso}}(β) = \\frac{ω}{3π}(\\sin β - β \\cos β) + \\frac{T}{3}\\cos β``
-
-where `β = arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ)` is the scattering angle and `ω = R + T`.
-
-Used for validation against the general anisotropic [`compute_Γ`](@ref).
-"""
-function compute_Γ_isotropic(mod::BiLambertianCanopyScattering, Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
-    (;R,T) = mod
-    β = acos( Ωᵒᵘᵗ ⋅ Ωⁱⁿ)
-    ω = R + T
-    
-    # Eq 40 in Shultis and Myneni
-    Γ = (ω/3π) * (sin(β) - β * cos(β)) + T/3*cos(β)
-    return Γ
-end
-
-"""
-    compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,
-                             μ, LD, Zup, Zdown, m; quadrature)
-
-Compatibility overload for callers that still pass precomputed azimuth grids.
-
-`Zup` and `Zdown` are ignored because the current implementation delegates to
-the analytic Fourier path through [`compute_Z_matrices_aniso`](@ref). Keeping
-this method avoids breaking older vSmartMOM-side call sites while preventing
-the stale precomputed convention from affecting results.
-"""
-function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,
-                                  μ::AbstractArray{FT,1},
-                                  LD::AbstractLeafDistribution,
-                                  Zup, Zdown, m::Int;
-                                  quadrature::CanopyQuadrature = CanopyQuadrature(),
-                                  nQuad = nothing) where FT
-    # Zup/Zdown are retained only for API compatibility with callers that
-    # previously used the brute-force precomputed-azimuth path.
-    q = _resolve_quadrature(quadrature, nQuad)
-    return compute_Z_matrices_aniso(mod, μ, LD, m; quadrature = q)
-end
-
 
 """
     precompute_Zazi(mod::BiLambertianCanopyScattering, μ, LD; quadrature)

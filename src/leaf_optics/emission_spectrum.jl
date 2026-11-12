@@ -18,8 +18,8 @@ struct TabulatedPhotonSpectrum{FT<:AbstractFloat}
 
     function TabulatedPhotonSpectrum(wavelength_nm::AbstractVector{FT},
                                     relative_photon_mass::AbstractVector{FT}) where {FT<:AbstractFloat}
-        wavelengths = collect(wavelength_nm)
-        masses = collect(relative_photon_mass)
+        wavelengths = copyto!(Vector{FT}(undef, length(wavelength_nm)), wavelength_nm)
+        masses = copyto!(Vector{FT}(undef, length(relative_photon_mass)), relative_photon_mass)
         validate_photon_spectrum(wavelengths, masses)
         new{FT}(wavelengths, masses)
     end
@@ -28,12 +28,24 @@ end
 TabulatedPhotonSpectrum(::AbstractVector, ::AbstractVector) =
     throw(ArgumentError("Wavelengths and photon masses must have the same floating-point element type"))
 
+function Base.:(==)(a::TabulatedPhotonSpectrum, b::TabulatedPhotonSpectrum)
+    return a.wavelength_nm == b.wavelength_nm &&
+           a.relative_photon_mass == b.relative_photon_mass
+end
+
+function Base.hash(a::TabulatedPhotonSpectrum, h::UInt)
+    h = hash(:TabulatedPhotonSpectrum, h)
+    h = hash(a.wavelength_nm, h)
+    return hash(a.relative_photon_mass, h)
+end
+
 function validate_photon_spectrum(wavelengths, masses)
     isempty(wavelengths) && throw(ArgumentError("A photon spectrum cannot be empty"))
     length(wavelengths) == length(masses) || throw(DimensionMismatch("Wavelength and photon-mass lengths differ"))
     all(x -> isfinite(x) && x > zero(x), wavelengths) ||
         throw(ArgumentError("Wavelengths must be finite and positive"))
-    all(i -> wavelengths[i] > wavelengths[i-1], 2:length(wavelengths)) ||
+    i0 = firstindex(wavelengths)
+    all(i -> wavelengths[i] > wavelengths[i - 1], (i0 + 1):lastindex(wavelengths)) ||
         throw(ArgumentError("Wavelengths must be strictly increasing"))
     all(x -> isfinite(x) && x >= zero(x), masses) ||
         throw(ArgumentError("Photon masses must be finite and nonnegative"))
@@ -41,7 +53,11 @@ function validate_photon_spectrum(wavelengths, masses)
     return nothing
 end
 
-"""Excitation-dependent emission support; extend [`emission_allowed`](@ref)."""
+"""
+    AbstractEmissionSupport
+
+Excitation-dependent emission support rule; extend [`emission_allowed`](@ref).
+"""
 abstract type AbstractEmissionSupport end
 
 """

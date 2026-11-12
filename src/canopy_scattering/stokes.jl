@@ -112,31 +112,38 @@ end
 @inline _real_value(x) = x
 @inline _real_value(x::ForwardDiff.Dual) = ForwardDiff.value(x)
 
+@inline function _lad_unit_pdf(dist::UnivariateDistribution, u::FT) where {FT<:Real}
+    u_c = clamp(u, zero(FT), one(FT))
+    if u_c isa ForwardDiff.Dual
+        up = ForwardDiff.value(u_c)
+        dist_has_dual = applicable(params, dist) && any(p -> p isa ForwardDiff.Dual, params(dist))
+        if !dist_has_dual && _same_val_and_partials(u_c, FT(up))
+            return FT(pdf(dist, up))
+        end
+        if dist isa Beta && !dist_has_dual
+            α, β = params(dist)
+            if iszero(up)
+                α == 1 && return FT(β) * (one(FT) - u_c)^(FT(β) - one(FT))
+                α > 2 && return zero(FT)
+                α == 2 && return FT(β) * (FT(β) + one(FT)) * u_c
+            elseif up == one(up)
+                β == 1 && return FT(α) * u_c^(FT(α) - one(FT))
+                β > 2 && return zero(FT)
+                β == 2 && return FT(α) * (FT(α) + one(FT)) * (one(FT) - u_c)
+            end
+        end
+    end
+    return FT(pdf(dist, u_c))
+end
+
 @inline function _scale3(a, c)
     return (a[1] * c, a[2] * c, a[3] * c)
 end
 
-"""
-    compute_reflection_mueller(mod, Ωin, Ωout, LD, npol)
-
-Specular leaf bidirectional scattering Mueller matrix for one direction pair,
-where `Ωin` points toward the illumination source (`k_in = -_cartesian(Ωin)`)
-and `Ωout` points along the reflected ray (`k_out = +_cartesian(Ωout)`).
-
-The scalar `I → I` element reduces identically to [`compute_reflection`](@ref).
-For `npol = 3` or `4`, the local Fresnel Mueller matrix (`+Q` perpendicular to the
-local reflection plane, `-Q` parallel) is rotated algebraically from the incoming
-canopy meridian-plane triad `(e_s,in, e_p,in, k_in)` into the local reflection
-plane and out to the outgoing canopy meridian-plane triad `(e_s,out, e_p,out, k_out)`,
-matching the vSmartMOM Fourier `cos(m dϕ)` / `sin(m dϕ)` parity convention and
-satisfying exact 4×4 Hovenier reciprocity `M(Ω2, Ω1) = P M(Ω1, Ω2)ᵀ P` (`P = diag(1, 1, -1, 1)`).
-"""
-function compute_reflection_mueller(mod::SpecularCanopyScattering,
-                                    Ωin::dirVector_μ{FTΩ},
-                                    Ωout::dirVector_μ{FTΩ},
-                                    LD::AbstractLeafDistribution,
-                                    npol::Integer = 1) where {FTΩ<:Real}
-    n = _validate_npol(npol)
+@inline function _specular_mueller_elements(mod::SpecularCanopyScattering,
+                                            Ωin::dirVector_μ{FTΩ},
+                                            Ωout::dirVector_μ{FTΩ},
+                                            LD::AbstractLeafDistribution) where {FTΩ<:Real}
     (; nᵣ, κ) = mod
     BFTΩ = _leaf_base_float(FTΩ)
     Ωleaf, αstar = getSpecularΩ(Ωin, Ωout)
@@ -144,15 +151,21 @@ function compute_reflection_mueller(mod::SpecularCanopyScattering,
     s_L = prospect_primal(u_L) <= zero(BFTΩ) ? zero(FTΩ) : sqrt(u_L)
     θstar = atan(s_L, abs(Ωleaf.μ))
 
-    M_loc = _fresnel_mueller_real(nᵣ, αstar, n)
-    ZFT = eltype(M_loc)
+    r_s, r_p = fresnel_components(nᵣ, αstar)
+    ZFT = float(promote_type(FTΩ, typeof(r_s), typeof(r_p), typeof(κ), _lad_ft(LD)))
     BFT = _leaf_base_float(ZFT)
-    prefactor = ZFT(1 / 8) * ZFT(pdf(LD.LD, 2θstar / π)) *
-                ZFT(LD.scaling) * K(κ, αstar)
 
-    if n == 1
-        return prefactor .* M_loc
-    end
+    Rs = ZFT(r_s) * ZFT(r_s)
+    Rp = ZFT(r_p) * ZFT(r_p)
+    two = one(ZFT) + one(ZFT)
+    half = inv(two)
+    f_plus = (Rs + Rp) * half
+    f_minus = (Rs - Rp) * half
+    f_sp = ZFT(r_s) * ZFT(r_p)
+
+    u_arg = (ZFT(2) * ZFT(θstar)) / ZFT(π)
+    prefactor = ZFT(1 / 8) * _lad_unit_pdf(LD.LD, u_arg) *
+                ZFT(LD.scaling) * ZFT(K(κ, αstar))
 
     # Smooth C^∞ right-handed canopy meridian polarization triads (e_s, e_p = k × e_s, k):
     # Incoming ray propagates along k_in = -_cartesian(Ωin); outgoing along k_out = +_cartesian(Ωout).
@@ -196,31 +209,66 @@ function compute_reflection_mueller(mod::SpecularCanopyScattering,
     c2 = es_out_x * us_x + es_out_y * us_y + es_out_z * us_z
     s2 = ep_out_x * us_x + ep_out_y * us_y + ep_out_z * us_z
 
-    two = one(ZFT) + one(ZFT)
     cos2α1 = c1 * c1 - s1 * s1
     sin2α1 = two * c1 * s1
     cos2α2 = c2 * c2 - s2 * s2
     sin2α2 = two * c2 * s2
 
-    f_plus = M_loc[1, 1]
-    f_minus = M_loc[1, 2]
-    f_sp = M_loc[3, 3]
+    m11 = prefactor * f_plus
+    m12 = prefactor * f_minus * cos2α1
+    m13 = prefactor * f_minus * sin2α1
 
+    m21 = prefactor * cos2α2 * f_minus
+    m22 = prefactor * (cos2α2 * f_plus * cos2α1 + sin2α2 * f_sp * sin2α1)
+    m23 = prefactor * (cos2α2 * f_plus * sin2α1 - sin2α2 * f_sp * cos2α1)
+
+    m31 = prefactor * sin2α2 * f_minus
+    m32 = prefactor * (sin2α2 * f_plus * cos2α1 - cos2α2 * f_sp * sin2α1)
+    m33 = prefactor * (sin2α2 * f_plus * sin2α1 + cos2α2 * f_sp * cos2α1)
+    m44 = prefactor * f_sp
+
+    return m11, m12, m13, m21, m22, m23, m31, m32, m33, m44
+end
+
+"""
+    compute_reflection_mueller(mod, Ωin, Ωout, LD, npol=1)
+
+Compute the specular leaf bidirectional scattering Mueller matrix for `(Ωin, Ωout)`,
+where `Ωin` points toward the illumination source (`k_in = -_cartesian(Ωin)`)
+and `Ωout` points along the reflected ray (`k_out = +_cartesian(Ωout)`).
+
+The scalar `I → I` element reduces identically to [`compute_reflection`](@ref).
+For `npol = 3` or `4`, the local Fresnel Mueller matrix (`+Q` perpendicular to the
+local reflection plane, `-Q` parallel) is rotated algebraically from the incoming
+canopy meridian-plane triad `(e_s,in, e_p,in, k_in)` into the local reflection
+plane and out to the outgoing canopy meridian-plane triad `(e_s,out, e_p,out, k_out)`,
+matching the vSmartMOM Fourier `cos(m dϕ)` / `sin(m dϕ)` parity convention and
+satisfying exact 4×4 Hovenier reciprocity `M(Ω2, Ω1) = P M(Ω1, Ω2)ᵀ P` (`P = diag(1, 1, -1, 1)`).
+"""
+function compute_reflection_mueller(mod::SpecularCanopyScattering,
+                                    Ωin::dirVector_μ{FTΩ},
+                                    Ωout::dirVector_μ{FTΩ},
+                                    LD::AbstractLeafDistribution,
+                                    npol::Integer = 1) where {FTΩ<:Real}
+    n = _validate_npol(npol)
+    if n == 1
+        val = compute_reflection(mod, Ωin, Ωout, LD)
+        M1 = Matrix{typeof(val)}(undef, 1, 1)
+        @inbounds M1[1, 1] = val
+        return M1
+    end
+
+    m11, m12, m13, m21, m22, m23, m31, m32, m33, m44 =
+        _specular_mueller_elements(mod, Ωin, Ωout, LD)
+    ZFT = typeof(m11)
     M = zeros(ZFT, n, n)
-    M[1, 1] = prefactor * f_plus
-    M[1, 2] = prefactor * f_minus * cos2α1
-    M[1, 3] = prefactor * f_minus * sin2α1
-
-    M[2, 1] = prefactor * cos2α2 * f_minus
-    M[2, 2] = prefactor * (cos2α2 * f_plus * cos2α1 + sin2α2 * f_sp * sin2α1)
-    M[2, 3] = prefactor * (cos2α2 * f_plus * sin2α1 - sin2α2 * f_sp * cos2α1)
-
-    M[3, 1] = prefactor * sin2α2 * f_minus
-    M[3, 2] = prefactor * (sin2α2 * f_plus * cos2α1 - cos2α2 * f_sp * sin2α1)
-    M[3, 3] = prefactor * (sin2α2 * f_plus * sin2α1 + cos2α2 * f_sp * cos2α1)
-
-    if n == 4
-        M[4, 4] = prefactor * f_sp
+    @inbounds begin
+        M[1, 1] = m11; M[1, 2] = m12; M[1, 3] = m13
+        M[2, 1] = m21; M[2, 2] = m22; M[2, 3] = m23
+        M[3, 1] = m31; M[3, 2] = m32; M[3, 3] = m33
+        if n == 4
+            M[4, 4] = m44
+        end
     end
     return M
 end

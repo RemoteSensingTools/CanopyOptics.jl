@@ -25,7 +25,6 @@ function compute_Γ(mod::BiLambertianCanopyScattering,
     (;R,T) = mod
     n_leaf = quadrature.n_leaf
     n_azimuth = quadrature.n_azimuth
-    #μ_l, w = gauleg(nQuad,0.0,1.0);
     leaf_quad = _leaf_inclination_quadrature(LD, n_leaf, FT)
     θₗ = leaf_quad.θ
     μ_l = cos.(θₗ)
@@ -157,9 +156,8 @@ and
 N_m = \\frac{1}{2π}\\int_0^{2π} \\max(-x(ψ), 0)\\cos(mψ)\\,dψ.
 ```
 
-The older internal name used "clipped projection" because `max(x, 0)` clips
-away the invisible/back-facing half of the signed projection. It is not a
-clipped probability distribution.
+The function `max(x, 0)` clips away the back-facing half of the signed
+projection (rather than clipping a probability distribution).
 
 The `m = 0` value `P_0` is the Shultis and Myneni (1988) projected-area
 function `H` (their Eq. 35/46 in this codebase).  For `|a| < b`, with
@@ -201,10 +199,9 @@ function _one_sided_projection_moments!(P::AbstractVector{FT},
     fill!(N, zero(FT))
 
     a = μ * μ_L
-    b = sqrt(max(zero(FT), one(FT) - μ * μ)) *
-        sqrt(max(zero(FT), one(FT) - μ_L * μ_L))
+    b = _unit_sin_from_cos(μ) * _unit_sin_from_cos(μ_L)
 
-    if b == zero(FT)
+    if iszero(prospect_primal(b)) && _same_val_and_partials(b, zero(FT))
         P[1] = max(a, zero(FT))
     elseif a >= b
         P[1] = a
@@ -330,12 +327,13 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
     Z⁻⁺ = zeros(ZFT, nμ, nμ, nm)
     ϖ <= zero(ZFT) && return _expand_intensity_Z_pair(Z⁺⁺, Z⁻⁺, n)
 
-    μ_vec = collect(μ)
+    μ_vec = μ isa Vector{FT} ? μ : copyto!(Vector{FT}(undef, length(μ)), μ)
     μ_work = ZFT.(μ_vec)
-    leaf_quad = _leaf_inclination_quadrature(LD, q.n_leaf, FT)
+    QFT = _leaf_base_float(ZFT)
+    leaf_quad = _leaf_inclination_quadrature(LD, q.n_leaf, QFT)
     θₗ = leaf_quad.θ
     w_measure = leaf_quad.w_measure
-    G = ZFT.(vec(CanopyOptics.G(μ_vec, LD; quadrature=q)))
+    G_vec = ZFT.(vec(G(μ_vec, LD; quadrature = q)))
 
     Pꜜ = zeros(ZFT, nμ, nm)
     Nꜜ = zeros(ZFT, nμ, nm)
@@ -379,6 +377,6 @@ function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
         end
     end
 
-    _normalise_Z!(Z⁺⁺, Z⁻⁺, G, ϖ)
+    _normalise_Z!(Z⁺⁺, Z⁻⁺, G_vec, ϖ)
     return _expand_intensity_Z_pair(Z⁺⁺, Z⁻⁺, n)
 end

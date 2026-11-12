@@ -260,13 +260,14 @@ end
 function _component_G_weights(components::Tuple, μ::AbstractVector, quadrature::CanopyQuadrature)
     # Each G_c is already integrated over that component's inclination PDF;
     # only area-index weighting remains here.
-    Gs = map(component -> vec(G(μ, component.LAD; quadrature)), components)
+    μ_vec = copyto!(Vector{eltype(μ)}(undef, length(μ)), μ)
+    Gs = map(component -> vec(G(μ_vec, component.LAD; quadrature)), components)
     FTG = eltype(Gs[1])
     for i in eachindex(components)
         FTG = promote_type(FTG, eltype(Gs[i]), typeof(components[i].area_index))
     end
 
-    G_total = zeros(FTG, length(μ))
+    G_total = zeros(FTG, length(μ_vec))
     for i in eachindex(components)
         area = FTG(components[i].area_index)
         Gi = Gs[i]
@@ -393,12 +394,8 @@ compute_Z_matrices(canopy::MixedCanopy,
 """
     compute_Z_matrices_aniso(mod, μ, LD, m; quadrature)
 
-Compatibility name for single-moment canopy Z assembly.
-
-Historically this selected an azimuth-quadrature implementation for
-bi-Lambertian scattering. It now delegates to the canonical
-[`compute_Z_matrices`](@ref) API, which uses the analytic Fourier path where
-available.
+Compatibility alias for single-moment canopy Z assembly that delegates to
+[`compute_Z_matrices`](@ref).
 """
 function compute_Z_matrices_aniso(mod::BiLambertianCanopyScattering,
                                   μ::AbstractArray{FT,1},
@@ -445,7 +442,7 @@ function compute_Z_matrices_aniso(mod::SpecularCanopyScattering,
                                   nQuad = nothing,
                                   npol::Integer = 1) where FT
     q = _resolve_quadrature(quadrature, nQuad)
-    return compute_Z_matrices(mod, collect(μ), LD, m; quadrature = q, npol = npol)
+    return compute_Z_matrices(mod, μ, LD, m; quadrature = q, npol = npol)
 end
 
 function compute_Z_matrices_aniso(mod::CompositeCanopyScattering,

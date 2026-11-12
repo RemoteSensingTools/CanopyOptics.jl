@@ -20,24 +20,42 @@ effective albedo when using specular components.
 module CanopyOptics
 
 ###### Julia packages to import  ############
-using Distributions            # Distributions for angular distributions of canopy elements
-using FastGaussQuadrature      # Quadrature points for numerical integration
-using Unitful                  # Units attached to some variable
-using UnitfulEquivalences      # Spectral conversions
-using SpecialFunctions:expint  # expint in Prospect
-using DelimitedFiles           # File IO (Prospect csv File)
-using DocStringExtensions      # Documentation
-using LazyArtifacts            # Artifacts
-using LinearAlgebra            # Well, guess...
-using Polynomials              # Polynomials for some empirical functions
-using CUDA
-using ForwardDiff
-using KernelAbstractions
-using TOML
+using CUDA: CUDA
+using DelimitedFiles: readdlm
+using Distributions: Beta, Uniform, UnivariateDistribution, params, pdf, support
+using FastGaussQuadrature: gausslegendre
+using ForwardDiff: ForwardDiff
+using KernelAbstractions: KernelAbstractions, @index, @kernel
+using LazyArtifacts: @artifact_str
+using LinearAlgebra: ⋅
+using SpecialFunctions: erfcx, expint
+using Statistics: mean
+using TOML: TOML
+using Unitful: @u_str, NoUnits, uconvert, unit, ustrip
+using UnitfulEquivalences: Spectral
 
-import SpecialFunctions.expint 
-#"Definition of Stokes vector types:"
-#using vSmartMOM.Scattering: Stokes_I, Stokes_IQU, Stokes_IQUV
+import LinearAlgebra: dot
+
+@static if VERSION >= v"1.11"
+    eval(Expr(:public,
+        :gauleg,
+        :A,
+        :Asm,
+        :H,
+        :compute_Ψ,
+        :compute_lambertian_Γ,
+        :getSpecularΩ,
+        :dot_product,
+        :Fᵣ,
+        :fresnel_components,
+        :K,
+        :calctav,
+        :prospect_primal,
+        :compute_Γ,
+        :compute_Γ_isotropic,
+        :compute_Z_matrices_aniso,
+    ))
+end
 
 # Filename for ProspectPro optical properties
 const OPTI_2021 = artifact"Prospect" * "/dataSpec_PRO.csv";

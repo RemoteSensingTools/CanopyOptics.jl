@@ -1,3 +1,15 @@
+"""
+    prospect_primal(x)
+
+Extract the primal scalar value of `x`, stripping nested `ForwardDiff.Dual`
+wrappers while returning non-dual numbers unchanged.
+
+# Examples
+```jldoctest
+julia> CanopyOptics.prospect_primal(1.42)
+1.42
+```
+"""
 @inline prospect_primal(x) = x
 @inline prospect_primal(x::ForwardDiff.Dual) = prospect_primal(ForwardDiff.value(x))
 
@@ -31,18 +43,30 @@ const _UNSET_LEAF_KW = _UnsetLeafKw()
     return cm_v, cprot_v, ccbc_v
 end
 
-"Abstract Type for canopy scattering"
+"""
+    AbstractCanopyScatteringType{FT<:Real}
+
+Supertype for leaf, wood, composite, and multi-component canopy angular
+scattering models projected onto discrete-ordinate Fourier `Z` matrices.
+"""
 abstract type AbstractCanopyScatteringType{FT<:Real} end
 
 """
-    CanopyQuadrature(; n_leaf = 64, n_azimuth = 48)
+    CanopyQuadrature(n_leaf, n_azimuth = 48)
+    CanopyQuadrature(; n_leaf = 64, n_azimuth = 48, nQuad = nothing)
 
-Integration controls used when projecting canopy scattering models onto
-Fourier Z matrices.
+Quadrature node counts used when projecting canopy scattering models onto
+Fourier `Z` matrices.
 
-`n_leaf` controls the leaf-inclination quadrature used by the bi-Lambertian
-kernel. `n_azimuth` controls the outgoing-azimuth quadrature used by the
-specular kernel and legacy brute-force reference paths.
+`n_leaf` sets Gauss–Legendre nodes over leaf inclination `[0, π/2]`, and
+`n_azimuth` sets outgoing-azimuth quadrature nodes for specular, coupled-BSDF,
+and reference azimuth integrations.
+
+# Examples
+```jldoctest
+julia> q = CanopyQuadrature(n_leaf = 32, n_azimuth = 24)
+CanopyQuadrature(32, 24)
+```
 """
 struct CanopyQuadrature
     n_leaf::Int
@@ -81,11 +105,25 @@ function _specular_canopy_scattering(nᵣ::Real, κ::Real)
     return SpecularCanopyScattering{FT}(FT(nᵣ_prom), FT(κ_prom))
 end
 
-"Model for bi-lambertian canopy leaf scattering"
+"""
+    BiLambertianCanopyScattering{FT<:Real}(R, T)
+    BiLambertianCanopyScattering(; R = 0.3, T = 0.1)
+
+Face-symmetric diffuse bi-Lambertian canopy leaf scattering model parameterized
+by hemispherical reflectance `R` and transmittance `T`.
+
+# Fields
+- `R::FT`: leaf hemispherical reflectance.
+- `T::FT`: leaf hemispherical transmittance.
+
+# Examples
+```jldoctest
+julia> BiLambertianCanopyScattering(0.42, 0.38)
+BiLambertianCanopyScattering{Float64}(0.42, 0.38)
+```
+"""
 struct BiLambertianCanopyScattering{FT<:Real} <: AbstractCanopyScatteringType{FT}
-    "Lambertian Reflectance"
     R::FT
-    "Lambertian Transmission"
     T::FT
 end
 
@@ -104,11 +142,25 @@ function BiLambertianCanopyScattering{FT}(; R = FT(0.3), T = FT(0.1),
     return BiLambertianCanopyScattering{FT}(FT(R), FT(T))
 end
 
-"Model for specular canopy leaf scattering"
+"""
+    SpecularCanopyScattering{FT<:Real}(nᵣ, κ)
+    SpecularCanopyScattering(; nᵣ = 1.5, κ = 0.5)
+
+Specular leaf-surface canopy scattering model parameterized by cuticular
+refractive index `nᵣ` and Nilson–Kuusk roughness attenuation `κ`.
+
+# Fields
+- `nᵣ::FT`: leaf surface refractive index.
+- `κ::FT`: surface roughness attenuation parameter (`κ >= 0`).
+
+# Examples
+```jldoctest
+julia> SpecularCanopyScattering(nᵣ = 1.45, κ = 0.2)
+SpecularCanopyScattering{Float64}(1.45, 0.2)
+```
+"""
 struct SpecularCanopyScattering{FT<:Real} <: AbstractCanopyScatteringType{FT}
-    "Refractive index"
     nᵣ::FT
-    "Roughness parameter"
     κ::FT
 end
 
@@ -130,9 +182,9 @@ end
 """
     CompositeCanopyScattering(components...)
 
-Additive canopy scattering model.  Components are evaluated independently and
-their Z matrices are summed, so a leaf can carry both diffuse bi-Lambertian and
-specular surface terms.
+Combine multiple [`AbstractCanopyScatteringType`](@ref) models additively on a
+shared leaf-angle distribution. Components are evaluated independently and their
+`Z` matrices are summed; `a + b` constructs `CompositeCanopyScattering(a, b)`.
 """
 struct CompositeCanopyScattering{FT<:Real,T<:Tuple} <: AbstractCanopyScatteringType{FT}
     components::T
@@ -155,61 +207,102 @@ end
 Base.:+(a::AbstractCanopyScatteringType, b::AbstractCanopyScatteringType) =
     CompositeCanopyScattering(a, b)
 
-"Abstract Type for leaf distributions"
+"""
+    AbstractLeafDistribution{FT<:Real}
+
+Supertype for canopy element inclination angle distributions over `[0, π/2]`.
+"""
 abstract type AbstractLeafDistribution{FT<:Real} end
 
 """
-    struct LeafDistribution{FT<:Real}
-A struct that defines the leaf angular distribution in radians (from 0->π/2; here scaled to [0,1])
+    LeafDistribution{FT<:Real,D<:UnivariateDistribution}(LD, scaling)
+    LeafDistribution(LD, scaling)
+
+Represent a leaf inclination angle distribution `g_L(θ_L)` on `θ_L ∈ [0, π/2]`
+via a `Distributions.UnivariateDistribution` `LD` on `u = 2 θ_L / π ∈ [0, 1]`
+and Jacobian normalization factor `scaling` (typically `2/π`).
+
 # Fields
-$(DocStringExtensions.FIELDS)
+- `LD::D`: univariate probability distribution on `[0, 1]`.
+- `scaling::FT`: density normalization factor mapping `[0, 1]` to `[0, π/2]`.
 """
-struct LeafDistribution{FT<:Real} <: AbstractLeafDistribution{FT}
-    "Julia Univariate Distribution from Distributions.js"
-    LD::UnivariateDistribution
-    "Scaling factor to normalize distribution (here mostly 2/π as Beta distribution is from [0,1])"
+struct LeafDistribution{FT<:Real,D<:UnivariateDistribution} <: AbstractLeafDistribution{FT}
+    LD::D
     scaling::FT
 end
 
+function LeafDistribution{FT}(LD::D, scaling::Real) where {FT<:Real,D<:UnivariateDistribution}
+    return LeafDistribution{FT,D}(LD, FT(scaling))
+end
 
-####################################
-"Abstract Type for leaf composition"
+Base.:(==)(a::LeafDistribution, b::LeafDistribution) =
+    a.LD == b.LD && a.scaling == b.scaling
+
+function Base.hash(a::LeafDistribution, h::UInt)
+    h = hash(:LeafDistribution, h)
+    if applicable(params, a.LD)
+        h = hash(nameof(typeof(a.LD)), h)
+        for p in params(a.LD)
+            p_canon = (p isa Real && iszero(p)) ? zero(p) : p
+            h = hash(p_canon, h)
+        end
+    else
+        h = hash(a.LD, h)
+    end
+    s_canon = iszero(a.scaling) ? zero(a.scaling) : a.scaling
+    return hash(s_canon, h)
+end
+
+"""
+    AbstractLeafProperties
+
+Supertype for leaf biochemical and structural state containers accepted by
+leaf optical budget solvers.
+"""
 abstract type AbstractLeafProperties end
 
 """
-    struct LeafProspectProProperties{FT} <: AbstractLeafProperties
+    LeafProspectProProperties{FT}(; N=1.4, Ccab=40.0, Ccar=10.0, Canth=0.5,
+                                  Cbrown=0.0, Cw=0.012, Cm=..., Cprot=..., Ccbc=...)
 
-Leaf biochemical and structural state for PROSPECT-D (bulk dry matter `Cm` mode)
-and PROSPECT-PRO (`Cprot + Ccbc` dry-matter partition mode).
+Store leaf biochemical and structural state for PROSPECT-D (bulk dry matter
+`Cm` mode) and PROSPECT-PRO (`Cprot + Ccbc` dry-matter partition mode).
 
 When constructed with keywords:
-- Omitting `Cm` selects **PROSPECT-PRO mode** (`Cm = 0`, defaulting `Cprot = 0.001`, `Ccbc = 0.009`).
-- Supplying `Cm` explicitly (including `Cm = 0` or `ForwardDiff.Dual`) selects **PROSPECT-D mode**,
-  defaulting `Cprot = 0, Ccbc = 0` so bulk dry matter is never silently double-counted.
+- Omitting `Cm` selects PROSPECT-PRO mode (`Cm = 0`, defaulting `Cprot = 0.001`
+  and `Ccbc = 0.009`).
+- Supplying `Cm` explicitly (including `Cm = 0` or a `ForwardDiff.Dual`) selects
+  PROSPECT-D mode (`Cprot = 0`, `Ccbc = 0`) so dry matter is not double-counted.
 - Setting both `Cm > 0` and `Cprot > 0` (or `Ccbc > 0`) throws an `ArgumentError`.
 
 # Fields
-$(DocStringExtensions.FIELDS)
+- `N::FT`: leaf mesophyll structure parameter (`N >= 1`).
+- `Ccab::FT`: chlorophyll *a*+*b* content in `µg cm⁻²`.
+- `Ccar::FT`: carotenoid content in `µg cm⁻²`.
+- `Canth::FT`: anthocyanin content in `µg cm⁻²` (Féret et al., 2017/2021).
+- `Cbrown::FT`: senescent brown pigment content (arbitrary units).
+- `Cw::FT`: equivalent water thickness in `cm`.
+- `Cm::FT`: bulk dry matter content (LMA) in `g cm⁻²` (`0` in `Cprot + Ccbc` mode).
+- `Cprot::FT`: protein content in `g cm⁻²`.
+- `Ccbc::FT`: carbon-based constituents content in `g cm⁻²`.
+
+# Examples
+```jldoctest
+julia> leaf = LeafProspectProProperties(N = 1.6, Ccab = 45.0, Cm = 0.008);
+
+julia> (leaf.Cm, leaf.Cprot, leaf.Ccbc)
+(0.008, 0.0, 0.0)
+```
 """
 struct LeafProspectProProperties{FT} <: AbstractLeafProperties
-    ### Prospect related parameters
-    "Leaf structure parameter N >= 1 (fractional plate count)"
     N::FT
-    "Chlorophyll a+b content `[µg cm⁻²]`"
     Ccab::FT
-    "Carotenoid content `[µg cm⁻²]`"
     Ccar::FT
-    "Anthocyanin content `[µg cm⁻²]` (mass basis matching Féret et al. 2017/2021 `OPTI_2021`)"
     Canth::FT
-    "Brown pigments content in arbitrary units"
     Cbrown::FT
-    "Equivalent water thickness `[cm]`, typical about 0.002–0.015"
     Cw::FT
-    "Bulk dry matter content (LMA) `[g cm⁻²]`, typical about 0.003–0.016 (0 when `Cprot + Ccbc` are used)"
     Cm::FT
-    "Protein content `[g cm⁻²]`"
     Cprot::FT
-    "Carbon-based constituents content `[g cm⁻²]` (cellulose, lignin, sugars, ...)"
     Ccbc::FT
 end
 
@@ -258,36 +351,99 @@ function LeafProspectProProperties(;
     )
 end
 
-####################################
-"Abstract type for Prospect model versions"
+"""
+    AbstractProspectProperties
+
+Supertype for wavelength-gridded leaf refractive-index and specific-absorption
+cross-section tables ([`LeafOpticalProperties`](@ref) and
+[`MultiPigmentOpticalProperties`](@ref)).
+"""
 abstract type AbstractProspectProperties end
 
 """
-    struct LeafOpticalProperties{FT,FT2} <: AbstractProspectProperties
-A struct which stores important absorption cross sections of pigments, water, etc
+    LeafOpticalProperties{FT,FT2}(λ, nᵣ, Kcab, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc)
+
+Store spectral grid `λ`, aqueous mesophyll refractive index `nᵣ`, and
+PROSPECT-PRO specific absorption coefficient vectors. Construct from the bundled
+artifact via [`createLeafOpticalStruct`](@ref).
+
 # Fields
-$(DocStringExtensions.FIELDS)
+- `λ::FT2`: spectral bin centers (with or without `Unitful` units).
+- `nᵣ::Vector{FT}`: refractive index of aqueous leaf mesophyll.
+- `Kcab::Vector{FT}`: pooled chlorophyll *a*+*b* specific absorption (`cm² µg⁻¹`).
+- `Kcar::Vector{FT}`: carotenoid specific absorption (`cm² µg⁻¹`).
+- `Kant::Vector{FT}`: anthocyanin specific absorption (`cm² µg⁻¹`).
+- `Kb::Vector{FT}`: senescent brown pigment specific absorption (arbitrary units).
+- `Kw::Vector{FT}`: liquid water specific absorption (`cm⁻¹`).
+- `Km::Vector{FT}`: bulk dry matter specific absorption (`cm² g⁻¹`).
+- `Kp::Vector{FT}`: protein specific absorption (`cm² g⁻¹`).
+- `Kcbc::Vector{FT}`: carbon-based constituent specific absorption (`cm² g⁻¹`).
 """
 struct LeafOpticalProperties{FT,FT2} <: AbstractProspectProperties
-    "Wavelength `[length]`"
-    λ::FT2 #typeof(([1.0])u"nm")
-    ### Prospect-PRO related parameters
-    "Refractive index of leaf material "
-    nᵣ::Array{FT, 1}
-    "specific absorption coefficient of chlorophyll (a+b) `[cm² μg⁻¹]`" 
-    Kcab::Array{FT, 1}
-    "specific absorption coefficient of carotenoids `[cm² μg⁻¹]`"
-    Kcar::Array{FT, 1}       
-    "specific absorption coefficient of anthocyanins `[cm² μg⁻¹]`"       
-    Kant::Array{FT, 1} 
-    "specific absorption coefficient of brown pigments (arbitrary units)" 
-    Kb::Array{FT, 1} 
-    "specific absorption coefficient of water `[cm⁻¹]`"    
-    Kw::Array{FT, 1}                  
-    "specific absorption coefficient of dry matter `[cm² g⁻¹]`" 
-    Km::Array{FT, 1}
-    "specific absorption coefficient of proteins `[cm² g⁻¹]`"  
-    Kp::Array{FT, 1}
-    "specific absorption coefficient of carbon based constituents `[cm² g⁻¹]`" 
-    Kcbc::Array{FT, 1} 
+    λ::FT2
+    nᵣ::Vector{FT}
+    Kcab::Vector{FT}
+    Kcar::Vector{FT}
+    Kant::Vector{FT}
+    Kb::Vector{FT}
+    Kw::Vector{FT}
+    Km::Vector{FT}
+    Kp::Vector{FT}
+    Kcbc::Vector{FT}
+
+    function LeafOpticalProperties{FT,FT2}(
+        λ::FT2,
+        nᵣ::AbstractVector,
+        Kcab::AbstractVector,
+        Kcar::AbstractVector,
+        Kant::AbstractVector,
+        Kb::AbstractVector,
+        Kw::AbstractVector,
+        Km::AbstractVector,
+        Kp::AbstractVector,
+        Kcbc::AbstractVector,
+    ) where {FT,FT2}
+        n = length(nᵣ)
+        (length(λ) == n && length(Kcab) == n && length(Kcar) == n && length(Kant) == n &&
+         length(Kb) == n && length(Kw) == n && length(Km) == n && length(Kp) == n && length(Kcbc) == n) ||
+            throw(DimensionMismatch("All LeafOpticalProperties spectral vectors must match length(nᵣ) = $n"))
+        conv(v) = v isa Vector{FT} ? v : copyto!(Vector{FT}(undef, length(v)), v)
+        return new{FT,FT2}(
+            λ, conv(nᵣ), conv(Kcab), conv(Kcar), conv(Kant),
+            conv(Kb), conv(Kw), conv(Km), conv(Kp), conv(Kcbc),
+        )
+    end
+end
+
+function LeafOpticalProperties(
+    λ::FT2,
+    nᵣ::AbstractVector,
+    Kcab::AbstractVector,
+    Kcar::AbstractVector,
+    Kant::AbstractVector,
+    Kb::AbstractVector,
+    Kw::AbstractVector,
+    Km::AbstractVector,
+    Kp::AbstractVector,
+    Kcbc::AbstractVector,
+) where {FT2}
+    FT = float(promote_type(
+        eltype(nᵣ), eltype(Kcab), eltype(Kcar), eltype(Kant),
+        eltype(Kb), eltype(Kw), eltype(Km), eltype(Kp), eltype(Kcbc),
+    ))
+    return LeafOpticalProperties{FT,FT2}(λ, nᵣ, Kcab, Kcar, Kant, Kb, Kw, Km, Kp, Kcbc)
+end
+
+function Base.:(==)(a::LeafOpticalProperties, b::LeafOpticalProperties)
+    return a.λ == b.λ && a.nᵣ == b.nᵣ && a.Kcab == b.Kcab && a.Kcar == b.Kcar &&
+           a.Kant == b.Kant && a.Kb == b.Kb && a.Kw == b.Kw && a.Km == b.Km &&
+           a.Kp == b.Kp && a.Kcbc == b.Kcbc
+end
+
+function Base.hash(a::LeafOpticalProperties, h::UInt)
+    h = hash(:LeafOpticalProperties, h)
+    for v in (a.λ, a.nᵣ, a.Kcab, a.Kcar, a.Kant, a.Kb, a.Kw, a.Km, a.Kp, a.Kcbc)
+        h = hash(v, h)
+    end
+    return h
 end
