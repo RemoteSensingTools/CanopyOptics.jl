@@ -56,6 +56,10 @@ include("leaf_optics/prospect_layers.jl")
 include("leaf_optics/prospect.jl")
 include("leaf_optics/pigment_absorption.jl")
 include("leaf_optics/excitation_selection.jl")
+include("leaf_optics/surface_optics.jl")
+include("leaf_optics/pigment_bases.jl")
+include("leaf_optics/dorsiventral.jl")
+include("leaf_optics/leaf_bsdf.jl")
 include("leaf_optics/plate_emission.jl")
 include("leaf_optics/plate_preparation.jl")
 include("leaf_optics/emission_spectrum.jl")
@@ -70,6 +74,7 @@ include("canopy_scattering/stokes.jl")
 include("canopy_scattering/specular.jl")
 include("canopy_scattering/bilambertian_fourier.jl")
 include("canopy_scattering/z_matrices.jl")
+include("canopy_scattering/dorsiventral_bilambertian.jl")
 include("foursail/foursail.jl")
 
 include("initialization/loadProspect.jl")
@@ -78,7 +83,20 @@ include("initialization/default_constructors.jl")
 include("utils/dielectric.jl")
 
 
-export prospect, prospect_budget, prospect_constituent_coefficients
+export prospect, prospect_budget, prospect_constituent_coefficients,
+       constituent_optical_depths, LeafMultiPigmentProperties,
+       MultiPigmentOpticalProperties, MultiChlorophyllAntenna,
+       LeafSIPProperties, leaf_sip_budget,
+       AbstractLeafSurface, ConeSurface, RoughDielectricSurface,
+       calctav_smooth, beckmann_D, smith_beckmann_G1,
+       microfacet_directional_reflectance, microfacet_hemispherical_reflectance,
+       surface_interface_optics,
+       DorsiventralLeafProperties, AsymmetricSurfaceLeafProperties,
+       single_slab_dorsiventral_budget, dorsiventral_budget,
+       CoupledLeafBSDF, PreparedLeafBSDFSpectrum, prepare_leaf_bsdf,
+       surface_brdf_mueller, leaf_directional_budget, leaf_bsdf_spectrum,
+       DorsiventralBiLambertianCanopyScattering, compute_Γ_directional,
+       compute_Z_matrices_directional, compute_Z_matrices_coupled_bsdf
 export TabulatedPhotonSpectrum, AbstractEmissionSupport, StrictStokes,
        emission_allowed, emission_probabilities
 export AbstractLeafBirthProfile, UniformBirthProfile, ExponentialBirthProfile,

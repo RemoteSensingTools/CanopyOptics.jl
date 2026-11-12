@@ -31,3 +31,5 @@ include("pigment_spectral_fixture.jl")
 @testset "Actual PROSPECT pigment spectra CPU" begin
     check_pigment_spectra(identity,()->nothing)
 end
+
+include("test_leaf_model_families.jl")
