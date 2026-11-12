@@ -33,6 +33,7 @@ using Polynomials              # Polynomials for some empirical functions
 using CUDA
 using ForwardDiff
 using KernelAbstractions
+using TOML
 
 import SpecialFunctions.expint 
 #"Definition of Stokes vector types:"
@@ -62,6 +63,7 @@ include("leaf_optics/dorsiventral.jl")
 include("leaf_optics/leaf_bsdf.jl")
 include("leaf_optics/plate_emission.jl")
 include("leaf_optics/plate_preparation.jl")
+include("leaf_optics/dorsiventral_emission.jl")
 include("leaf_optics/emission_spectrum.jl")
 include("wood_optics/reflectance.jl")
 include("canopy_structure/clumping.jl")
@@ -86,13 +88,14 @@ include("utils/dielectric.jl")
 export prospect, prospect_budget, prospect_constituent_coefficients,
        constituent_optical_depths, LeafMultiPigmentProperties,
        MultiPigmentOpticalProperties, MultiChlorophyllAntenna,
+       createMultiPigmentOpticalStruct, load_wax_refractive_index,
        LeafSIPProperties, leaf_sip_budget,
        AbstractLeafSurface, ConeSurface, RoughDielectricSurface,
        calctav_smooth, beckmann_D, smith_beckmann_G1,
        microfacet_directional_reflectance, microfacet_hemispherical_reflectance,
        surface_interface_optics,
        DorsiventralLeafProperties, AsymmetricSurfaceLeafProperties,
-       single_slab_dorsiventral_budget, dorsiventral_budget,
+       dorsiventral_from_traits, single_slab_dorsiventral_budget, dorsiventral_budget,
        CoupledLeafBSDF, PreparedLeafBSDFSpectrum, prepare_leaf_bsdf,
        surface_brdf_mueller, leaf_directional_budget, leaf_bsdf_spectrum,
        DorsiventralBiLambertianCanopyScattering, compute_Γ_directional,
@@ -100,7 +103,8 @@ export prospect, prospect_budget, prospect_constituent_coefficients,
 export TabulatedPhotonSpectrum, AbstractEmissionSupport, StrictStokes,
        emission_allowed, emission_probabilities
 export AbstractLeafBirthProfile, UniformBirthProfile, ExponentialBirthProfile,
-       RegularPlateEscape, leaf_emission_fates, diffuse_plate_optics
+       RegularPlateEscape, DorsiventralPlateEscape, DorsiventralBirthProfile,
+       leaf_emission_fates, diffuse_plate_optics, dorsiventral_plate_optics
 export AbstractAbsorptionPartition, HomogeneousAbsorption, AbsorptionPartitionResult,
        AbsorptionPartitionStatus, AbsorptionPartitionValid, AbsorptionNoMaterial,
        AbsorptionInvalidInput, AbsorptionIncompatibleInput, partition_absorption,
@@ -127,10 +131,10 @@ export LeafComponent, StemComponent, BranchComponent, TreeCanopy
 export FourSAILGeometry, FourSAILGeometrySet, FourSAILResult, foursail, foursail!
 export AbstractMaterial, AbstractWater, AbstractSoil, AbstractVegetation
 export PureIce, LiquidPureWater, LiquidSaltWater, SoilMW, LeafUlabyElRayes1987
-export LeafProspectProProperties, LeafOpticalProperties, dielectric
+export dielectric
 # Functions:
 export compute_Z_matrices, compute_Z_matrices_aniso_analytic,
-       prospect, compute_reflection, compute_reflection_mueller,
+       compute_reflection, compute_reflection_mueller,
        G, G2, bfG
 
 end # module

@@ -261,16 +261,51 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
         end
     end
 
-    @testset "Specular compute_reflection symmetry" begin
+    @testset "Specular compute_reflection symmetry and getSpecularΩ geometry" begin
         mod = CanopyOptics.SpecularCanopyScattering(nᵣ = 1.5, κ = 0.2)
         LD = CanopyOptics.spherical_leaves()
-        # Use same azimuth to avoid the known azimuth-sign edge case in getSpecularΩ.
-        Ωᵢ = CanopyOptics.dirVector_μ(0.7, 0.0)
-        Ωₒ = CanopyOptics.dirVector_μ(0.5, 0.0)
-        fᵢₒ = CanopyOptics.compute_reflection(mod, Ωᵢ, Ωₒ, LD)
-        fₒᵢ = CanopyOptics.compute_reflection(mod, Ωₒ, Ωᵢ, LD)
-        @test fᵢₒ ≈ fₒᵢ
-        @test fᵢₒ >= 0
+        for (μ1, ϕ1, μ2, ϕ2) in (
+            (0.7, 0.0, 0.5, 0.0),
+            (0.72, 0.35, -0.48, 2.15),
+            (-0.63, 4.10, 0.41, 1.05),
+            (0.85, 5.50, 0.30, 0.40),
+        )
+            Ωᵢ = CanopyOptics.dirVector_μ(μ1, ϕ1)
+            Ωₒ = CanopyOptics.dirVector_μ(μ2, ϕ2)
+            fᵢₒ = CanopyOptics.compute_reflection(mod, Ωᵢ, Ωₒ, LD)
+            fₒᵢ = CanopyOptics.compute_reflection(mod, Ωₒ, Ωᵢ, LD)
+            @test isapprox(fᵢₒ, fₒᵢ; rtol = 1e-12, atol = 1e-14)
+            @test fᵢₒ >= 0
+        end
+
+        # Verify getSpecularΩ bisector & antipodal orthogonality (both μ1 > 0 and μ1 < 0) + Dual safety
+        for FT in (Float32, Float64)
+            tol = 32 * eps(FT)
+            for (μ1, ϕ1) in ((FT(0.6), FT(0.7)), (FT(-0.6), FT(2.3)), (one(FT), zero(FT)), (-one(FT), FT(1.1)))
+                Ω1 = CanopyOptics.dirVector_μ(μ1, ϕ1)
+                # Collinear (Ω2 == Ω1): α == 0
+                Ωstar_same, α_same = CanopyOptics.getSpecularΩ(Ω1, Ω1)
+                @test abs(α_same) <= tol
+                @test isapprox(Ωstar_same.μ, Ω1.μ; atol = tol)
+                # Antipodal (Ω2 == -Ω1): α == π/2 and unit normal is orthogonal to Ω1
+                Ω_anti = CanopyOptics.dirVector_μ(-μ1, Base.mod(ϕ1 + FT(π), FT(2π)))
+                Ωstar_anti, α_anti = CanopyOptics.getSpecularΩ(Ω1, Ω_anti)
+                @test isapprox(α_anti, FT(π) / FT(2); atol = tol)
+                c1 = CanopyOptics._cartesian(Ω1)
+                cn = CanopyOptics._cartesian(Ωstar_anti)
+                @test isapprox(norm(cn), one(FT); atol = tol)
+                @test abs(dot(c1, cn)) <= tol
+            end
+        end
+
+        # ForwardDiff safety right at |μ| = 1 and collinear ray pairs
+        d_col = ForwardDiff.derivative(0.0) do δ
+            Ωa = CanopyOptics.dirVector_μ(one(δ), zero(δ))
+            Ωb = CanopyOptics.dirVector_μ(cos(δ), one(δ) * 0.4)
+            _, α = CanopyOptics.getSpecularΩ(Ωa, Ωb)
+            cos(α)
+        end
+        @test isfinite(d_col)
     end
 
     @testset "Composite canopy scattering" begin
@@ -329,11 +364,15 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             @test all(iszero, Zmp_4[si:4:end, sj:4:end, :])
         end
 
-        Ωin = CanopyOptics.dirVector_μ(0.7, 0.0)
-        Ωout = CanopyOptics.dirVector_μ(-0.4, 0.5)
+        Ωin = CanopyOptics.dirVector_μ(0.7, 0.25)
+        Ωout = CanopyOptics.dirVector_μ(-0.4, 1.35)
         M = CanopyOptics.compute_reflection_mueller(specular, Ωin, Ωout, LD, 4)
+        M_rev = CanopyOptics.compute_reflection_mueller(specular, Ωout, Ωin, LD, 4)
+        P_hov = Diagonal([1.0, 1.0, -1.0, 1.0])
         @test M[1, 1] ≈ CanopyOptics.compute_reflection(specular, Ωin, Ωout, LD)
         @test abs(M[2, 1]) > 1e-12
+        @test abs(M[3, 1]) > 1e-12
+        @test isapprox(M_rev, P_hov * transpose(M) * P_hov; rtol = 1e-12, atol = 1e-14)
 
         Zpp_s1, Zmp_s1 = CanopyOptics.compute_Z_matrices(
             specular, μ, LD, 0; quadrature)
@@ -341,12 +380,28 @@ _relerr(A, B) = norm(A .- B) / max(norm(B), eps(Float64))
             specular, μ, LD, 0; quadrature, npol = 4)
         Zpp_sstack, Zmp_sstack = CanopyOptics.compute_Z_matrices_aniso_analytic(
             specular, μ, LD, 1; quadrature)
+        Zpp_s4_m, Zmp_s4_m = CanopyOptics.compute_Z_matrices_aniso_analytic(
+            specular, μ, LD, 2; quadrature, npol = 4)
         @test Zpp_sstack[:, :, 1] ≈ Zpp_s1
         @test Zmp_sstack[:, :, 1] ≈ Zmp_s1
         @test Zpp_s4[1:4:end, 1:4:end] ≈ Zpp_s1
         @test Zmp_s4[1:4:end, 1:4:end] ≈ Zmp_s1
         @test any(abs.(Zpp_s4[2:4:end, 1:4:end]) .> 1e-12) ||
               any(abs.(Zmp_s4[2:4:end, 1:4:end]) .> 1e-12)
+        # Nonzero m >= 1 Stokes U couplings from meridian-plane rotation
+        @test any(abs.(Zmp_s4_m[3:4:end, 1:4:end, 2:3]) .> 1e-12)
+
+        # Azimuthal symmetry at vertical nadir/zenith viewing (μ = 1, m = 0): Q, U vanish
+        μ_vert = [0.45, 1.0]
+        LD_plano = CanopyOptics.planophile_leaves2()
+        quad_fine = CanopyOptics.CanopyQuadrature(n_leaf = 24, n_azimuth = 32)
+        _, Zmp_vert = CanopyOptics.compute_Z_matrices(
+            specular, μ_vert, LD_plano, 0; quadrature = quad_fine, npol = 4)
+        v_blk = 5:8
+        @test abs(Zmp_vert[v_blk[2], 1]) <= 1e-13
+        @test abs(Zmp_vert[v_blk[3], 1]) <= 1e-13
+        @test abs(Zmp_vert[v_blk[2], v_blk[1]]) <= 1e-13
+        @test abs(Zmp_vert[v_blk[2], v_blk[2]]) <= 1e-13
 
         composite = diffuse + specular
         Zpp_c4, Zmp_c4 = CanopyOptics.compute_Z_matrices(

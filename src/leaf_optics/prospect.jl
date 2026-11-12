@@ -40,7 +40,20 @@ CPU and first-order ForwardDiff paths are
 supported; this function does not claim CUDA execution. The physical absorption
 Hessian is singular at exactly zero material optical depth.
 """
-function prospect_budget(leaf::LeafProspectProProperties{FT}, optis) where {FT}
+function prospect_budget(
+    leaf::LeafProspectProProperties{FT},
+    optis;
+    n_surface = nothing,
+) where {FT}
+    if n_surface !== nothing
+        BFT = float(promote_type(_leaf_base_float(FT), _leaf_base_float(eltype(optis.nᵣ))))
+        b = prospect_budget(leaf, optis, ConeSurface{BFT}(BFT(40), one(BFT)); n_surface = n_surface)
+        return (;
+            transmission = b.transmission,
+            reflectance = b.reflectance,
+            absorptance = b.absorptance,
+        )
+    end
     (; N, Ccab, Ccar, Cbrown, Canth, Cw, Cm, Cprot, Ccbc)=leaf
     (; Kcab, Kant, Kb, Kcar, Km, Kw, nᵣ, Kp, Kcbc)=optis
     n=prospect_primal(N)

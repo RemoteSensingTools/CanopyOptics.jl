@@ -76,7 +76,7 @@ end
                           Ωⁱⁿ::dirVector_μ, Ωᵒᵘᵗ::dirVector_μ, LD; quadrature)
 
 Direct 2D `(θ_L, ϕ_L)` quadrature reference for the dorsiventral area scattering
-transfer function `Γ(Ωⁱⁿ → Ωᵒᵘᵗ)`. Reduces identically to [`compute_Γ`](@ref)
+transfer function `Γ(Ωⁱⁿ → Ωᵒᵘᵗ)`. Reduces identically to `compute_Γ`
 when `R_ad == R_ab` and `T_ad == T_ab`.
 """
 function compute_Γ_directional(
@@ -379,9 +379,10 @@ function compute_Z_matrices_coupled_bsdf(
     nμ = length(μ)
     nm = m_max + 1
 
-    nr = ZFT(prep.nᵣ[idx_λ])
-    σ_ad = ZFT(prep.σ_ad); ns_ad = ZFT(prep.n_scale_ad); n_eff_ad = ns_ad * nr
-    σ_ab = ZFT(prep.σ_ab); ns_ab = ZFT(prep.n_scale_ab); n_eff_ab = ns_ab * nr
+    nsurf_ad = ZFT(prep.n_surf_ad[idx_λ])
+    nsurf_ab = ZFT(prep.n_surf_ab[idx_λ])
+    σ_ad = ZFT(prep.σ_ad); ns_ad = ZFT(prep.n_scale_ad); n_eff_ad = ns_ad * nsurf_ad
+    σ_ab = ZFT(prep.σ_ab); ns_ab = ZFT(prep.n_scale_ab); n_eff_ab = ns_ab * nsurf_ab
     th_ad = ZFT(prep.t_hem_ext_ad[idx_λ])
     th_ab = ZFT(prep.t_hem_ext_ab[idx_λ])
     rv_ad = ZFT(prep.r_vol_hem_ad[idx_λ])
@@ -425,8 +426,8 @@ function compute_Z_matrices_coupled_bsdf(
         r_ext_ab_tab[kl + 1] = microfacet_directional_reflectance(μ_q, n_eff_ab, σ_ab)
         if has_lobe
             s_q = sqrt(max(zero(ZFT), one(ZFT) - μ_q * μ_q))
-            L_ad_tab[kl + 1] = _btdf_lobe_escape_integral(μ_q, s_q, surf_ad_obj, nr, th_ad, γ_t, cn)
-            L_ab_tab[kl + 1] = _btdf_lobe_escape_integral(μ_q, s_q, surf_ab_obj, nr, th_ab, γ_t, cn)
+            L_ad_tab[kl + 1] = _btdf_lobe_escape_integral(μ_q, s_q, surf_ad_obj, nsurf_ad, th_ad, γ_t, cn)
+            L_ab_tab[kl + 1] = _btdf_lobe_escape_integral(μ_q, s_q, surf_ab_obj, nsurf_ab, th_ab, γ_t, cn)
         else
             L_ad_tab[kl + 1] = zero(ZFT)
             L_ab_tab[kl + 1] = zero(ZFT)

@@ -93,26 +93,10 @@ function _fresnel_mueller_real(nᵣ, α, npol::Integer)
     return M
 end
 
-function _stokes_rotation_matrix(φ::FTφ, npol::Integer, ::Type{FT}) where {FTφ<:Real,FT}
-    n = _validate_npol(npol)
-    M = zeros(FT, n, n)
-    M[1, 1] = one(FT)
-    n == 1 && return M
-
-    c2 = FT(cos(2 * φ))
-    s2 = FT(sin(2 * φ))
-    M[2, 2] = c2
-    M[2, 3] = -s2
-    M[3, 2] = s2
-    M[3, 3] = c2
-    if n == 4
-        M[4, 4] = one(FT)
-    end
-    return M
-end
-
 @inline function _cartesian(Ω::dirVector_μ{FT}) where {FT<:Real}
-    sθ = sqrt(max(zero(FT), one(FT) - Ω.μ^2))
+    BFT = _leaf_base_float(FT)
+    u = one(FT) - Ω.μ * Ω.μ
+    sθ = prospect_primal(u) <= zero(BFT) ? zero(FT) : sqrt(u)
     return (sθ * cos(Ω.ϕ), sθ * sin(Ω.ϕ), Ω.μ)
 end
 
@@ -132,52 +116,20 @@ end
     return (a[1] * c, a[2] * c, a[3] * c)
 end
 
-function _plane_normal(a, b, ::Type{FT}) where {FT}
-    n = _cross3(a, b)
-    mag = _norm3(n)
-    _real_value(mag) <= 1e-14 && return nothing
-    return _scale3(n, inv(mag))
-end
-
-function _signed_plane_angle(axis, from_plane, to_plane, ::Type{FT}) where {FT}
-    from_plane === nothing && return zero(FT)
-    to_plane === nothing && return zero(FT)
-
-    c = clamp(FT(_dot3(from_plane, to_plane)), -one(FT), one(FT))
-    s = FT(_dot3(axis, _cross3(from_plane, to_plane)))
-    return atan(s, c)
-end
-
-"""
-    _specular_stokes_rotation_angles(Ωin, Ωout, Ωleaf, FT)
-
-Return rotations from the scattering plane to the local leaf incidence plane
-and from the local reflection plane back to the scattering plane.
-"""
-function _specular_stokes_rotation_angles(Ωin::dirVector_μ, Ωout::dirVector_μ,
-                                          Ωleaf::dirVector_μ, ::Type{FT}) where {FT}
-    kin = _cartesian(Ωin)
-    kout = _cartesian(Ωout)
-    nleaf = _cartesian(Ωleaf)
-
-    scattering_plane = _plane_normal(kin, kout, FT)
-    incidence_plane = _plane_normal(kin, nleaf, FT)
-    reflection_plane = _plane_normal(kout, nleaf, FT)
-
-    α1 = _signed_plane_angle(kin, scattering_plane, incidence_plane, FT)
-    α2 = _signed_plane_angle(kout, scattering_plane, reflection_plane, FT)
-    return α1, α2
-end
-
 """
     compute_reflection_mueller(mod, Ωin, Ωout, LD, npol)
 
-Specular leaf bidirectional scattering Mueller matrix for one direction pair.
+Specular leaf bidirectional scattering Mueller matrix for one direction pair,
+where `Ωin` points toward the illumination source (`k_in = -_cartesian(Ωin)`)
+and `Ωout` points along the reflected ray (`k_out = +_cartesian(Ωout)`).
 
-The scalar I→I element reduces to [`compute_reflection`](@ref).  For
-`npol = 3` or `4`, the Fresnel Mueller matrix is rotated between the
-scattering plane and the local leaf incidence/reflection planes before the
-Nilson-Kuusk roughness and leaf-normal PDF factors are applied.
+The scalar `I → I` element reduces identically to [`compute_reflection`](@ref).
+For `npol = 3` or `4`, the local Fresnel Mueller matrix (`+Q` perpendicular to the
+local reflection plane, `-Q` parallel) is rotated algebraically from the incoming
+canopy meridian-plane triad `(e_s,in, e_p,in, k_in)` into the local reflection
+plane and out to the outgoing canopy meridian-plane triad `(e_s,out, e_p,out, k_out)`,
+matching the vSmartMOM Fourier `cos(m dϕ)` / `sin(m dϕ)` parity convention and
+satisfying exact 4×4 Hovenier reciprocity `M(Ω2, Ω1) = P M(Ω1, Ω2)ᵀ P` (`P = diag(1, 1, -1, 1)`).
 """
 function compute_reflection_mueller(mod::SpecularCanopyScattering,
                                     Ωin::dirVector_μ{FTΩ},
@@ -186,20 +138,89 @@ function compute_reflection_mueller(mod::SpecularCanopyScattering,
                                     npol::Integer = 1) where {FTΩ<:Real}
     n = _validate_npol(npol)
     (; nᵣ, κ) = mod
+    BFTΩ = _leaf_base_float(FTΩ)
     Ωleaf, αstar = getSpecularΩ(Ωin, Ωout)
-    θstar = acos(abs(Ωleaf.μ))
+    u_L = one(FTΩ) - Ωleaf.μ * Ωleaf.μ
+    s_L = prospect_primal(u_L) <= zero(BFTΩ) ? zero(FTΩ) : sqrt(u_L)
+    θstar = atan(s_L, abs(Ωleaf.μ))
 
-    M = _fresnel_mueller_real(nᵣ, αstar, n)
-    ZFT = eltype(M)
+    M_loc = _fresnel_mueller_real(nᵣ, αstar, n)
+    ZFT = eltype(M_loc)
+    BFT = _leaf_base_float(ZFT)
     prefactor = ZFT(1 / 8) * ZFT(pdf(LD.LD, 2θstar / π)) *
                 ZFT(LD.scaling) * K(κ, αstar)
 
-    if n > 1
-        α1, α2 = _specular_stokes_rotation_angles(Ωin, Ωout, Ωleaf, ZFT)
-        L1 = _stokes_rotation_matrix(-α1, n, ZFT)
-        L2 = _stokes_rotation_matrix(α2, n, ZFT)
-        M = L2 * M * L1
+    if n == 1
+        return prefactor .* M_loc
     end
 
-    return prefactor .* M
+    # Smooth C^∞ right-handed canopy meridian polarization triads (e_s, e_p = k × e_s, k):
+    # Incoming ray propagates along k_in = -_cartesian(Ωin); outgoing along k_out = +_cartesian(Ωout).
+    μi = clamp(ZFT(Ωin.μ), -one(ZFT), one(ZFT))
+    μo = clamp(ZFT(Ωout.μ), -one(ZFT), one(ZFT))
+    ϕi = ZFT(Ωin.ϕ)
+    ϕo = ZFT(Ωout.ϕ)
+
+    ui = one(ZFT) - μi * μi
+    uo = one(ZFT) - μo * μo
+    si = prospect_primal(ui) <= zero(BFT) ? zero(ZFT) : sqrt(ui)
+    so = prospect_primal(uo) <= zero(BFT) ? zero(ZFT) : sqrt(uo)
+
+    ci_ϕ, si_ϕ = cos(ϕi), sin(ϕi)
+    co_ϕ, so_ϕ = cos(ϕo), sin(ϕo)
+
+    es_in_x, es_in_y, es_in_z = -si_ϕ, ci_ϕ, zero(ZFT)
+    ep_in_x, ep_in_y, ep_in_z = μi * ci_ϕ, μi * si_ϕ, -si
+
+    es_out_x, es_out_y, es_out_z = -so_ϕ, co_ϕ, zero(ZFT)
+    ep_out_x, ep_out_y, ep_out_z = -μo * co_ϕ, -μo * so_ϕ, so
+
+    kin_x, kin_y, kin_z = -si * ci_ϕ, -si * si_ϕ, -μi
+    nleaf = _cartesian(dirVector_μ(ZFT(Ωleaf.μ), ZFT(Ωleaf.ϕ)))
+
+    vs_x = kin_y * nleaf[3] - kin_z * nleaf[2]
+    vs_y = kin_z * nleaf[1] - kin_x * nleaf[3]
+    vs_z = kin_x * nleaf[2] - kin_y * nleaf[1]
+    vs_norm2 = vs_x * vs_x + vs_y * vs_y + vs_z * vs_z
+
+    us_x, us_y, us_z = if prospect_primal(vs_norm2) > eps(BFT)^2
+        inv_vs = inv(sqrt(vs_norm2))
+        (vs_x * inv_vs, vs_y * inv_vs, vs_z * inv_vs)
+    else
+        # Collinear normal-retroreflection / grazing limit: R_s == R_p (or K(κ, π/2)) makes M_loc invariant
+        (es_in_x, es_in_y, es_in_z)
+    end
+
+    c1 = es_in_x * us_x + es_in_y * us_y + es_in_z * us_z
+    s1 = ep_in_x * us_x + ep_in_y * us_y + ep_in_z * us_z
+    c2 = es_out_x * us_x + es_out_y * us_y + es_out_z * us_z
+    s2 = ep_out_x * us_x + ep_out_y * us_y + ep_out_z * us_z
+
+    two = one(ZFT) + one(ZFT)
+    cos2α1 = c1 * c1 - s1 * s1
+    sin2α1 = two * c1 * s1
+    cos2α2 = c2 * c2 - s2 * s2
+    sin2α2 = two * c2 * s2
+
+    f_plus = M_loc[1, 1]
+    f_minus = M_loc[1, 2]
+    f_sp = M_loc[3, 3]
+
+    M = zeros(ZFT, n, n)
+    M[1, 1] = prefactor * f_plus
+    M[1, 2] = prefactor * f_minus * cos2α1
+    M[1, 3] = prefactor * f_minus * sin2α1
+
+    M[2, 1] = prefactor * cos2α2 * f_minus
+    M[2, 2] = prefactor * (cos2α2 * f_plus * cos2α1 + sin2α2 * f_sp * sin2α1)
+    M[2, 3] = prefactor * (cos2α2 * f_plus * sin2α1 - sin2α2 * f_sp * cos2α1)
+
+    M[3, 1] = prefactor * sin2α2 * f_minus
+    M[3, 2] = prefactor * (sin2α2 * f_plus * cos2α1 - cos2α2 * f_sp * sin2α1)
+    M[3, 3] = prefactor * (sin2α2 * f_plus * sin2α1 + cos2α2 * f_sp * cos2α1)
+
+    if n == 4
+        M[4, 4] = prefactor * f_sp
+    end
+    return M
 end

@@ -3,6 +3,8 @@ using CanopyOptics
 using ForwardDiff
 using LinearAlgebra
 
+const _u_nm = CanopyOptics.Unitful.u"nm"
+
 @testset "Leaf Model Families & Coupled BSDF / Canopy Extensions" begin
     opti64_full = createLeafOpticalStruct(400.0:100.0:2400.0)
     # Compact Float32 optical fixture without implicit Float64 promotion
@@ -343,13 +345,8 @@ using LinearAlgebra
             end
             @test isfinite(dN_cone) && dN_cone > 0.0
         end
-        # RoughDielectricSurface AsymmetricSurfaceLeafProperties: N == 1 and N >= 2 work; 1 < N < 2 throws ArgumentError
-        asym_rough_mid = AsymmetricSurfaceLeafProperties(
-            LeafProspectProProperties{Float64}(N = 1.5, Ccab = 40.0, Cw = 0.012, Cm = 0.007),
-            RoughDielectricSurface(0.08, 1.03), RoughDielectricSurface(0.24, 0.98),
-        )
-        @test_throws ArgumentError dorsiventral_budget(asym_rough_mid, opti64_full)
-        for N_r in (1.0, 2.4)
+        # RoughDielectricSurface AsymmetricSurfaceLeafProperties: continuous N >= 1 (including 1 < N < 2 convex bridge)
+        for N_r in (1.0, 1.5, 2.4)
             asym_r = AsymmetricSurfaceLeafProperties(
                 LeafProspectProProperties{Float64}(N = N_r, Ccab = 40.0, Cw = 0.012, Cm = 0.007),
                 RoughDielectricSurface(0.08, 1.03), RoughDielectricSurface(0.24, 0.98),
@@ -358,6 +355,13 @@ using LinearAlgebra
             @test maximum(abs.(br_hem.adaxial.transmission .- br_hem.abaxial.transmission)) <= 1e-13
             @test maximum(abs.(br_hem.adaxial.reflectance .+ br_hem.adaxial.transmission .+ br_hem.adaxial.absorptance .- 1.0)) <= 1e-13
         end
+        g_ns_mid = ForwardDiff.gradient([1.0, 1.0]) do ns
+            lf = LeafProspectProProperties{eltype(ns)}(N = eltype(ns)(1.5), Ccab = eltype(ns)(40), Cw = eltype(ns)(0.012), Cm = eltype(ns)(0.007))
+            as = AsymmetricSurfaceLeafProperties(lf, ConeSurface{eltype(ns)}(eltype(ns)(8), ns[1]), ConeSurface{eltype(ns)}(eltype(ns)(40), ns[2]))
+            bd = dorsiventral_budget(as, opti64_full)
+            sum(bd.adaxial.reflectance) + 2 * sum(bd.abaxial.reflectance)
+        end
+        @test all(isfinite, g_ns_mid) && g_ns_mid[1] != 0.0 && g_ns_mid[2] != 0.0
         dN_rough2 = ForwardDiff.derivative(2.0) do n_var
             lf = LeafProspectProProperties{typeof(n_var)}(N = n_var, Ccab = one(n_var) * 40, Cw = one(n_var) * 0.012, Cm = one(n_var) * 0.007)
             as = AsymmetricSurfaceLeafProperties(lf, RoughDielectricSurface(0.08, 1.03), RoughDielectricSurface(0.24, 0.98))
@@ -640,5 +644,391 @@ using LinearAlgebra
         @test all(0.0 .<= z_zero_can.ω_up .<= 1.0)
         @test all(isapprox.(z_zero_can.ω_down, 1.0; atol = 1e-13))
         @test all(isapprox.(z_zero_can.ω_up, 1.0; atol = 1e-13))
+    end
+
+    @testset "6. Dry-Matter Keyword Constructors (_UnsetLeafKw) & Short-Grid Optical Loader" begin
+        # Default PRO mode: Cm = 0, Cprot = 0.001, Ccbc = 0.009
+        lf_def = LeafProspectProProperties()
+        @test lf_def isa LeafProspectProProperties{Float64}
+        @test lf_def.Cm == 0.0 && lf_def.Cprot == 0.001 && lf_def.Ccbc == 0.009
+
+        # Explicit PROSPECT-D Cm mode zeroes Cprot & Ccbc (preventing +0.010 g/cm² double counting!)
+        lf_cm = LeafProspectProProperties(Cm = 0.006)
+        @test lf_cm isa LeafProspectProProperties{Float64}
+        @test lf_cm.Cm == 0.006 && lf_cm.Cprot == 0.0 && lf_cm.Ccbc == 0.0
+
+        # Float32 preservation on untyped keyword constructors
+        lf_cm32 = LeafProspectProProperties(Cm = 0.006f0)
+        @test lf_cm32 isa LeafProspectProProperties{Float32}
+        @test lf_cm32.Cprot === 0.0f0 && lf_cm32.Ccbc === 0.0f0
+
+        mp_cm32 = LeafMultiPigmentProperties(Cm = 0.005f0)
+        @test mp_cm32 isa LeafMultiPigmentProperties{Float32}
+        @test mp_cm32.Cm === 0.005f0 && mp_cm32.Cprot === 0.0f0 && mp_cm32.Ccbc === 0.0f0
+
+        sip_pro32 = LeafSIPProperties(Cprot = 0.001f0, Ccbc = 0.008f0)
+        @test sip_pro32 isa LeafSIPProperties{Float32}
+        @test sip_pro32.Cm === 0.0f0 && sip_pro32.Cprot === 0.001f0 && sip_pro32.Ccbc === 0.008f0
+
+        sip_def = LeafSIPProperties()
+        @test sip_def isa LeafSIPProperties{Float64}
+        @test sip_def.Cm == 0.008 && sip_def.Cprot == 0.0 && sip_def.Ccbc == 0.0
+
+        # Mutual exclusivity guard when both Cm > 0 and Cprot/Ccbc > 0 are supplied
+        @test_throws ArgumentError LeafProspectProProperties(Cm = 0.005, Cprot = 0.001)
+        @test_throws ArgumentError LeafMultiPigmentProperties(Cm = 0.005, Ccbc = 0.004)
+        @test_throws ArgumentError LeafSIPProperties(Cm = 0.005, Cprot = 0.001)
+
+        # ForwardDiff derivative wrt Cm right at Cm = 0.0 has zero Dual-vs-primal jump!
+        d_cm0 = ForwardDiff.derivative(0.0) do cm
+            lf = LeafProspectProProperties(Cm = cm)
+            sum(prospect_budget(lf, opti64_full).absorptance)
+        end
+        d_cm_pos = ForwardDiff.derivative(1e-7) do cm
+            lf = LeafProspectProProperties(Cm = cm)
+            sum(prospect_budget(lf, opti64_full).absorptance)
+        end
+        @test isfinite(d_cm0) && d_cm0 > 0.0
+        @test isapprox(d_cm0, d_cm_pos; rtol = 1e-4)
+
+        # Short spectral grid (< 10 wavelength bins) no longer throws BoundsError in createLeafOpticalStruct
+        opti_short = createLeafOpticalStruct((450.0:50.0:700.0) .* _u_nm)
+        @test length(opti_short.nᵣ) == 5
+    end
+
+    @testset "7. Continuous N_tot >= 1 Dorsiventral Bridge & dorsiventral_from_traits" begin
+        whole_pro = LeafProspectProProperties(N = 1.45, Ccab = 42.0, Ccar = 9.0, Cw = 0.012, Cm = 0.006)
+        for nt in (1.0, 1.35, 1.999999, 2.0, 2.000001, 2.8)
+            dv = dorsiventral_from_traits(
+                whole_pro;
+                N_tot = nt,
+                mesophyll_fraction_palisade = 0.45,
+                pigment_fraction_palisade = 0.75,
+                surface_adaxial = RoughDielectricSurface(0.08, 1.03),
+                surface_abaxial = RoughDielectricSurface(0.24, 0.98),
+            )
+            bd = dorsiventral_budget(dv, opti64_full; hemispherical = true)
+            @test maximum(abs.(bd.adaxial.reflectance .+ bd.adaxial.transmission .+ bd.adaxial.absorptance .- 1.0)) <= 1e-13
+            @test maximum(abs.(bd.adaxial.absorptance_palisade .+ bd.adaxial.absorptance_spongy .- bd.adaxial.absorptance)) <= 1e-13
+            @test maximum(abs.(bd.adaxial.transmission .- bd.abaxial.transmission)) <= 1e-13
+        end
+
+        # Verify C^0 continuity across N_tot = 2.0
+        bd_left = dorsiventral_budget(dorsiventral_from_traits(whole_pro; N_tot = 2.0 - 1e-7), opti64_full)
+        bd_at2 = dorsiventral_budget(dorsiventral_from_traits(whole_pro; N_tot = 2.0), opti64_full)
+        bd_right = dorsiventral_budget(dorsiventral_from_traits(whole_pro; N_tot = 2.0 + 1e-7), opti64_full)
+        @test maximum(abs.(bd_left.adaxial.reflectance .- bd_at2.adaxial.reflectance)) <= 1e-6
+        @test maximum(abs.(bd_right.adaxial.reflectance .- bd_at2.adaxial.reflectance)) <= 1e-6
+
+        # ForwardDiff gradient wrt [N_tot, fm, fc] on sub-2 leaf (N_tot = 1.45)
+        g_dv_sub2 = ForwardDiff.gradient([1.45, 0.45, 0.75]) do θ
+            dv = dorsiventral_from_traits(
+                whole_pro;
+                N_tot = θ[1],
+                mesophyll_fraction_palisade = θ[2],
+                pigment_fraction_palisade = θ[3],
+            )
+            bd = dorsiventral_budget(dv, opti64_full)
+            sum(bd.adaxial.reflectance) + sum(bd.adaxial.absorptance_palisade)
+        end
+        @test all(isfinite, g_dv_sub2) && all(!iszero, g_dv_sub2)
+
+        # Multi-pigment whole leaf support + non-convex invalid (N_pal < 1 < N_spo) rejection
+        whole_mp = LeafMultiPigmentProperties(N = 1.35f0, Cchla = 30.0f0, Cchlb = 10.0f0, Cm = 0.006f0)
+        dv_mp32 = dorsiventral_from_traits(whole_mp)
+        @test dv_mp32.palisade isa LeafMultiPigmentProperties{Float32}
+        @test_throws ArgumentError DorsiventralLeafProperties(
+            LeafProspectProProperties(N = 0.6, Cm = 0.003),
+            LeafProspectProProperties(N = 1.2, Cm = 0.003),
+        )
+    end
+
+    @testset "8. createMultiPigmentOpticalStruct Self-Contained Optical Bases" begin
+        λ_bnds = (399.5:10.0:2499.5) .* _u_nm
+        opt_pro = createLeafOpticalStruct(λ_bnds)
+        for basis in (:calibrated_in_vivo, :prospect_mp_2017, :prospect_mp_plus_2022, :prospect_pro_pooled)
+            mp64 = createMultiPigmentOpticalStruct(λ_bnds; basis = basis)
+            mp32 = createMultiPigmentOpticalStruct(λ_bnds; basis = basis, FT = Float32)
+            @test mp64 isa MultiPigmentOpticalProperties{Float64}
+            @test mp32 isa MultiPigmentOpticalProperties{Float32}
+            @test all(mp64.Kchla .>= 0.0) && all(mp64.Kchlb .>= 0.0)
+            @test all(mp64.Kcar .>= 0.0) && all(mp64.Kant .>= 0.0)
+
+            # Consistent [cm² µg⁻¹] anthocyanin units across all 4 bases (~0.07 at 535 nm)
+            wl_nm = CanopyOptics.Unitful.ustrip.(mp64.λ)
+            idx_535 = argmin(abs.(wl_nm .- 535.0))
+            @test 0.05 <= mp64.Kant[idx_535] <= 0.11
+
+            # Clean splice to OPTI_2021 above 800 nm (zero Lorentzian wing leakage in NIR/SWIR)
+            nir_mask = wl_nm .> 805.0
+            @test isapprox(mp64.Kchla[nir_mask], opt_pro.Kcab[nir_mask]; rtol = 1e-12, atol = 1e-15)
+            @test isapprox(mp64.Kchlb[nir_mask], opt_pro.Kcab[nir_mask]; rtol = 1e-12, atol = 1e-15)
+            @test isapprox(mp64.Kcar[nir_mask], opt_pro.Kcar[nir_mask]; rtol = 1e-12, atol = 1e-15)
+            @test isapprox(mp64.Kant[nir_mask], opt_pro.Kant[nir_mask]; rtol = 1e-12, atol = 1e-15)
+
+            if basis !== :prospect_pro_pooled
+                @test maximum(abs.(mp64.Kchla .- mp64.Kchlb)) > 0.01
+            else
+                @test mp64.Kchla == mp64.Kchlb
+            end
+
+            lf_mp = LeafMultiPigmentProperties(N = 1.6, Cchla = 32.0, Cchlb = 10.0, Ccar = 8.0, Canth = 2.0, Cw = 0.012, Cm = 0.006)
+            bd_mp = prospect_budget(lf_mp, mp64)
+            @test maximum(abs.(bd_mp.reflectance .+ bd_mp.transmission .+ bd_mp.absorptance .- 1.0)) <= 1e-13
+        end
+        @test_throws ArgumentError createMultiPigmentOpticalStruct(λ_bnds; basis = :unknown_basis)
+    end
+
+    @testset "9. Epicuticular Wax Dispersion & Surface-Coupled BSDF / Canopy Consumer Sites" begin
+        λ_bnds = (399.5:100.0:2499.5) .* _u_nm
+        opt_w = createLeafOpticalStruct(λ_bnds)
+        n_wax = load_wax_refractive_index(λ_bnds)
+        n_wax32 = load_wax_refractive_index(λ_bnds; FT = Float32)
+        @test eltype(n_wax) === Float64 && eltype(n_wax32) === Float32
+        @test length(n_wax) == length(opt_w.nᵣ)
+        # Stuckens et al. (2009) epicuticular wax stays in [1.40, 1.50] across 400–2500 nm and well above SWIR n_r
+        @test 1.40 <= n_wax[end] < n_wax[1] < 1.50
+        @test n_wax[end] < n_wax[5] < 1.50
+        @test n_wax[end] > opt_w.nᵣ[end] + 0.10
+
+        # Conservation & SWIR reflectance increase across prospect_budget and leaf_sip_budget
+        lf_w = LeafProspectProProperties(N = 1.6, Ccab = 40.0, Cw = 0.015, Cm = 0.006)
+        bd_nowax = prospect_budget(lf_w, opt_w)
+        bd_wax = prospect_budget(lf_w, opt_w; n_surface = n_wax)
+        @test maximum(abs.(bd_wax.reflectance .+ bd_wax.transmission .+ bd_wax.absorptance .- 1.0)) <= 1e-13
+        @test bd_wax.reflectance[end] > bd_nowax.reflectance[end]
+
+        sip_w = LeafSIPProperties(Ccab = 40.0, Cw = 0.015, Cm = 0.006)
+        bd_sip_wax = leaf_sip_budget(sip_w, opt_w; n_surface = n_wax)
+        @test maximum(abs.(bd_sip_wax.reflectance .+ bd_sip_wax.transmission .+ bd_sip_wax.absorptance .- 1.0)) <= 1e-13
+
+        # Asymmetric single-face wax (adaxial wax, abaxial mesophyll n_r) preserves exact hemispherical T_ad == T_ab!
+        for N_val in (1.0, 1.45, 2.3)
+            asym_wax_leaf = AsymmetricSurfaceLeafProperties(
+                LeafProspectProProperties(N = N_val, Ccab = 40.0, Cw = 0.014, Cm = 0.006),
+                RoughDielectricSurface(0.10, 1.0),
+                RoughDielectricSurface(0.24, 1.0),
+            )
+            bd_aw = dorsiventral_budget(
+                asym_wax_leaf,
+                opt_w;
+                hemispherical = true,
+                n_surface_adaxial = n_wax,
+                n_surface_abaxial = opt_w.nᵣ,
+            )
+            @test maximum(abs.(bd_aw.adaxial.transmission .- bd_aw.abaxial.transmission)) <= 1e-13
+            @test maximum(abs.(bd_aw.adaxial.reflectance .+ bd_aw.adaxial.transmission .+ bd_aw.adaxial.absorptance .- 1.0)) <= 1e-13
+        end
+
+        # CoupledLeafBSDF consumer sites with asymmetric adaxial-only wax!
+        # Single-zone CoupledLeafBSDF rejects distinct n_surface_adaxial vs n_surface_abaxial
+        bsdf_single = CoupledLeafBSDF(lf_w, RoughDielectricSurface(0.15, 1.0); η_t = 0.35, γ_t = 4.5)
+        @test_throws ArgumentError prepare_leaf_bsdf(
+            bsdf_single, opt_w; n_surface_adaxial = n_wax, n_surface_abaxial = opt_w.nᵣ,
+        )
+        prep_single_wax = prepare_leaf_bsdf(bsdf_single, opt_w; n_surface = n_wax)
+        prep_single_nowax = prepare_leaf_bsdf(bsdf_single, opt_w)
+        sp_swir_wax = leaf_bsdf_spectrum(prep_single_wax, cosd(45.0), 0.0, cosd(45.0), π)
+        sp_swir_nowax = leaf_bsdf_spectrum(prep_single_nowax, cosd(45.0), 0.0, cosd(45.0), π)
+        @test sp_swir_wax.brdf[end] > sp_swir_nowax.brdf[end]
+
+        # Dorsiventral CoupledLeafBSDF with adaxial wax (n_wax) and abaxial mesophyll (n_r):
+        # verify directional conservation, cross-face BTDF reciprocity, 4x4 Hovenier reciprocity, and canopy Z reciprocity!
+        dv_wax = dorsiventral_from_traits(
+            lf_w;
+            N_tot = 1.65,
+            surface_adaxial = RoughDielectricSurface(0.10, 1.0),
+            surface_abaxial = RoughDielectricSurface(0.24, 1.0),
+        )
+        prep_dv_wax = prepare_leaf_bsdf(
+            CoupledLeafBSDF(dv_wax; η_t = 0.45, γ_t = 5.0),
+            opt_w;
+            n_surface_adaxial = n_wax,
+            n_surface_abaxial = opt_w.nᵣ,
+        )
+        db_dv_wax = leaf_directional_budget(prep_dv_wax, 0.72; face = :adaxial)
+        @test maximum(abs.(db_dv_wax.reflectance .+ db_dv_wax.transmission .+ db_dv_wax.absorptance .- 1.0)) <= 1e-13
+
+        μ24, wμ24 = CanopyOptics.gauleg(24, 0.0, 1.0)
+        ϕ32, wϕ32 = CanopyOptics.gauleg(32, 0.0, Float64(π))
+        int_r_w = zeros(length(n_wax))
+        int_t_w = zeros(length(n_wax))
+        for km in eachindex(μ24), kp in eachindex(ϕ32)
+            sp = leaf_bsdf_spectrum(prep_dv_wax, 0.72, 0.0, μ24[km], ϕ32[kp]; face = :adaxial, npol = 1)
+            wt = wμ24[km] * 2.0 * wϕ32[kp] * μ24[km]
+            int_r_w .+= wt .* sp.brdf
+            int_t_w .+= wt .* sp.btdf
+        end
+        @test maximum(abs.(int_r_w .- db_dv_wax.reflectance)) <= 2.5e-3
+        @test maximum(abs.(int_t_w .- db_dv_wax.transmission)) <= 2.5e-3
+
+        s_w_ad = leaf_bsdf_spectrum(prep_dv_wax, 0.78, 0.3, 0.51, 2.1; face = :adaxial, npol = 4)
+        s_w_ab = leaf_bsdf_spectrum(prep_dv_wax, 0.51, 2.1, 0.78, 0.3; face = :abaxial, npol = 4)
+        @test maximum(abs.(s_w_ad.btdf .- s_w_ab.btdf)) <= 1e-13
+
+        μ8, _ = CanopyOptics.gauleg(8, 0.0, 1.0)
+        μ8 = collect(μ8)
+        quad_w = CanopyQuadrature(n_leaf = 16, n_azimuth = 24)
+        z_dv_wax = compute_Z_matrices_coupled_bsdf(prep_dv_wax, length(n_wax), μ8, planophile_leaves2(), 1; quadrature = quad_w)
+        G8 = vec(CanopyOptics.G(μ8, planophile_leaves2(); quadrature = quad_w))
+        for m in 0:1
+            Wpp = z_dv_wax.Zpp[:, :, m + 1] .* reshape(G8, 1, :)
+            Wmm = z_dv_wax.Zmm[:, :, m + 1] .* reshape(G8, 1, :)
+            Wmp = z_dv_wax.Zmp[:, :, m + 1] .* reshape(G8, 1, :)
+            Wpm = z_dv_wax.Zpm[:, :, m + 1] .* reshape(G8, 1, :)
+            @test isapprox(Wmp, transpose(Wmp); rtol = 1e-12, atol = 1e-14)
+            @test isapprox(Wpm, transpose(Wpm); rtol = 1e-12, atol = 1e-14)
+            @test isapprox(Wpp, transpose(Wmm); rtol = 1e-12, atol = 1e-14)
+        end
+    end
+
+    @testset "10. Dorsiventral 2-Zone Internal Fluorescence Escape (CPU, BigFloat & CUDA)" begin
+        @test isbitstype(DorsiventralPlateEscape{Float64})
+        @test isbitstype(DorsiventralPlateEscape{Float32})
+        @test isbitstype(DorsiventralBirthProfile{Float64})
+        @test isbitstype(DorsiventralBirthProfile{Float32})
+
+        # Constructor guards
+        @test_throws ArgumentError DorsiventralPlateEscape(-0.1, 0.2, 0.5, 0.5)
+        @test_throws ArgumentError DorsiventralPlateEscape(0.1, 0.2, 0.0, 0.5)
+        @test_throws ArgumentError DorsiventralPlateEscape(0.1, 0.2, 0.5, 0.5, 0.0)
+        @test_throws ArgumentError DorsiventralBirthProfile(0.0, 0.0)
+        @test_throws ArgumentError DorsiventralBirthProfile(1.0, 0.0, 0.5, 0.0, 0.0, 0.5, 1.0, 0.0)
+
+        # Zero host allocations on scalar evaluation
+        esc_alloc = DorsiventralPlateEscape(0.6, 0.4, 0.45, 0.42, 0.85)
+        bp_alloc = DorsiventralBirthProfile(0.75, 0.25, 1.8, 1.0, 0.05, 0.6, 1.0, 0.12)
+        leaf_emission_fates(esc_alloc, bp_alloc)
+        @test (@allocated leaf_emission_fates(esc_alloc, bp_alloc)) == 0
+        @test (@allocated leaf_emission_fates(esc_alloc, UniformBirthProfile())) == 0
+
+        # Exact reduction to RegularPlateEscape(b, t) when splitting a homogeneous plate
+        # at arbitrary fraction η ∈ (0, 1) with interface_transmission = 1!
+        for η in (0.2, 0.45, 0.8), b in (0.0, 1e-6, 0.7, 5.5), t in (0.05, 0.48, 1.0), (a, f, g) in ((0.0, 1.0, 0.0), (0.35, 1.0, 0.2), (4.5, 1.0, 0.05))
+            reg = RegularPlateEscape(b, t)
+            dv_esc = DorsiventralPlateEscape(η * b, (1.0 - η) * b, t, t, 1.0)
+            exp_bp = ExponentialBirthProfile(a, f, g)
+            ref_fates = leaf_emission_fates(reg, exp_bp)
+
+            L1 = CanopyOptics.emission_depth_integral(η * a)
+            L2 = CanopyOptics.emission_depth_integral((1.0 - η) * a)
+            f1_raw = f
+            g1_raw = g * exp(-(1.0 - η) * a)
+            f2_raw = f * exp(-η * a)
+            g2_raw = g
+            w1_raw = η * (f1_raw + g1_raw) * L1
+            w2_raw = (1.0 - η) * (f2_raw + g2_raw) * L2
+            dv_bp = DorsiventralBirthProfile(
+                w1_raw, w2_raw,
+                η * a, f1_raw, g1_raw,
+                (1.0 - η) * a, f2_raw, g2_raw,
+            )
+            dv_fates = leaf_emission_fates(dv_esc, dv_bp)
+            @test isapprox(dv_fates.front, ref_fates.front; rtol = 1e-12, atol = 1e-14)
+            @test isapprox(dv_fates.back, ref_fates.back; rtol = 1e-12, atol = 1e-14)
+            @test isapprox(dv_fates.reabsorbed, ref_fates.reabsorbed; rtol = 1e-12, atol = 1e-14)
+        end
+
+        # Exact anatomical reversal symmetry: swapping (adaxial <-> abaxial) swaps (front <-> back) and preserves reabsorbed!
+        esc_fwd = DorsiventralPlateEscape(1.3, 0.4, 0.41, 0.49, 0.43)
+        esc_rev = DorsiventralPlateEscape(0.4, 1.3, 0.49, 0.41, 0.43)
+        bp_fwd = DorsiventralBirthProfile(0.78, 0.22, 2.4, 0.9, 0.1, 0.7, 0.85, 0.15)
+        bp_rev = DorsiventralBirthProfile(0.22, 0.78, 0.7, 0.15, 0.85, 2.4, 0.1, 0.9)
+        f_fwd = leaf_emission_fates(esc_fwd, bp_fwd)
+        f_rev = leaf_emission_fates(esc_rev, bp_rev)
+        @test f_fwd.front == f_rev.back
+        @test f_fwd.back == f_rev.front
+        @test isapprox(f_fwd.reabsorbed, f_rev.reabsorbed; rtol = 1e-14, atol = 1e-15)
+
+        # Subnormal & extreme optical-depth stress tests against independent 256-bit BigFloat linear solver
+        setprecision(BigFloat, 256) do
+            for FT in (Float32, Float64)
+                rtol = FT === Float32 ? FT(5e-5) : FT(1e-11)
+                atol = FT === Float32 ? FT(5e-6) : FT(1e-13)
+                sub_t = nextfloat(zero(FT))
+
+                # Equal subnormal trapping limit (b1 = b2 = 0, t1 = t2 = t_int = nextfloat(0)):
+                # exact random-walk escape from zone 1 is 2/3 front, 1/3 back!
+                esc_sub = DorsiventralPlateEscape{FT}(zero(FT), zero(FT), sub_t, sub_t, sub_t)
+                f_sub = leaf_emission_fates(esc_sub, DorsiventralBirthProfile{FT}(one(FT), zero(FT)))
+                @test f_sub.reabsorbed === zero(FT)
+                @test isapprox(f_sub.front, FT(2) / FT(3); rtol = rtol, atol = atol)
+                @test isapprox(f_sub.back, FT(1) / FT(3); rtol = rtol, atol = atol)
+
+                for (b1, b2, t1, t2, ti, w1, w2, a1, a2) in (
+                    (zero(FT), zero(FT), FT(0.45), FT(0.45), FT(0.35), FT(0.8), FT(0.2), zero(FT), zero(FT)),
+                    (FT(1e-5), FT(2e-5), sub_t, FT(0.4), FT(0.5), FT(0.7), FT(0.3), FT(1.5), FT(0.4)),
+                    (FT(0.8), FT(0.3), sub_t, sub_t, FT(0.42), FT(0.75), FT(0.25), FT(3.0), FT(0.8)),
+                    (FT(35.0), FT(0.2), FT(0.46), FT(0.44), FT(0.5), FT(0.6), FT(0.4), FT(25.0), FT(1.2)),
+                )
+                    esc_t = DorsiventralPlateEscape{FT}(b1, b2, t1, t2, ti)
+                    bp_t = DorsiventralBirthProfile{FT}(w1, w2, a1, FT(0.85), FT(0.15), a2, FT(0.9), FT(0.1))
+                    res_t = leaf_emission_fates(esc_t, bp_t)
+                    @test res_t.front >= zero(FT) && res_t.back >= zero(FT) && res_t.reabsorbed >= zero(FT)
+                    @test isapprox(res_t.front + res_t.back + res_t.reabsorbed, one(FT); rtol = rtol, atol = atol)
+
+                    esc_bf = DorsiventralPlateEscape{BigFloat}(BigFloat(b1), BigFloat(b2), BigFloat(t1), BigFloat(t2), BigFloat(ti))
+                    bp_bf = DorsiventralBirthProfile{BigFloat}(
+                        BigFloat(w1), BigFloat(w2),
+                        BigFloat(a1), BigFloat(FT(0.85)), BigFloat(FT(0.15)),
+                        BigFloat(a2), BigFloat(FT(0.9)), BigFloat(FT(0.1)),
+                    )
+                    res_bf = leaf_emission_fates(esc_bf, bp_bf)
+                    @test isapprox(res_t.front, FT(res_bf.front); rtol = rtol, atol = atol)
+                    @test isapprox(res_t.back, FT(res_bf.back); rtol = rtol, atol = atol)
+                    @test isapprox(res_t.reabsorbed, FT(res_bf.reabsorbed); rtol = rtol, atol = atol)
+                end
+            end
+        end
+
+        # Host helper dorsiventral_plate_optics + physical 685 nm vs 740 nm dorsiventral SIF escape asymmetry
+        dpo_match = dorsiventral_plate_optics(
+            0.65, 0.65, 1.41;
+            surface_adaxial = ConeSurface(90.0, 1.0),
+            surface_abaxial = ConeSurface(90.0, 1.0),
+            hemispherical = true,
+            internal_air_gap = false,
+        )
+        ref_dpo = diffuse_plate_optics(0.65, 1.41)
+        @test isapprox(dpo_match.adaxial_effective_depth, ref_dpo.effective_depth; rtol = 1e-13)
+        @test isapprox(dpo_match.adaxial_exit_transmission, ref_dpo.interface_exit_transmission; rtol = 1e-13)
+        @test dpo_match.interface_transmission == 1.0
+
+        dpo_gap = dorsiventral_plate_optics(0.65, 0.25, 1.41; internal_air_gap = true)
+        @test 0.35 < dpo_gap.interface_transmission < 0.55
+
+        # At 685 nm (strong palisade Chl reabsorption: k_pal = 1.8, k_spo = 0.6) vs 740 nm (weak reabsorption: k_pal = 0.04, k_spo = 0.015)
+        # under adaxial blue excitation (w_pal = 0.88, w_spo = 0.12), front/back escape asymmetry is strongly amplified at 685 nm!
+        dpo_685 = dorsiventral_plate_optics(1.8, 0.6, 1.41; internal_air_gap = true)
+        dpo_740 = dorsiventral_plate_optics(0.04, 0.015, 1.41; internal_air_gap = true)
+        bp_blue = DorsiventralBirthProfile(0.88, 0.12, 3.2, 1.0, 0.02, 0.9, 1.0, 0.05)
+        f685 = leaf_emission_fates(dpo_685.escape, bp_blue)
+        f740 = leaf_emission_fates(dpo_740.escape, bp_blue)
+        @test (f685.front / f685.back) > 2.0 * (f740.front / f740.back)
+
+        # CUDA device broadcast verification on NVIDIA L40S
+        if CanopyOptics.CUDA.functional()
+            CanopyOptics.CUDA.allowscalar(false)
+            for FT in (Float32, Float64)
+                escs_cpu = [
+                    DorsiventralPlateEscape{FT}(FT(0.8), FT(0.3), FT(0.46), FT(0.44), one(FT)),
+                    DorsiventralPlateEscape{FT}(FT(1.6), FT(0.5), FT(0.45), FT(0.42), FT(0.43)),
+                    DorsiventralPlateEscape{FT}(zero(FT), zero(FT), nextfloat(zero(FT)), FT(0.45), FT(0.5)),
+                ]
+                bps_cpu = [
+                    DorsiventralBirthProfile{FT}(FT(0.75), FT(0.25), FT(2.5), FT(0.9), FT(0.1), FT(0.8), FT(0.9), FT(0.1)),
+                    DorsiventralBirthProfile{FT}(FT(0.85), FT(0.15), FT(3.5), one(FT), FT(0.02), FT(1.1), one(FT), FT(0.05)),
+                    DorsiventralBirthProfile{FT}(FT(0.6), FT(0.4)),
+                ]
+                cpu_out = leaf_emission_fates.(escs_cpu, bps_cpu)
+                gpu_out = Array(leaf_emission_fates.(CanopyOptics.CUDA.CuArray(escs_cpu), CanopyOptics.CUDA.CuArray(bps_cpu)))
+                tol_gpu = FT === Float32 ? FT(5e-6) : FT(1e-13)
+                for k in eachindex(cpu_out)
+                    @test isapprox(gpu_out[k].front, cpu_out[k].front; rtol = tol_gpu, atol = tol_gpu)
+                    @test isapprox(gpu_out[k].back, cpu_out[k].back; rtol = tol_gpu, atol = tol_gpu)
+                    @test isapprox(gpu_out[k].reabsorbed, cpu_out[k].reabsorbed; rtol = tol_gpu, atol = tol_gpu)
+                end
+            end
+        end
     end
 end

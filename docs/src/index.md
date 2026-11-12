@@ -1,14 +1,15 @@
 # CanopyOptics.jl
 *A package to compute canopy scattering properties*
 ## Package Features
-- Use leaf angle distributions to compute bi-Lambertian canopy scattering matrices
-- Compute closed-form cosine Fourier moments for the bi-Lambertian canopy kernel
-- Compose diffuse and specular leaf-surface scattering models additively
+- Use leaf angle distributions to compute bi-Lambertian and dorsiventral canopy scattering matrices
+- Compute closed-form cosine Fourier moments for symmetric and dorsiventral bi-Lambertian canopy kernels
+- Couple dielectric leaf surfaces (Stern–Allen smooth cones, Beckmann microfacets, epicuticular wax dispersion) with internal mesophyll budgets into an energy-conserving, Helmholtz-reciprocal 4×4 leaf BSDF
+- Compose diffuse and specular leaf-surface scattering models additively or via coupled BSDF quadrature
 - Request scalar or Stokes-expanded canopy Z matrices with `npol`
 - Combine leaf and wood canopy components with separate angle distributions
-- Differentiate canopy Z matrices with ForwardDiff leaf optical parameters
-- Compute polarized specular leaf-surface reflection terms
-- Compute leaf reflectance and transmittance based on Prospect-PRO
+- Differentiate leaf budgets and canopy Z matrices with `ForwardDiff`
+- Compute leaf reflectance, transmittance, and material absorptance with PROSPECT-PRO, separated chlorophyll *a*/*b* multi-pigment bases, Leaf-SIP, and continuous `N_tot >= 1` dorsiventral stacks
+- Compute single-zone and two-zone dorsiventral internal fluorescence escape and photosystem excitation partitioning on CPU and CUDA
 - Compute complex microwave dielectric ε(T, f) of water, ice, soil and leaves
 
 ## Z-matrix convention

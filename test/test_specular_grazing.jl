@@ -38,10 +38,19 @@ using Test, TOML, CanopyOptics, ForwardDiff
             @test eltype(mp)===FT
             @test all(isfinite,pp)
             @test all(isfinite,mp)
-            # The last stream pair has exactly opposite vertical directions:
-            # its specular half-angle is grazing, so positive roughness removes it.
+            # For vertical streams (last_block, μ = 1):
+            # - Same-sign transmission `pp` requires a vertical leaf (θ* = π/2), so K(κ, π/2) = 0 removes it.
+            # - Opposite-sign reflection `mp` requires a horizontal leaf (θ* = 0), where Beta(2, 2) has pdf(0) = 0.
             last_block = (length(mu)-1)*npol+1:length(mu)*npol
+            @test all(iszero,pp[last_block,last_block])
             @test all(iszero,mp[last_block,last_block])
+        end
+        lad_plano = CanopyOptics.planophile_leaves2(FT)
+        for npol in s["stokes_components"]
+            pp_p,mp_p = CanopyOptics.compute_Z_matrices(model,mu,lad_plano,0;quadrature,npol)
+            last_block = (length(mu)-1)*npol+1:length(mu)*npol
+            @test all(iszero,pp_p[last_block,last_block])
+            @test mp_p[first(last_block),first(last_block)] > zero(FT)
         end
     end
 end

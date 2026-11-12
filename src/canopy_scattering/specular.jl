@@ -35,16 +35,21 @@ where:
 - `Fᵣ(nᵣ, α*)` = unpolarized Fresnel reflectance (from `Fᵣ`)
 
 For Stokes-vector propagation, use [`compute_reflection_mueller`](@ref), which
-constructs the Fresnel Mueller matrix and rotates it into the scattering-plane
-basis used by the canopy Fourier Z matrices.
+constructs the Fresnel Mueller matrix and rotates it into the incoming and
+outgoing canopy meridian-plane bases (`ẑ × k_in` and `ẑ × k_out`) used by the
+canopy Fourier Z matrices.
 
-Note: only reflection is currently modelled; specular transmission is not yet implemented.
+Note: `Ωⁱⁿ` points toward the illumination source (`-k_in`) and `Ωᵒᵘᵗ` points
+along the reflected ray (`+k_out`); only reflection is modelled here (for coupled
+surface + volume + directional transmission, see [`CoupledLeafBSDF`](@ref)).
 """
 function compute_reflection(mod::SpecularCanopyScattering,Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}, LD::AbstractLeafDistribution) where FT
     (;nᵣ,κ) = mod
+    BFT = _leaf_base_float(FT)
     Ωstar, αstar = getSpecularΩ(Ωⁱⁿ, Ωᵒᵘᵗ)
-    # Can change this later as well do have the pdf in μ, not theta!
-    θstar = acos(abs(Ωstar.μ));
+    u_L = one(FT) - Ωstar.μ * Ωstar.μ
+    s_L = prospect_primal(u_L) <= zero(BFT) ? zero(FT) : sqrt(u_L)
+    θstar = atan(s_L, abs(Ωstar.μ))
     # Eq. 2.39 in "Discrete Ordinates Method for Photon Transport in Leaf Canopies", page 59
     return FT(1/8) * pdf(LD.LD,2θstar/π) * LD.scaling * K(κ, αstar) * Fᵣ(nᵣ,αstar)
 end
@@ -118,7 +123,9 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
         𝐙⁻⁺ = zeros(ZFT, length(μ), length(μ))
 
         for j in eachindex(μ)
-            Ωⁱⁿ = dirVector_μ(μ[j], FT(0))
+            # Downward incoming stream j travels along k_in = dirVector_μ(+μ[j], 0),
+            # so the outward vector toward the illumination source is Ω_src = -k_in = dirVector_μ(-μ[j], π).
+            Ωⁱⁿ = dirVector_μ(-μ[j], FT(π))
             for i in eachindex(μ)
                 acc_pp = zero(ZFT)
                 acc_mp = zero(ZFT)
@@ -141,7 +148,7 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
     𝐙⁻⁺ = zeros(ZFT, n * nμ, n * nμ)
 
     for j in eachindex(μ)
-        Ωⁱⁿ = dirVector_μ(μ[j], FT(0))
+        Ωⁱⁿ = dirVector_μ(-μ[j], FT(π))
         for i in eachindex(μ)
             for ia in eachindex(ϕ)
                 dϕ = ϕ[ia]

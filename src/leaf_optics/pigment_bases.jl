@@ -5,6 +5,12 @@ Leaf biochemical and structural state with separate chlorophyll *a* (`Cchla`)
 and chlorophyll *b* (`Cchlb`) pools alongside carotenoids (`Ccar`), anthocyanins
 (`Canth`), brown pigments (`Cbrown`), water (`Cw`), bulk dry matter (`Cm`),
 protein (`Cprot`), and carbon-based constituents (`Ccbc`).
+
+When constructed with keywords:
+- Omitting `Cm` selects **PROSPECT-PRO dry-matter mode** (`Cm = 0`, defaulting `Cprot = 0.001`, `Ccbc = 0.009`).
+- Supplying `Cm` explicitly (including `Cm = 0` or `ForwardDiff.Dual`) selects **bulk `Cm` mode**,
+  defaulting `Cprot = 0, Ccbc = 0` without double-counting dry mass.
+- Setting both `Cm > 0` and `Cprot > 0` (or `Ccbc > 0`) throws an `ArgumentError`.
 """
 struct LeafMultiPigmentProperties{FT<:Real} <: AbstractLeafProperties
     "Leaf structure parameter N >= 1 (fractional plate count)"
@@ -15,13 +21,13 @@ struct LeafMultiPigmentProperties{FT<:Real} <: AbstractLeafProperties
     Cchlb::FT
     "Carotenoid content `[µg cm⁻²]`"
     Ccar::FT
-    "Anthocyanin content (`[nmol cm⁻²]` with Féret `OPTI_2021` `Kant`, or `[µg cm⁻²]` with mass-based `Kant`)"
+    "Anthocyanin content `[µg cm⁻²]` (mass basis matching `OPTI_2021` and `createMultiPigmentOpticalStruct`)"
     Canth::FT
     "Brown pigments content in arbitrary units"
     Cbrown::FT
     "Equivalent water thickness `[cm]`"
     Cw::FT
-    "Bulk dry matter content `[g cm⁻²]` (set to 0 when Cprot + Ccbc are used)"
+    "Bulk dry matter content `[g cm⁻²]` (0 when `Cprot + Ccbc` are used)"
     Cm::FT
     "Protein content `[g cm⁻²]`"
     Cprot::FT
@@ -30,42 +36,50 @@ struct LeafMultiPigmentProperties{FT<:Real} <: AbstractLeafProperties
 end
 
 function LeafMultiPigmentProperties{FT}(;
-    N = FT(1.4),
-    Cchla = FT(30.0),
-    Cchlb = FT(10.0),
-    Ccar = FT(10.0),
-    Canth = FT(0.5),
-    Cbrown = zero(FT),
-    Cw = FT(0.012),
-    Cm = zero(FT),
-    Cprot = FT(0.001),
-    Ccbc = FT(0.009),
+    N = _UNSET_LEAF_KW,
+    Cchla = _UNSET_LEAF_KW,
+    Cchlb = _UNSET_LEAF_KW,
+    Ccar = _UNSET_LEAF_KW,
+    Canth = _UNSET_LEAF_KW,
+    Cbrown = _UNSET_LEAF_KW,
+    Cw = _UNSET_LEAF_KW,
+    Cm = _UNSET_LEAF_KW,
+    Cprot = _UNSET_LEAF_KW,
+    Ccbc = _UNSET_LEAF_KW,
 ) where {FT<:Real}
+    BFT = _leaf_base_float(FT)
+    n_v = N === _UNSET_LEAF_KW ? FT(BFT(1.4)) : FT(N)
+    ca_v = Cchla === _UNSET_LEAF_KW ? FT(BFT(30.0)) : FT(Cchla)
+    cb_v = Cchlb === _UNSET_LEAF_KW ? FT(BFT(10.0)) : FT(Cchlb)
+    car_v = Ccar === _UNSET_LEAF_KW ? FT(BFT(10.0)) : FT(Ccar)
+    ant_v = Canth === _UNSET_LEAF_KW ? FT(BFT(0.5)) : FT(Canth)
+    brn_v = Cbrown === _UNSET_LEAF_KW ? zero(FT) : FT(Cbrown)
+    cw_v = Cw === _UNSET_LEAF_KW ? FT(BFT(0.012)) : FT(Cw)
+    cm_v, cprot_v, ccbc_v = _resolve_pro_dry_matter(FT, Cm, Cprot, Ccbc, "LeafMultiPigmentProperties")
     return LeafMultiPigmentProperties{FT}(
-        FT(N), FT(Cchla), FT(Cchlb), FT(Ccar), FT(Canth),
-        FT(Cbrown), FT(Cw), FT(Cm), FT(Cprot), FT(Ccbc),
+        n_v, ca_v, cb_v, car_v, ant_v, brn_v, cw_v, cm_v, cprot_v, ccbc_v,
     )
 end
 
 function LeafMultiPigmentProperties(;
-    N::Real = 1.4,
-    Cchla::Real = 30.0,
-    Cchlb::Real = 10.0,
-    Ccar::Real = 10.0,
-    Canth::Real = 0.5,
-    Cbrown::Real = 0.0,
-    Cw::Real = 0.012,
-    Cm::Real = 0.0,
-    Cprot::Real = 0.001,
-    Ccbc::Real = 0.009,
+    N = _UNSET_LEAF_KW,
+    Cchla = _UNSET_LEAF_KW,
+    Cchlb = _UNSET_LEAF_KW,
+    Ccar = _UNSET_LEAF_KW,
+    Canth = _UNSET_LEAF_KW,
+    Cbrown = _UNSET_LEAF_KW,
+    Cw = _UNSET_LEAF_KW,
+    Cm = _UNSET_LEAF_KW,
+    Cprot = _UNSET_LEAF_KW,
+    Ccbc = _UNSET_LEAF_KW,
 )
-    FT = float(promote_type(
-        typeof(N), typeof(Cchla), typeof(Cchlb), typeof(Ccar), typeof(Canth),
-        typeof(Cbrown), typeof(Cw), typeof(Cm), typeof(Cprot), typeof(Ccbc),
-    ))
-    return LeafMultiPigmentProperties{FT}(
-        FT(N), FT(Cchla), FT(Cchlb), FT(Ccar), FT(Canth),
-        FT(Cbrown), FT(Cw), FT(Cm), FT(Cprot), FT(Ccbc),
+    T_raw = promote_type(
+        _kw_type(N), _kw_type(Cchla), _kw_type(Cchlb), _kw_type(Ccar), _kw_type(Canth),
+        _kw_type(Cbrown), _kw_type(Cw), _kw_type(Cm), _kw_type(Cprot), _kw_type(Ccbc),
+    )
+    FT = T_raw === Union{} ? Float64 : float(T_raw)
+    return LeafMultiPigmentProperties{FT}(;
+        N, Cchla, Cchlb, Ccar, Canth, Cbrown, Cw, Cm, Cprot, Ccbc,
     )
 end
 
@@ -74,7 +88,8 @@ end
 
 Specific absorption cross-section spectra and refractive index `nᵣ` for leaf
 models that resolve chlorophyll *a* (`Kchla`) and chlorophyll *b* (`Kchlb`)
-separately across a user-supplied wavelength grid `λ`.
+separately across a user-supplied wavelength grid `λ`. See
+[`createMultiPigmentOpticalStruct`](@ref) for built-in in-vivo and pseudo-Voigt bases.
 """
 struct MultiPigmentOpticalProperties{FT<:Real,FT2} <: AbstractProspectProperties
     "Wavelength grid"
@@ -87,7 +102,7 @@ struct MultiPigmentOpticalProperties{FT<:Real,FT2} <: AbstractProspectProperties
     Kchlb::Vector{FT}
     "Specific absorption coefficient of carotenoids `[cm² μg⁻¹]`"
     Kcar::Vector{FT}
-    "Specific absorption coefficient of anthocyanins (`[cm² nmol⁻¹]` or `[cm² μg⁻¹]` matching `Canth`)"
+    "Specific absorption coefficient of anthocyanins `[cm² μg⁻¹]`"
     Kant::Vector{FT}
     "Specific absorption coefficient of brown pigments"
     Kb::Vector{FT}
@@ -297,7 +312,7 @@ end
 
 Antenna photon-selection rule for [`LeafMultiPigmentProperties`](@ref) partitions
 containing `:chlorophyll_a` and `:chlorophyll_b` (and `:carotenoids` when
-`carotenoid_transfer > 0`). Uses [`complementary_excitation`](@ref) to preserve
+`carotenoid_transfer > 0`). Uses `complementary_excitation` to preserve
 exact total-selection and zero-pigment limits.
 """
 struct MultiChlorophyllAntenna{FT<:Real} <: AbstractAntennaSelection
@@ -419,25 +434,28 @@ end
 end
 
 """
-    prospect_budget(leaf, optics, surface::AbstractLeafSurface; μ_in = one(FT))
+    prospect_budget(leaf, optics, surface::AbstractLeafSurface;
+                    μ_in = one(FT), n_surface = nothing)
 
 Generalized PROSPECT plate budget accepting any [`AbstractLeafSurface`](@ref)
-(`ConeSurface` or `RoughDielectricSurface`) and optional directional incidence
-cosine `μ_in ∈ (0, 1]`, for either [`LeafProspectProProperties`](@ref) or
-[`LeafMultiPigmentProperties`](@ref).
+(`ConeSurface` or `RoughDielectricSurface`), optional directional incidence
+cosine `μ_in ∈ (0, 1]`, and optional outer cuticular refractive-index spectrum
+`n_surface` (e.g., [`load_wax_refractive_index`](@ref)), for either
+[`LeafProspectProProperties`](@ref) or [`LeafMultiPigmentProperties`](@ref).
 
-Note: First-surface entry uses `surface_interface_optics(surface, μ_in, nr)` and
+Note: First-surface entry uses `surface_interface_optics(surface, μ_in, nr; n_surface)` and
 symmetric diffuse plate interfaces use `t_int_diffuse = t_hem_ext / nr²` across all
 `N >= 1` plates (smoothly supporting `1 <= N < 2`), reducing identically to legacy
-`prospect_budget` when `surface == ConeSurface(40, 1)`. For distinct outer-epidermis
-vs internal aqueous cell-wall interfaces, see [`DorsiventralLeafProperties`](@ref).
-Returns `(; transmission, reflectance, absorptance, reflectance_volume)`.
+`prospect_budget` when `surface == ConeSurface(40, 1)` and `n_surface === nothing`.
+For distinct outer-epidermis vs internal aqueous cell-wall interfaces, see
+[`DorsiventralLeafProperties`](@ref). Returns `(; transmission, reflectance, absorptance, reflectance_volume)`.
 """
 function prospect_budget(
     leaf::Union{LeafProspectProProperties{FTL},LeafMultiPigmentProperties{FTL}},
     optics::AbstractProspectProperties,
     surface::AbstractLeafSurface{FTS};
     μ_in::Real = one(_leaf_base_float(promote_type(FTL, eltype(optics.nᵣ), FTS))),
+    n_surface::Union{Nothing,AbstractVector{<:Real}} = nothing,
 ) where {FTL<:Real,FTS<:Real}
     n_val = prospect_primal(leaf.N)
     isfinite(n_val) && n_val >= one(n_val) ||
@@ -447,22 +465,39 @@ function prospect_budget(
             leaf.Ccab, leaf.Ccar, leaf.Canth, leaf.Cbrown,
             leaf.Cw, leaf.Cm, leaf.Cprot, leaf.Ccbc,
         ))
+        BFT_L = _leaf_base_float(FTL)
+        if prospect_primal(leaf.Cm) > zero(BFT_L) &&
+           (prospect_primal(leaf.Cprot) > zero(BFT_L) || prospect_primal(leaf.Ccbc) > zero(BFT_L))
+            throw(ArgumentError("LeafProspectProProperties cannot set both Cm > 0 and Cprot/Ccbc > 0 (double-counts LMA)"))
+        end
     else
         _validate_leaf_contents((
             leaf.Cchla, leaf.Cchlb, leaf.Ccar, leaf.Canth, leaf.Cbrown,
             leaf.Cw, leaf.Cm, leaf.Cprot, leaf.Ccbc,
         ))
+        BFT_L = _leaf_base_float(FTL)
+        if prospect_primal(leaf.Cm) > zero(BFT_L) &&
+           (prospect_primal(leaf.Cprot) > zero(BFT_L) || prospect_primal(leaf.Ccbc) > zero(BFT_L))
+            throw(ArgumentError("LeafMultiPigmentProperties cannot set both Cm > 0 and Cprot/Ccbc > 0 (double-counts LMA)"))
+        end
     end
     _validate_optics_arrays(optics)
+    nλ = length(optics.nᵣ)
+    if n_surface !== nothing
+        length(n_surface) == nλ ||
+            throw(DimensionMismatch("n_surface length $(length(n_surface)) must match optics length $(nλ)"))
+        all(x -> (v = prospect_primal(x); isfinite(v) && v > one(v)), n_surface) ||
+            throw(ArgumentError("n_surface refractive indices must be finite and > 1"))
+    end
 
     K_total = _total_optical_depth_vector(leaf, optics)
-    FT = float(promote_type(eltype(K_total), typeof(leaf.N), eltype(optics.nᵣ), FTS, typeof(μ_in)))
+    FTW = n_surface === nothing ? eltype(optics.nᵣ) : eltype(n_surface)
+    FT = float(promote_type(eltype(K_total), typeof(leaf.N), eltype(optics.nᵣ), FTS, typeof(μ_in), FTW))
     BFT = _leaf_base_float(FT)
     μ_val = prospect_primal(μ_in)
     isfinite(μ_val) && zero(BFT) < μ_val <= one(BFT) ||
         throw(ArgumentError("μ_in must be finite and in (0, 1]"))
 
-    nλ = length(optics.nᵣ)
     T_vec = Vector{FT}(undef, nλ)
     R_vec = Vector{FT}(undef, nλ)
     A_vec = Vector{FT}(undef, nλ)
@@ -473,8 +508,9 @@ function prospect_budget(
 
     @inbounds for idx in 1:nλ
         nr = FT(optics.nᵣ[idx])
+        ns_idx = n_surface === nothing ? nr : FT(n_surface[idx])
         k_unit = FT(K_total[idx]) / N_ft
-        surf_opt = surface_interface_optics(surface, μ_ft, nr)
+        surf_opt = surface_interface_optics(surface, μ_ft, nr; n_surface = ns_idx)
         b = _asymmetric_top_prospect_budget(
             k_unit, N_ft, surf_opt.t_ext, surf_opt.t_int_diffuse, nr,
         )
@@ -494,7 +530,8 @@ end
 
 function prospect_budget(
     ::LeafProspectProProperties,
-    ::MultiPigmentOpticalProperties,
+    ::MultiPigmentOpticalProperties;
+    kwargs...,
 )
     throw(ArgumentError(
         "LeafProspectProProperties (single Ccab pool) cannot be paired with MultiPigmentOpticalProperties (separate Kchla, Kchlb); use LeafMultiPigmentProperties or LeafOpticalProperties",
@@ -503,7 +540,8 @@ end
 
 function prospect(
     ::LeafProspectProProperties,
-    ::MultiPigmentOpticalProperties,
+    ::MultiPigmentOpticalProperties;
+    kwargs...,
 )
     throw(ArgumentError(
         "LeafProspectProProperties (single Ccab pool) cannot be paired with MultiPigmentOpticalProperties (separate Kchla, Kchlb); use LeafMultiPigmentProperties or LeafOpticalProperties",
@@ -512,10 +550,11 @@ end
 
 function prospect_budget(
     leaf::LeafMultiPigmentProperties{FTL},
-    optics::AbstractProspectProperties,
+    optics::AbstractProspectProperties;
+    n_surface = nothing,
 ) where {FTL<:Real}
     FT = float(promote_type(FTL, eltype(optics.nᵣ)))
-    b = prospect_budget(leaf, optics, ConeSurface{FT}(FT(40), one(FT)))
+    b = prospect_budget(leaf, optics, ConeSurface{FT}(FT(40), one(FT)); n_surface = n_surface)
     return (;
         transmission = b.transmission,
         reflectance = b.reflectance,
@@ -525,9 +564,10 @@ end
 
 function prospect(
     leaf::LeafMultiPigmentProperties,
-    optics::AbstractProspectProperties,
+    optics::AbstractProspectProperties;
+    n_surface = nothing,
 )
-    b = prospect_budget(leaf, optics)
+    b = prospect_budget(leaf, optics; n_surface = n_surface)
     return b.transmission, b.reflectance
 end
 
@@ -548,44 +588,134 @@ Spectral-invariants leaf model state following Wu et al. (2020, *Remote Sens.
 Environ.* 250, 112131, `SIP_Model.m`), with explicit empirical structural slopes
 (`alpha_lma`, `f_lma_slope`, `g_lma_slope`) so callers can supply TOML-configured
 or calibrated invariant parameters without hardcoded magic numbers.
+
+When constructed with keywords, supplying `Cprot` or `Ccbc` without `Cm` defaults
+`Cm = 0`, and supplying `Cchla` or `Cchlb` without `Ccab` defaults `Ccab = 0`,
+avoiding double-counting dry mass or chlorophyll.
 """
-Base.@kwdef struct LeafSIPProperties{FT<:Real} <: AbstractLeafProperties
-    "Chlorophyll a+b content `[µg cm⁻²]` (set 0 when Cchla/Cchlb are used)"
-    Ccab::FT        = FT(40.0)
-    "Optional separate Chlorophyll a content `[µg cm⁻²]` (requires Ccab == 0)"
-    Cchla::FT       = zero(FT)
-    "Optional separate Chlorophyll b content `[µg cm⁻²]` (requires Ccab == 0)"
-    Cchlb::FT       = zero(FT)
+struct LeafSIPProperties{FT<:Real} <: AbstractLeafProperties
+    "Chlorophyll a+b content `[µg cm⁻²]` (0 when `Cchla/Cchlb` are used)"
+    Ccab::FT
+    "Optional separate Chlorophyll a content `[µg cm⁻²]` (requires `Ccab == 0`)"
+    Cchla::FT
+    "Optional separate Chlorophyll b content `[µg cm⁻²]` (requires `Ccab == 0`)"
+    Cchlb::FT
     "Carotenoid content `[µg cm⁻²]`"
-    Ccar::FT        = FT(10.0)
-    "Anthocyanin content (`[nmol cm⁻²]` or `[µg cm⁻²]` matching `Kant`)"
-    Canth::FT       = FT(0.5)
+    Ccar::FT
+    "Anthocyanin content `[µg cm⁻²]`"
+    Canth::FT
     "Brown pigments content"
-    Cbrown::FT      = zero(FT)
+    Cbrown::FT
     "Equivalent water thickness `[cm]`"
-    Cw::FT          = FT(0.012)
-    "Bulk dry matter content `[g cm⁻²]` (set 0 when Cprot + Ccbc are used)"
-    Cm::FT          = FT(0.008)
-    "Protein content `[g cm⁻²]` (requires Cm == 0)"
-    Cprot::FT       = zero(FT)
-    "Carbon-based constituents content `[g cm⁻²]` (requires Cm == 0)"
-    Ccbc::FT        = zero(FT)
+    Cw::FT
+    "Bulk dry matter content `[g cm⁻²]` (0 when `Cprot + Ccbc` are used)"
+    Cm::FT
+    "Protein content `[g cm⁻²]` (requires `Cm == 0`)"
+    Cprot::FT
+    "Carbon-based constituents content `[g cm⁻²]` (requires `Cm == 0`)"
+    Ccbc::FT
     "Scattering element scaling factor `[cm² g⁻¹]` (Wu et al. 2020: 600)"
-    alpha_lma::FT   = FT(600.0)
+    alpha_lma::FT
     "Recollision probability LMA slope `[cm² g⁻¹]` (Wu et al. 2020: 2765.0)"
-    f_lma_slope::FT = FT(2765.0)
+    f_lma_slope::FT
     "Asymmetry parameter LMA slope `[cm² g⁻¹]` (Wu et al. 2020: 102.8)"
-    g_lma_slope::FT = FT(102.8)
+    g_lma_slope::FT
+end
+
+function LeafSIPProperties{FT}(;
+    Ccab = _UNSET_LEAF_KW,
+    Cchla = _UNSET_LEAF_KW,
+    Cchlb = _UNSET_LEAF_KW,
+    Ccar = _UNSET_LEAF_KW,
+    Canth = _UNSET_LEAF_KW,
+    Cbrown = _UNSET_LEAF_KW,
+    Cw = _UNSET_LEAF_KW,
+    Cm = _UNSET_LEAF_KW,
+    Cprot = _UNSET_LEAF_KW,
+    Ccbc = _UNSET_LEAF_KW,
+    alpha_lma = _UNSET_LEAF_KW,
+    f_lma_slope = _UNSET_LEAF_KW,
+    g_lma_slope = _UNSET_LEAF_KW,
+) where {FT<:Real}
+    BFT = _leaf_base_float(FT)
+    if Ccab === _UNSET_LEAF_KW && (Cchla !== _UNSET_LEAF_KW || Cchlb !== _UNSET_LEAF_KW)
+        cab_v = zero(FT)
+        ca_v = Cchla === _UNSET_LEAF_KW ? zero(FT) : FT(Cchla)
+        cb_v = Cchlb === _UNSET_LEAF_KW ? zero(FT) : FT(Cchlb)
+    else
+        cab_v = Ccab === _UNSET_LEAF_KW ? FT(BFT(40.0)) : FT(Ccab)
+        ca_v = Cchla === _UNSET_LEAF_KW ? zero(FT) : FT(Cchla)
+        cb_v = Cchlb === _UNSET_LEAF_KW ? zero(FT) : FT(Cchlb)
+    end
+    if prospect_primal(cab_v) > zero(BFT) &&
+       (prospect_primal(ca_v) > zero(BFT) || prospect_primal(cb_v) > zero(BFT))
+        throw(ArgumentError("LeafSIPProperties cannot set both Ccab > 0 and Cchla/Cchlb > 0 (double-counts chlorophyll); omit Ccab when using Cchla/Cchlb"))
+    end
+
+    if Cm === _UNSET_LEAF_KW && (Cprot !== _UNSET_LEAF_KW || Ccbc !== _UNSET_LEAF_KW)
+        cm_v = zero(FT)
+        cprot_v = Cprot === _UNSET_LEAF_KW ? zero(FT) : FT(Cprot)
+        ccbc_v = Ccbc === _UNSET_LEAF_KW ? zero(FT) : FT(Ccbc)
+    else
+        cm_v = Cm === _UNSET_LEAF_KW ? FT(BFT(0.008)) : FT(Cm)
+        cprot_v = Cprot === _UNSET_LEAF_KW ? zero(FT) : FT(Cprot)
+        ccbc_v = Ccbc === _UNSET_LEAF_KW ? zero(FT) : FT(Ccbc)
+    end
+    if prospect_primal(cm_v) > zero(BFT) &&
+       (prospect_primal(cprot_v) > zero(BFT) || prospect_primal(ccbc_v) > zero(BFT))
+        throw(ArgumentError("LeafSIPProperties cannot set both Cm > 0 and Cprot/Ccbc > 0 (double-counts LMA); omit Cm when using Cprot + Ccbc"))
+    end
+
+    car_v = Ccar === _UNSET_LEAF_KW ? FT(BFT(10.0)) : FT(Ccar)
+    ant_v = Canth === _UNSET_LEAF_KW ? FT(BFT(0.5)) : FT(Canth)
+    brn_v = Cbrown === _UNSET_LEAF_KW ? zero(FT) : FT(Cbrown)
+    cw_v = Cw === _UNSET_LEAF_KW ? FT(BFT(0.012)) : FT(Cw)
+    alp_v = alpha_lma === _UNSET_LEAF_KW ? FT(BFT(600.0)) : FT(alpha_lma)
+    flm_v = f_lma_slope === _UNSET_LEAF_KW ? FT(BFT(2765.0)) : FT(f_lma_slope)
+    glm_v = g_lma_slope === _UNSET_LEAF_KW ? FT(BFT(102.8)) : FT(g_lma_slope)
+
+    return LeafSIPProperties{FT}(
+        cab_v, ca_v, cb_v, car_v, ant_v, brn_v, cw_v,
+        cm_v, cprot_v, ccbc_v, alp_v, flm_v, glm_v,
+    )
+end
+
+function LeafSIPProperties(;
+    Ccab = _UNSET_LEAF_KW,
+    Cchla = _UNSET_LEAF_KW,
+    Cchlb = _UNSET_LEAF_KW,
+    Ccar = _UNSET_LEAF_KW,
+    Canth = _UNSET_LEAF_KW,
+    Cbrown = _UNSET_LEAF_KW,
+    Cw = _UNSET_LEAF_KW,
+    Cm = _UNSET_LEAF_KW,
+    Cprot = _UNSET_LEAF_KW,
+    Ccbc = _UNSET_LEAF_KW,
+    alpha_lma = _UNSET_LEAF_KW,
+    f_lma_slope = _UNSET_LEAF_KW,
+    g_lma_slope = _UNSET_LEAF_KW,
+)
+    T_raw = promote_type(
+        _kw_type(Ccab), _kw_type(Cchla), _kw_type(Cchlb), _kw_type(Ccar),
+        _kw_type(Canth), _kw_type(Cbrown), _kw_type(Cw), _kw_type(Cm),
+        _kw_type(Cprot), _kw_type(Ccbc), _kw_type(alpha_lma),
+        _kw_type(f_lma_slope), _kw_type(g_lma_slope),
+    )
+    FT = T_raw === Union{} ? Float64 : float(T_raw)
+    return LeafSIPProperties{FT}(;
+        Ccab, Cchla, Cchlb, Ccar, Canth, Cbrown, Cw, Cm, Cprot, Ccbc,
+        alpha_lma, f_lma_slope, g_lma_slope,
+    )
 end
 
 """
-    leaf_sip_budget(leaf::LeafSIPProperties, optics; surface = nothing, μ_in = 1)
+    leaf_sip_budget(leaf::LeafSIPProperties, optics; surface = nothing, μ_in = 1, n_surface = nothing)
 
 Evaluate the Wu et al. (2020) `Leaf-SIP` spectral-invariants leaf optical budget
 (`surface = nothing`, matching published `SIP_Model.m` which omits cuticular
 Fresnel reflection) or a surface-coupled `Leaf-SIP+Fresnel` budget when an
 [`AbstractLeafSurface`](@ref) is supplied (`surface = ConeSurface(...)` or
-`RoughDielectricSurface(...)`).
+`RoughDielectricSurface(...)`, with optional `n_surface` wax dispersion).
 
 Note: Wu et al. (2020)'s default slopes (`alpha_lma = 600`, `f_lma_slope = 2765`,
 `g_lma_slope = 102.8`) were empirically calibrated for bare `surface = nothing`;
@@ -601,12 +731,20 @@ function leaf_sip_budget(
     optics::AbstractProspectProperties;
     surface::Union{Nothing,AbstractLeafSurface} = nothing,
     μ_in::Real = one(_leaf_base_float(promote_type(FTL, eltype(optics.nᵣ)))),
+    n_surface::Union{Nothing,AbstractVector{<:Real}} = nothing,
 ) where {FTL<:Real}
     _validate_leaf_contents((
         leaf.Ccab, leaf.Cchla, leaf.Cchlb, leaf.Ccar, leaf.Canth, leaf.Cbrown,
         leaf.Cw, leaf.Cm, leaf.Cprot, leaf.Ccbc,
     ))
     _validate_optics_arrays(optics)
+    nλ = length(optics.nᵣ)
+    if n_surface !== nothing
+        length(n_surface) == nλ ||
+            throw(DimensionMismatch("n_surface length $(length(n_surface)) must match optics length $(nλ)"))
+        all(x -> (v = prospect_primal(x); isfinite(v) && v > one(v)), n_surface) ||
+            throw(ArgumentError("n_surface refractive indices must be finite and > 1"))
+    end
 
     BFT_L = _leaf_base_float(FTL)
     if prospect_primal(leaf.Ccab) > zero(BFT_L) &&
@@ -632,7 +770,8 @@ function leaf_sip_budget(
         throw(ArgumentError("g_lma_slope must be nonnegative"))
 
     FTS = surface === nothing ? FTL : _surface_ft(surface)
-    FT = float(promote_type(FTL, eltype(optics.nᵣ), FTS, typeof(μ_in)))
+    FTW = n_surface === nothing ? eltype(optics.nᵣ) : eltype(n_surface)
+    FT = float(promote_type(FTL, eltype(optics.nᵣ), FTS, typeof(μ_in), FTW))
     BFT = _leaf_base_float(FT)
     μ_ft = FT(μ_in)
     zero(BFT) < prospect_primal(μ_ft) <= one(BFT) ||
@@ -649,7 +788,6 @@ function leaf_sip_budget(
     # Smooth |q| away from zero; at q == 0 use zero(FT)
     q_abs = prospect_primal(q) >= zero(BFT) ? q : -q
 
-    nλ = length(optics.nᵣ)
     T_vec = Vector{FT}(undef, nλ)
     R_vec = Vector{FT}(undef, nλ)
     A_vec = Vector{FT}(undef, nλ)
@@ -688,8 +826,9 @@ function leaf_sip_budget(
             A_vec[idx] = a_int
         else
             nr = FT(optics.nᵣ[idx])
-            s_top = surface_interface_optics(surface, μ_ft, nr)
-            s_hem = surface_interface_optics(surface, FT(90), nr; hemispherical = true)
+            ns_idx = n_surface === nothing ? nr : FT(n_surface[idx])
+            s_top = surface_interface_optics(surface, μ_ft, nr; n_surface = ns_idx)
+            s_hem = surface_interface_optics(surface, FT(90), nr; hemispherical = true, n_surface = ns_idx)
             # Couple external dielectric interfaces I_top ⋆ M_sip ⋆ I_bot without air gaps
             b = _couple_external_interfaces_to_medium(
                 s_top.r_ext, s_top.t_ext, s_top.r_int_diffuse, s_top.t_int_diffuse,

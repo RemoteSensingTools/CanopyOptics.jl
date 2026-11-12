@@ -115,60 +115,75 @@ The incidence half-angle is `α = arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ) / 2`.
 See Eq. 18 in Knyazikhin & Marshak, *Discrete Ordinates Method for Photon Transport
 in Leaf Canopies*.
 
-An assertion verifies `Ωⁱⁿ ⋅ Ωᴸ ≈ Ωᵒᵘᵗ ⋅ Ωᴸ` (equal angle of incidence and exitance).
+Here `Ωⁱⁿ` points toward the illumination source (`-k_in`) and `Ωᵒᵘᵗ` points toward
+the outgoing ray (`+k_out`), so the specular leaf normal bisects `(Ωⁱⁿ, Ωᵒᵘᵗ)`
+and satisfies `Ωⁱⁿ ⋅ Ωᴸ ≈ Ωᵒᵘᵗ ⋅ Ωᴸ`. At the antipodal grazing limit (`Ωᵒᵘᵗ ≈ -Ωⁱⁿ`,
+`α = π/2`), returns a deterministic unit leaf normal orthogonal to `Ωⁱⁿ` without
+singularity or `ForwardDiff.Dual` `NaN` tangents.
 
 - The `dirVector` variant returns only `Ωᴸ`.
 - The `dirVector_μ` variant returns `(Ωᴸ, α)` for direct use in [`compute_reflection`](@ref).
 """
-function getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where FT
-    sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
-    sa > 1 ? sa = FT(1) : nothing
-    
-    α = acos(sa)/2
-    # Relative azimuth angle:
-    ϕ = (Ωᵒᵘᵗ.ϕ - Ωⁱⁿ.ϕ) 
-    # Leaf polar angle:
-    θₗ = acos((cos(Ωⁱⁿ.θ) + cos(Ωᵒᵘᵗ.θ))/2cos(α));
-    
-    t = (sin(Ωⁱⁿ.θ) + sin(Ωᵒᵘᵗ.θ) * cos(ϕ))/(2cos(α)*sin(θₗ))
-    if isnan(t)
-        t = FT(1.0)
+@inline function _azimuth_0_2pi(
+    y::FT,
+    x::FT,
+    ::Type{FT},
+    ::Type{BFT},
+) where {FT<:Real,BFT<:AbstractFloat}
+    if iszero(prospect_primal(x)) && iszero(prospect_primal(y))
+        return zero(FT)
     end
-    # Leaf azimuth angle:
-    ϕₗ = acos(max(FT(-1),min(t,FT(1))))
-    ϕ > FT(π) ? ϕₗ = FT(2)*FT(π)-ϕₗ-Ωⁱⁿ.ϕ : ϕₗ = ϕₗ+Ωⁱⁿ.ϕ
-    #θₗ > π/2 ? θₗ = θₗ - π/2  : nothing 
-    out = dirVector(θₗ,ϕₗ)
-    #ϕ > π   ? out = dirVector(θₗ,2π-ϕₗ-Ωⁱⁿ.ϕ) : out = dirVector(θₗ,ϕₗ+Ωⁱⁿ.ϕ)
-    #@show (Ωⁱⁿ ⋅ out) , (Ωᵒᵘᵗ ⋅ out)
-    #@show abs(((Ωⁱⁿ ⋅ out) - (Ωᵒᵘᵗ ⋅ out)) / (Ωᵒᵘᵗ ⋅ out)) * 100
-    #@show θₗ , ϕₗ 
-    @assert abs(((Ωⁱⁿ ⋅ out) - (Ωᵒᵘᵗ ⋅ out)) / (Ωᵒᵘᵗ ⋅ out)) * 100 < 1 "Leaf angle wrong, $Ωⁱⁿ, $Ωᵒᵘᵗ, $out"
-    return out 
+    θ = atan(y, x)
+    return prospect_primal(θ) < zero(BFT) ? θ + FT(2) * FT(π) : θ
+end
 
+function getSpecularΩ(Ωⁱⁿ::dirVector{FT}, Ωᵒᵘᵗ::dirVector{FT}) where FT
+    BFT = _leaf_base_float(FT)
+    in_μ = dirVector_μ(cos(Ωⁱⁿ.θ), Ωⁱⁿ.ϕ)
+    out_μ = dirVector_μ(cos(Ωᵒᵘᵗ.θ), Ωᵒᵘᵗ.ϕ)
+    Ωᴸ_μ, _ = getSpecularΩ(in_μ, out_μ)
+    u_L = one(FT) - Ωᴸ_μ.μ * Ωᴸ_μ.μ
+    s_L = prospect_primal(u_L) <= zero(BFT) ? zero(FT) : sqrt(u_L)
+    θ_L = atan(s_L, Ωᴸ_μ.μ)
+    return dirVector(θ_L, Ωᴸ_μ.ϕ)
 end
 
 function getSpecularΩ(Ωⁱⁿ::dirVector_μ{FT}, Ωᵒᵘᵗ::dirVector_μ{FT}) where FT
-    sa = Ωⁱⁿ ⋅ Ωᵒᵘᵗ 
-    #@show sa
-    sa > 1 ? sa = FT(1) : nothing
-    # Scattering angle
-    α = acos(sa)/FT(2)
-    
-    # Relative azimuth angle:
-    ϕ = (Ωᵒᵘᵗ.ϕ - Ωⁱⁿ.ϕ) 
-    # Leaf polar angle:
-    μₗ = ((Ωⁱⁿ.μ + Ωᵒᵘᵗ.μ)/2cos(α));
-    
-    t = (sqrt(1-Ωⁱⁿ.μ^2) + sqrt(1-Ωᵒᵘᵗ.μ^2) * cos(ϕ))/(2cos(α)*sqrt(1-μₗ^2))
-    #@show t, sqrt(1-Ωⁱⁿ.μ^2) + sqrt(1-Ωᵒᵘᵗ.μ)
-    if isnan(t)
-        t = FT(1.0)
+    BFT = _leaf_base_float(FT)
+    μ1 = clamp(Ωⁱⁿ.μ, -one(FT), one(FT))
+    μ2 = clamp(Ωᵒᵘᵗ.μ, -one(FT), one(FT))
+
+    u1 = one(FT) - μ1 * μ1
+    u2 = one(FT) - μ2 * μ2
+    s1 = prospect_primal(u1) <= zero(BFT) ? zero(FT) : sqrt(u1)
+    s2 = prospect_primal(u2) <= zero(BFT) ? zero(FT) : sqrt(u2)
+
+    c1, sp1 = cos(Ωⁱⁿ.ϕ), sin(Ωⁱⁿ.ϕ)
+    c2, sp2 = cos(Ωᵒᵘᵗ.ϕ), sin(Ωᵒᵘᵗ.ϕ)
+
+    ω1x, ω1y, ω1z = s1 * c1, s1 * sp1, μ1
+    ω2x, ω2y, ω2z = s2 * c2, s2 * sp2, μ2
+
+    Hx, Hy, Hz = ω1x + ω2x, ω1y + ω2y, ω1z + ω2z
+    Dx, Dy, Dz = ω1x - ω2x, ω1y - ω2y, ω1z - ω2z
+
+    H2 = Hx * Hx + Hy * Hy + Hz * Hz
+    D2 = Dx * Dx + Dy * Dy + Dz * Dz
+    Hnorm = prospect_primal(H2) <= zero(BFT) ? zero(FT) : sqrt(H2)
+    Dnorm = prospect_primal(D2) <= zero(BFT) ? zero(FT) : sqrt(D2)
+    α = atan(Dnorm, Hnorm)
+
+    if prospect_primal(H2) > (BFT(16) * eps(BFT))^2
+        μ_L = clamp(Hz / Hnorm, -one(FT), one(FT))
+        ϕ_L = _azimuth_0_2pi(Hy, Hx, FT, BFT)
+        return dirVector_μ(μ_L, ϕ_L), α
     end
-    # Leaf azimuth angle:
-    ϕₗ = acos(max(FT(-1),min(t,FT(1))))
-    ϕ > FT(π) ? ϕₗ = FT(2)*FT(π)-ϕₗ-Ωⁱⁿ.ϕ : ϕₗ = ϕₗ+Ωⁱⁿ.ϕ
-    out = dirVector_μ(μₗ,ϕₗ)
-    @assert Ωⁱⁿ ⋅ out ≈  Ωᵒᵘᵗ ⋅ out "Leaf angle wrong in specular reflection, $Ωⁱⁿ, $Ωᵒᵘᵗ, $out"
-    return out, α
+
+    # Antipodal grazing limit (Ωᵒᵘᵗ ≈ -Ωⁱⁿ, α ≈ π/2): deterministic unit normal ⊥ ω1
+    nx = μ1 * c1
+    ny = μ1 * sp1
+    nz = -s1
+    μ_L = clamp(nz, -one(FT), one(FT))
+    ϕ_L = _azimuth_0_2pi(ny, nx, FT, BFT)
+    return dirVector_μ(μ_L, ϕ_L), α
 end

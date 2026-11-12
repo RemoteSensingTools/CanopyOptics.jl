@@ -1,3 +1,36 @@
+@inline prospect_primal(x) = x
+@inline prospect_primal(x::ForwardDiff.Dual) = prospect_primal(ForwardDiff.value(x))
+
+@inline _leaf_base_float(::Type{T}) where {T<:AbstractFloat} = T
+@inline _leaf_base_float(::Type{ForwardDiff.Dual{Tag,V,N}}) where {Tag,V,N} = _leaf_base_float(V)
+@inline _leaf_base_float(::Type{T}) where {T<:Real} = float(T)
+@inline _leaf_base_float(x::Real) = _leaf_base_float(typeof(x))
+
+struct _UnsetLeafKw end
+const _UNSET_LEAF_KW = _UnsetLeafKw()
+@inline _kw_type(::_UnsetLeafKw) = Union{}
+@inline _kw_type(x::Real) = typeof(x)
+
+@inline function _resolve_pro_dry_matter(::Type{FT}, Cm, Cprot, Ccbc, ::AbstractString) where {FT<:Real}
+    BFT = _leaf_base_float(FT)
+    if Cm === _UNSET_LEAF_KW
+        cm_v = zero(FT)
+        cprot_v = Cprot === _UNSET_LEAF_KW ? FT(BFT(0.001)) : FT(Cprot)
+        ccbc_v = Ccbc === _UNSET_LEAF_KW ? FT(BFT(0.009)) : FT(Ccbc)
+    else
+        cm_v = FT(Cm)
+        cprot_v = Cprot === _UNSET_LEAF_KW ? zero(FT) : FT(Cprot)
+        ccbc_v = Ccbc === _UNSET_LEAF_KW ? zero(FT) : FT(Ccbc)
+    end
+    if prospect_primal(cm_v) > zero(BFT) &&
+       (prospect_primal(cprot_v) > zero(BFT) || prospect_primal(ccbc_v) > zero(BFT))
+        throw(ArgumentError(
+            "Cannot set both bulk dry matter Cm > 0 and Cprot/Ccbc > 0 (double-counts LMA); omit Cm when using Cprot + Ccbc or omit Cprot/Ccbc when using Cm",
+        ))
+    end
+    return cm_v, cprot_v, ccbc_v
+end
+
 "Abstract Type for canopy scattering"
 abstract type AbstractCanopyScatteringType{FT<:Real} end
 
@@ -144,31 +177,85 @@ end
 abstract type AbstractLeafProperties end
 
 """
-    struct LeafProperties{FT}
-A struct which stores important variables of leaf chemistry and structure
+    struct LeafProspectProProperties{FT} <: AbstractLeafProperties
+
+Leaf biochemical and structural state for PROSPECT-D (bulk dry matter `Cm` mode)
+and PROSPECT-PRO (`Cprot + Ccbc` dry-matter partition mode).
+
+When constructed with keywords:
+- Omitting `Cm` selects **PROSPECT-PRO mode** (`Cm = 0`, defaulting `Cprot = 0.001`, `Ccbc = 0.009`).
+- Supplying `Cm` explicitly (including `Cm = 0` or `ForwardDiff.Dual`) selects **PROSPECT-D mode**,
+  defaulting `Cprot = 0, Ccbc = 0` so bulk dry matter is never silently double-counted.
+- Setting both `Cm > 0` and `Cprot > 0` (or `Ccbc > 0`) throws an `ArgumentError`.
+
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct LeafProspectProProperties{FT} <: AbstractLeafProperties
+struct LeafProspectProProperties{FT} <: AbstractLeafProperties
     ### Prospect related parameters
-    "Leaf structure parameter N>=1 (fractional plate count)"
-    N::FT       = FT(1.4  )
+    "Leaf structure parameter N >= 1 (fractional plate count)"
+    N::FT
     "Chlorophyll a+b content `[µg cm⁻²]`"
-    Ccab::FT    = FT(40.0)#u"µg/cm^2"
+    Ccab::FT
     "Carotenoid content `[µg cm⁻²]`"
-    Ccar::FT    = FT(10.0)#u"µg/cm^2"
-    "Anthocynanin content `[nmol cm⁻²]`"
-    Canth::FT   = FT(0.5)#u"nmol/cm^2"
+    Ccar::FT
+    "Anthocyanin content `[µg cm⁻²]` (mass basis matching Féret et al. 2017/2021 `OPTI_2021`)"
+    Canth::FT
     "Brown pigments content in arbitrary units"
-    Cbrown::FT = FT(0.0)
-    "Equivalent water thickness `[cm]`, typical about 0.002-0.015"
-    Cw::FT    = FT(0.012)#u"cm"
-    "Dry matter content (dry leaf mass per unit area) `[g cm⁻²]`, typical about 0.003-0.016"
-    Cm::FT   = FT(0.0)#u"g/cm^2"
-    "protein content `[g/cm]`"
-    Cprot::FT  = FT(0.001)#u"g/cm^2"
-    "Carbone-based constituents content in `[g/cm⁻²]` (cellulose, lignin, sugars...)"
-    Ccbc::FT   =  FT(0.009)#u"g/cm^2"
+    Cbrown::FT
+    "Equivalent water thickness `[cm]`, typical about 0.002–0.015"
+    Cw::FT
+    "Bulk dry matter content (LMA) `[g cm⁻²]`, typical about 0.003–0.016 (0 when `Cprot + Ccbc` are used)"
+    Cm::FT
+    "Protein content `[g cm⁻²]`"
+    Cprot::FT
+    "Carbon-based constituents content `[g cm⁻²]` (cellulose, lignin, sugars, ...)"
+    Ccbc::FT
+end
+
+function LeafProspectProProperties{FT}(;
+    N = _UNSET_LEAF_KW,
+    Ccab = _UNSET_LEAF_KW,
+    Ccar = _UNSET_LEAF_KW,
+    Canth = _UNSET_LEAF_KW,
+    Cbrown = _UNSET_LEAF_KW,
+    Cw = _UNSET_LEAF_KW,
+    Cm = _UNSET_LEAF_KW,
+    Cprot = _UNSET_LEAF_KW,
+    Ccbc = _UNSET_LEAF_KW,
+) where {FT}
+    BFT = _leaf_base_float(FT)
+    n_v = N === _UNSET_LEAF_KW ? FT(BFT(1.4)) : FT(N)
+    cab_v = Ccab === _UNSET_LEAF_KW ? FT(BFT(40.0)) : FT(Ccab)
+    car_v = Ccar === _UNSET_LEAF_KW ? FT(BFT(10.0)) : FT(Ccar)
+    ant_v = Canth === _UNSET_LEAF_KW ? FT(BFT(0.5)) : FT(Canth)
+    brn_v = Cbrown === _UNSET_LEAF_KW ? zero(FT) : FT(Cbrown)
+    cw_v = Cw === _UNSET_LEAF_KW ? FT(BFT(0.012)) : FT(Cw)
+    cm_v, cprot_v, ccbc_v = _resolve_pro_dry_matter(FT, Cm, Cprot, Ccbc, "LeafProspectProProperties")
+    return LeafProspectProProperties{FT}(
+        n_v, cab_v, car_v, ant_v, brn_v, cw_v, cm_v, cprot_v, ccbc_v,
+    )
+end
+
+function LeafProspectProProperties(;
+    N = _UNSET_LEAF_KW,
+    Ccab = _UNSET_LEAF_KW,
+    Ccar = _UNSET_LEAF_KW,
+    Canth = _UNSET_LEAF_KW,
+    Cbrown = _UNSET_LEAF_KW,
+    Cw = _UNSET_LEAF_KW,
+    Cm = _UNSET_LEAF_KW,
+    Cprot = _UNSET_LEAF_KW,
+    Ccbc = _UNSET_LEAF_KW,
+)
+    T_raw = promote_type(
+        _kw_type(N), _kw_type(Ccab), _kw_type(Ccar), _kw_type(Canth),
+        _kw_type(Cbrown), _kw_type(Cw), _kw_type(Cm), _kw_type(Cprot), _kw_type(Ccbc),
+    )
+    FT = T_raw === Union{} ? Float64 : float(T_raw)
+    return LeafProspectProProperties{FT}(;
+        N, Ccab, Ccar, Canth, Cbrown, Cw, Cm, Cprot, Ccbc,
+    )
 end
 
 ####################################
@@ -176,7 +263,7 @@ end
 abstract type AbstractProspectProperties end
 
 """
-    struct PigmentOpticalProperties{FT}
+    struct LeafOpticalProperties{FT,FT2} <: AbstractProspectProperties
 A struct which stores important absorption cross sections of pigments, water, etc
 # Fields
 $(DocStringExtensions.FIELDS)
@@ -191,7 +278,7 @@ struct LeafOpticalProperties{FT,FT2} <: AbstractProspectProperties
     Kcab::Array{FT, 1}
     "specific absorption coefficient of carotenoids `[cm² μg⁻¹]`"
     Kcar::Array{FT, 1}       
-    "specific absorption coefficient of Anthocyanins `[cm² nmol⁻¹]`"       
+    "specific absorption coefficient of anthocyanins `[cm² μg⁻¹]`"       
     Kant::Array{FT, 1} 
     "specific absorption coefficient of brown pigments (arbitrary units)" 
     Kb::Array{FT, 1} 

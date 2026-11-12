@@ -1,6 +1,5 @@
 # Scalar plate algebra. No clipping or epsilon absorption is introduced.
-@inline prospect_primal(x) = x
-@inline prospect_primal(x::ForwardDiff.Dual) = prospect_primal(ForwardDiff.value(x))
+# `prospect_primal` is defined in `src/types/canopy_types.jl`.
 
 """Internal transmission and absorptance for diffuse illumination of one slab."""
 @inline function prospect_internal_attenuation(k)

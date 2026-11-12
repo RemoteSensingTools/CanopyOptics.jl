@@ -1,0 +1,59 @@
+# Published pseudo-Voigt specific absorption cross-section parameters for multi-pigment PROSPECT models.
+# All peak heights K_h carry consistent mass-based units [cm^2 ug^-1], matching Féret et al. (2017, 2021)
+# OPTI_2021 (`dataSpec_PRO.csv`). Both models are calibrated over 400-800 nm; for wavelengths > 800 nm,
+# `createMultiPigmentOpticalStruct` splices cleanly to `OPTI_2021` so Lorentzian wings do not leak
+# unphysical pigment absorption into the NIR/SWIR plateau.
+#
+# Pseudo-Voigt line shape per peak j (Zhang et al. 2017 Eq. 3; Zhang et al. 2022 Eq. 4):
+#   x_j(lambda) = (lambda - K_p[j]) / (0.5 * K_w[j])
+#   G_j(lambda) = exp(-ln(2) * x_j^2)
+#   L_j(lambda) = 1 / (1 + x_j^2)
+#   K(lambda)   = sum_j K_h[j] * (K_v[j] * G_j(lambda) + (1 - K_v[j]) * L_j(lambda))
+
+cutoff_nm = 800.0
+
+# Zhang et al. (2017), "leaf chlorophyll a and b content estimation from hyperspectral data:
+# A physically-based model PROSPECT-MP", Scientific Reports 7:6429, Table 1 (DOI: 10.1038/s41598-017-06694-y).
+[prospect_mp_2017.chla]
+K_v = [0.55, 0.72, 0.98, 0.44]
+K_h = [0.045, 0.003, 0.011, 0.032]
+K_w = [93.0, 103.0, 108.0, 23.0]
+K_p = [417.0, 590.0, 626.0, 680.0]
+
+[prospect_mp_2017.chlb]
+K_v = [0.18, 0.93, 0.74]
+K_h = [0.096, 0.035, 0.081]
+K_w = [54.0, 78.0, 50.0]
+K_p = [482.0, 612.0, 665.0]
+
+[prospect_mp_2017.car]
+K_v = [0.53]
+K_h = [0.049]
+K_w = [46.0]
+K_p = [520.0]
+
+# Zhang et al. (2022), "Improved Retrieval of Leaf Chlorophyll a and b Contents from Leaf
+# Reflectance and Transmittance Using PROSPECT-PMP+", Sensors 22(8):3025, Table 11 (DOI: 10.3390/s22083025).
+[prospect_mp_plus_2022.chla]
+K_v = [0.80, 1.00, 0.78, 0.37]
+K_h = [0.153, 0.016, 0.008, 0.049]
+K_w = [51.0, 113.0, 182.0, 25.0]
+K_p = [419.0, 591.0, 627.0, 679.0]
+
+[prospect_mp_plus_2022.chlb]
+K_v = [0.45, 0.75, 0.44]
+K_h = [0.254, 0.017, 0.106]
+K_w = [60.0, 42.0, 57.0]
+K_p = [468.0, 612.0, 661.0]
+
+[prospect_mp_plus_2022.car]
+K_v = [0.50]
+K_h = [0.067]
+K_w = [56.0]
+K_p = [482.0]
+
+[prospect_mp_plus_2022.anth]
+K_v = [0.45]
+K_h = [0.099]
+K_w = [100.0]
+K_p = [544.0]

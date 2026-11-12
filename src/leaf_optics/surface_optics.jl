@@ -1,9 +1,6 @@
 using SpecialFunctions: erfcx
 
-@inline _leaf_base_float(::Type{T}) where {T<:AbstractFloat} = T
-@inline _leaf_base_float(::Type{ForwardDiff.Dual{Tag,V,N}}) where {Tag,V,N} = _leaf_base_float(V)
-@inline _leaf_base_float(::Type{T}) where {T<:Real} = float(T)
-@inline _leaf_base_float(x::Real) = _leaf_base_float(typeof(x))
+# `_leaf_base_float` and `prospect_primal` are defined in `src/types/canopy_types.jl`.
 
 # Precomputed Gauss-Legendre nodes/weights on [-1, 1] (cast to BFT at point of use; zero heap allocation)
 const _SURF_GL5_X, _SURF_GL5_W = gausslegendre(5)
@@ -398,34 +395,48 @@ Hemispherical-hemispherical single-bounce reflectance
 end
 
 """
-    surface_interface_optics(surface::AbstractLeafSurface, μ_in, nr; hemispherical = false)
+    surface_interface_optics(surface::AbstractLeafSurface, μ_in, nr;
+                             hemispherical = false, n_surface = nr)
 
 Evaluate external entry and internal diffuse exit probabilities across a leaf's
 external dielectric boundary:
 - `r_ext`, `t_ext = 1 - r_ext`: external reflectance and entry transmittance
   (directional at `μ_in` when `hemispherical == false`, or hemispherical `2π -> 2π`
-  when `hemispherical == true`).
+  when `hemispherical == true`), evaluated at outer cuticular refractive index
+  `n_eff = surface.n_scale * n_surface`.
 - `t_hem_ext`: hemispherical (`2π -> 2π`) external transmittance across `surface`.
 - `t_int_diffuse = t_hem_ext / nr²`, `r_int_diffuse = 1 - t_int_diffuse`:
   diffuse internal-to-air exit transmittance and internal reflectance from the
-  common aqueous mesophyll (`nr > 1`) into air (`n = 1`), obeying exact
-  thermodynamic étendue invariance (`n_air² / nr² = 1 / nr²`) across any lossless
-  stratified epicuticular film (`n_eff = n_scale * nr`).
+  aqueous mesophyll (`nr > 1`) into air (`n = 1`).
+
+Physical thin-cuticle approximation when `n_surface != nr` (e.g., Stuckens et al.
+2009 epicuticular wax `n_wax(λ)` via [`load_wax_refractive_index`](@ref)): across
+air (`n = 1`) — lossless thin wax cuticle (`n_eff`) — aqueous mesophyll (`nr`),
+smooth internal wax–mesophyll Fresnel reflection is `(n_eff - nr)² / (n_eff + nr)²`
+(`≈ 0.03–0.05%` in VNIR and `≤ 0.5%` at the `2450 nm` SWIR `nr ≈ 1.27` minimum),
+with zero wax→mesophyll total internal reflection for externally entering rays
+since `sin θ_wax ≤ 1 / n_eff < nr / n_eff` for all `nr > 1`. Neglecting that `< 0.5%`
+secondary internal wax–mesophyll bounce, external entry is governed by the high-contrast
+air–wax interface (`n_eff`), while diffuse internal exit from the aqueous mesophyll
+(`nr`) into air (`n = 1`) obeys exact isothermal detailed-balance étendue invariance
+`t_int_diffuse = t_hem_ext(n_eff) / nr² ∈ (0, 1)` strictly.
 """
 @inline function surface_interface_optics(
     surface::ConeSurface{FTS},
     μ_in::FTM,
     nr_in::FTN;
     hemispherical::Bool = false,
-) where {FTS<:Real,FTM<:Real,FTN<:Real}
-    FT = float(promote_type(FTS, FTM, FTN))
+    n_surface::FTW = nr_in,
+) where {FTS<:Real,FTM<:Real,FTN<:Real,FTW<:Real}
+    FT = float(promote_type(FTS, FTM, FTN, FTW))
     BFT = _leaf_base_float(FT)
     nr = FT(nr_in)
-    n_eff = FT(surface.n_scale) * nr
-    prospect_primal(nr) > one(BFT) ||
-        throw(ArgumentError("Mesophyll refractive index nr must exceed 1"))
-    prospect_primal(n_eff) > one(BFT) ||
-        throw(ArgumentError("Effective surface refractive index n_eff = n_scale * nr must exceed 1"))
+    n_surf = FT(n_surface)
+    n_eff = FT(surface.n_scale) * n_surf
+    (isfinite(prospect_primal(nr)) && prospect_primal(nr) > one(BFT)) ||
+        throw(ArgumentError("Mesophyll refractive index nr must be finite and exceed 1"))
+    (isfinite(prospect_primal(n_eff)) && prospect_primal(n_eff) > one(BFT)) ||
+        throw(ArgumentError("Effective surface refractive index n_eff = n_scale * n_surface must be finite and exceed 1"))
 
     t_hem_ext = calctav_smooth(FT(90), n_eff)
     t_ext = hemispherical ? t_hem_ext : calctav_smooth(FT(surface.α_deg), n_eff)
@@ -440,16 +451,18 @@ end
     μ_in::FTM,
     nr_in::FTN;
     hemispherical::Bool = false,
-) where {FTS<:Real,FTM<:Real,FTN<:Real}
-    FT = float(promote_type(FTS, FTM, FTN))
+    n_surface::FTW = nr_in,
+) where {FTS<:Real,FTM<:Real,FTN<:Real,FTW<:Real}
+    FT = float(promote_type(FTS, FTM, FTN, FTW))
     BFT = _leaf_base_float(FT)
     nr = FT(nr_in)
+    n_surf = FT(n_surface)
     σ = FT(surface.σ)
-    n_eff = FT(surface.n_scale) * nr
-    prospect_primal(nr) > one(BFT) ||
-        throw(ArgumentError("Mesophyll refractive index nr must exceed 1"))
-    prospect_primal(n_eff) > one(BFT) ||
-        throw(ArgumentError("Effective surface refractive index n_eff = n_scale * nr must exceed 1"))
+    n_eff = FT(surface.n_scale) * n_surf
+    (isfinite(prospect_primal(nr)) && prospect_primal(nr) > one(BFT)) ||
+        throw(ArgumentError("Mesophyll refractive index nr must be finite and exceed 1"))
+    (isfinite(prospect_primal(n_eff)) && prospect_primal(n_eff) > one(BFT)) ||
+        throw(ArgumentError("Effective surface refractive index n_eff = n_scale * n_surface must be finite and exceed 1"))
 
     r_hem_ext = microfacet_hemispherical_reflectance(n_eff, σ)
     t_hem_ext = one(FT) - r_hem_ext

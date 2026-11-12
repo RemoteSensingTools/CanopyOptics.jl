@@ -143,7 +143,8 @@ end
 
 """
     single_slab_dorsiventral_budget(k_pal, k_spo, nr, surf_ad, surf_ab;
-                                    μ_ad = 1, μ_ab = 1, hemispherical = false)
+                                    μ_ad = 1, μ_ab = 1, hemispherical = false,
+                                    n_surface_adaxial = nr, n_surface_abaxial = nr)
 
 Exact `N = 1` unbroken two-sublayer dorsiventral slab (`I_ad ⋆ S₂(k_pal, k_spo) ⋆ I_ab`)
 without any artificial internal air gap or `(2 E₃(k/2))²` splitting error.
@@ -157,14 +158,20 @@ without any artificial internal air gap or `(2 E₃(k/2))²` splitting error.
     μ_ad::Real = 1,
     μ_ab::Real = 1,
     hemispherical::Bool = false,
+    n_surface_adaxial::Real = nr_in,
+    n_surface_abaxial::Real = nr_in,
 ) where {FT1<:Real,FT2<:Real,FT3<:Real,FTS1<:Real,FTS2<:Real}
-    FT = promote_type(FT1, FT2, FT3, FTS1, FTS2, typeof(μ_ad), typeof(μ_ab))
+    FT = promote_type(
+        FT1, FT2, FT3, FTS1, FTS2,
+        typeof(μ_ad), typeof(μ_ab),
+        typeof(n_surface_adaxial), typeof(n_surface_abaxial),
+    )
     k_pal = FT(k_pal_in)
     k_spo = FT(k_spo_in)
     nr = FT(nr_in)
 
-    s_ad = surface_interface_optics(surf_ad, FT(μ_ad), nr; hemispherical)
-    s_ab = surface_interface_optics(surf_ab, FT(μ_ab), nr; hemispherical)
+    s_ad = surface_interface_optics(surf_ad, FT(μ_ad), nr; hemispherical, n_surface = FT(n_surface_adaxial))
+    s_ab = surface_interface_optics(surf_ab, FT(μ_ab), nr; hemispherical, n_surface = FT(n_surface_abaxial))
 
     τ_12, a1_dn, a2_dn = _sublayer_chord_split(k_pal, k_spo)
     _, a2_up, a1_up = _sublayer_chord_split(k_spo, k_pal)
@@ -227,9 +234,11 @@ where `k_pal` and `k_spo` are per-plate optical depths (`K_pal_zone / N_pal` and
     μ_ad::FT,
     μ_ab::FT,
     hemispherical::Bool,
+    n_surf_ad::FT = nr,
+    n_surf_ab::FT = nr,
 ) where {FT<:Real}
-    s_ad = surface_interface_optics(surf_ad, μ_ad, nr; hemispherical)
-    s_ab = surface_interface_optics(surf_ab, μ_ab, nr; hemispherical)
+    s_ad = surface_interface_optics(surf_ad, μ_ad, nr; hemispherical, n_surface = n_surf_ad)
+    s_ab = surface_interface_optics(surf_ab, μ_ab, nr; hemispherical, n_surface = n_surf_ab)
     t12_int = calctav_smooth(FT(90), nr)
     t21_int = t12_int / (nr * nr)
     z = zero(FT)
@@ -294,18 +303,58 @@ where `k_pal` and `k_spo` are per-plate optical depths (`K_pal_zone / N_pal` and
     )
 end
 
+@inline function _blend_dorsiventral_face(f1, f2, w1::FT, w2::FT) where {FT<:Real}
+    ap = w1 * f1.absorptance_palisade + w2 * f2.absorptance_palisade
+    as = w1 * f1.absorptance_spongy + w2 * f2.absorptance_spongy
+    return (;
+        transmission = w1 * f1.transmission + w2 * f2.transmission,
+        reflectance = w1 * f1.reflectance + w2 * f2.reflectance,
+        absorptance = ap + as,
+        absorptance_palisade = ap,
+        absorptance_spongy = as,
+        reflectance_volume = w1 * f1.reflectance_volume + w2 * f2.reflectance_volume,
+    )
+end
+
+@inline function _blend_dorsiventral_result(res1, res2, α::FT) where {FT<:Real}
+    w1 = one(FT) - α
+    w2 = α
+    return (;
+        adaxial = _blend_dorsiventral_face(res1.adaxial, res2.adaxial, w1, w2),
+        abaxial = _blend_dorsiventral_face(res1.abaxial, res2.abaxial, w1, w2),
+    )
+end
+
+function _validate_n_surface_vec(v, nλ::Int, label::AbstractString)
+    v === nothing && return nothing
+    length(v) == nλ ||
+        throw(DimensionMismatch("$(label) length $(length(v)) must match optics length $(nλ)"))
+    all(x -> (p = prospect_primal(x); isfinite(p) && p > one(p)), v) ||
+        throw(ArgumentError("$(label) refractive indices must be finite and > 1"))
+    return v
+end
+
 """
     DorsiventralLeafProperties{LP<:AbstractLeafProperties, LS<:AbstractLeafProperties, SAd<:AbstractLeafSurface, SAb<:AbstractLeafSurface} <: AbstractLeafProperties
 
 Two-zone dorsiventral leaf representation separating **palisade** (adaxial) and
 **spongy** (abaxial) mesophyll layers (`palisade`, `spongy`, each a
-[`LeafProspectProProperties`](@ref) or [`LeafMultiPigmentProperties`](@ref) with
-zone plate count `N >= 1`) bounded by distinct adaxial (`surface_adaxial`) and
-abaxial (`surface_abaxial`) dielectric surfaces.
+[`LeafProspectProProperties`](@ref) or [`LeafMultiPigmentProperties`](@ref))
+bounded by distinct adaxial (`surface_adaxial`) and abaxial (`surface_abaxial`)
+dielectric surfaces.
 
-When `single_slab == true`, evaluates the unbroken `N = 1` two-sublayer operator
-[`single_slab_dorsiventral_budget`](@ref) using each zone's total constituent
-optical depth without internal mesophyll air gaps.
+Supported structural domains (`N_tot = palisade.N + spongy.N`):
+- `N_pal >= 1` and `N_spo >= 1` (`N_tot >= 2`): exact two-zone Redheffer stack.
+- `0 < N_pal <= 1`, `0 < N_spo <= 1`, and `1 <= N_tot < 2`: continuous convex
+  bridge `(2 - N_tot) * B_slab + (N_tot - 1) * B_two_plate` between the unbroken
+  `N_tot = 1` two-sublayer slab and the `N_pal = N_spo = 1` (`N_tot = 2`) stack,
+  preserving strict energy conservation, zone absorptances, and `T_ad == T_ab`
+  across thin/compact leaves (`1 <= N_tot < 2`, `C^0` continuous at `N_tot = 2`).
+- When `single_slab == true`, evaluates the unbroken `N = 1` two-sublayer operator
+  [`single_slab_dorsiventral_budget`](@ref) directly for any positive `(N_pal, N_spo)`.
+
+See [`dorsiventral_from_traits`](@ref) to construct a dorsiventral leaf smoothly
+from whole-leaf traits across all `N_tot >= 1`.
 """
 struct DorsiventralLeafProperties{
     LP<:AbstractLeafProperties,
@@ -334,8 +383,14 @@ struct DorsiventralLeafProperties{
         np = prospect_primal(palisade.N)
         ns = prospect_primal(spongy.N)
         if !single_slab
-            (isfinite(np) && np >= one(np) && isfinite(ns) && ns >= one(ns)) ||
-                throw(ArgumentError("Two-zone DorsiventralLeafProperties requires N_pal >= 1 and N_spo >= 1 (or single_slab = true)"))
+            n_sum = np + ns
+            valid_ge2 = isfinite(np) && np >= one(np) && isfinite(ns) && ns >= one(ns)
+            valid_sub2 = isfinite(np) && zero(np) < np <= one(np) &&
+                         isfinite(ns) && zero(ns) < ns <= one(ns) &&
+                         one(n_sum) <= n_sum < (one(n_sum) + one(n_sum))
+            (valid_ge2 || valid_sub2) || throw(ArgumentError(
+                "Two-zone DorsiventralLeafProperties requires either (N_pal >= 1 and N_spo >= 1) or (0 < N_pal, N_spo <= 1 with 1 <= N_pal + N_spo < 2), or single_slab = true",
+            ))
         else
             (isfinite(np) && np > zero(np) && isfinite(ns) && ns > zero(ns)) ||
                 throw(ArgumentError("single_slab DorsiventralLeafProperties requires finite positive N"))
@@ -345,12 +400,130 @@ struct DorsiventralLeafProperties{
 end
 
 """
+    dorsiventral_from_traits(whole_leaf; N_tot = whole_leaf.N,
+                             mesophyll_fraction_palisade = 0.45,
+                             pigment_fraction_palisade = 0.75,
+                             surface_adaxial = ConeSurface(40),
+                             surface_abaxial = ConeSurface(40),
+                             single_slab = false)
+
+Partition a whole-leaf [`LeafProspectProProperties`](@ref) or
+[`LeafMultiPigmentProperties`](@ref) into a [`DorsiventralLeafProperties`](@ref)
+over all continuous total plate counts `N_tot >= 1`:
+- Photosynthetic and accessory pigments (`Ccab` or `Cchla, Cchlb`, `Ccar`, `Canth`,
+  `Cbrown`) are allocated by `fc = pigment_fraction_palisade ∈ [0, 1]`
+  (`palisade = fc * C`, `spongy = (1 - fc) * C`).
+- Water and dry matter (`Cw`, `Cm`, `Cprot`, `Ccbc`) are allocated by
+  `fm = mesophyll_fraction_palisade ∈ (0, 1)`.
+- Zone plate counts `(N_pal, N_spo)` satisfy `N_pal + N_spo == N_tot` and meet
+  continuously at `(1, 1)` across `N_tot = 2` (`C^0` continuous at `N_tot = 2`,
+  `C^∞` on `(1, 2)` and `(2, ∞)`):
+  - For `1 <= N_tot < 2`: `N_pal = fm + (N_tot - 1)*(1 - fm)`, `N_spo = (1 - fm) + (N_tot - 1)*fm`.
+  - For `N_tot >= 2`: `N_pal = 1 + (N_tot - 2)*fm`, `N_spo = 1 + (N_tot - 2)*(1 - fm)`.
+"""
+function dorsiventral_from_traits(
+    whole_leaf::Union{LeafProspectProProperties{FTL},LeafMultiPigmentProperties{FTL}};
+    N_tot::Real = whole_leaf.N,
+    mesophyll_fraction_palisade::Real = _leaf_base_float(FTL)(0.45),
+    pigment_fraction_palisade::Real = _leaf_base_float(FTL)(0.75),
+    surface_adaxial::AbstractLeafSurface = ConeSurface(one(_leaf_base_float(FTL)) * 40),
+    surface_abaxial::AbstractLeafSurface = ConeSurface(one(_leaf_base_float(FTL)) * 40),
+    single_slab::Bool = false,
+) where {FTL<:Real}
+    FT = float(promote_type(
+        FTL, typeof(N_tot), typeof(mesophyll_fraction_palisade), typeof(pigment_fraction_palisade),
+    ))
+    BFT = _leaf_base_float(FT)
+    nt = FT(N_tot)
+    fm = FT(mesophyll_fraction_palisade)
+    fc = FT(pigment_fraction_palisade)
+
+    nt_p = prospect_primal(nt)
+    fm_p = prospect_primal(fm)
+    fc_p = prospect_primal(fc)
+    if !single_slab
+        (isfinite(nt_p) && nt_p >= one(BFT)) ||
+            throw(ArgumentError("dorsiventral_from_traits requires finite N_tot >= 1"))
+    else
+        (isfinite(nt_p) && nt_p > zero(BFT)) ||
+            throw(ArgumentError("dorsiventral_from_traits with single_slab = true requires finite N_tot > 0"))
+    end
+    (isfinite(fm_p) && zero(BFT) < fm_p < one(BFT)) ||
+        throw(ArgumentError("mesophyll_fraction_palisade must be finite and strictly in (0, 1)"))
+    (isfinite(fc_p) && zero(BFT) <= fc_p <= one(BFT)) ||
+        throw(ArgumentError("pigment_fraction_palisade must be finite and in [0, 1]"))
+
+    one_t = one(FT)
+    two_t = one_t + one_t
+    om_fm = one_t - fm
+    om_fc = one_t - fc
+
+    N_pal, N_spo = if single_slab
+        (nt * fm, nt * om_fm)
+    elseif nt_p < BFT(2)
+        (fm + (nt - one_t) * om_fm, om_fm + (nt - one_t) * fm)
+    else
+        (one_t + (nt - two_t) * fm, one_t + (nt - two_t) * om_fm)
+    end
+
+    if whole_leaf isa LeafProspectProProperties
+        pal = LeafProspectProProperties{FT}(
+            N_pal,
+            fc * FT(whole_leaf.Ccab),
+            fc * FT(whole_leaf.Ccar),
+            fc * FT(whole_leaf.Canth),
+            fc * FT(whole_leaf.Cbrown),
+            fm * FT(whole_leaf.Cw),
+            fm * FT(whole_leaf.Cm),
+            fm * FT(whole_leaf.Cprot),
+            fm * FT(whole_leaf.Ccbc),
+        )
+        spo = LeafProspectProProperties{FT}(
+            N_spo,
+            om_fc * FT(whole_leaf.Ccab),
+            om_fc * FT(whole_leaf.Ccar),
+            om_fc * FT(whole_leaf.Canth),
+            om_fc * FT(whole_leaf.Cbrown),
+            om_fm * FT(whole_leaf.Cw),
+            om_fm * FT(whole_leaf.Cm),
+            om_fm * FT(whole_leaf.Cprot),
+            om_fm * FT(whole_leaf.Ccbc),
+        )
+        return DorsiventralLeafProperties(pal, spo; surface_adaxial, surface_abaxial, single_slab)
+    else
+        pal = LeafMultiPigmentProperties{FT}(
+            N_pal,
+            fc * FT(whole_leaf.Cchla),
+            fc * FT(whole_leaf.Cchlb),
+            fc * FT(whole_leaf.Ccar),
+            fc * FT(whole_leaf.Canth),
+            fc * FT(whole_leaf.Cbrown),
+            fm * FT(whole_leaf.Cw),
+            fm * FT(whole_leaf.Cm),
+            fm * FT(whole_leaf.Cprot),
+            fm * FT(whole_leaf.Ccbc),
+        )
+        spo = LeafMultiPigmentProperties{FT}(
+            N_spo,
+            om_fc * FT(whole_leaf.Cchla),
+            om_fc * FT(whole_leaf.Cchlb),
+            om_fc * FT(whole_leaf.Ccar),
+            om_fc * FT(whole_leaf.Canth),
+            om_fc * FT(whole_leaf.Cbrown),
+            om_fm * FT(whole_leaf.Cw),
+            om_fm * FT(whole_leaf.Cm),
+            om_fm * FT(whole_leaf.Cprot),
+            om_fm * FT(whole_leaf.Ccbc),
+        )
+        return DorsiventralLeafProperties(pal, spo; surface_adaxial, surface_abaxial, single_slab)
+    end
+end
+
+"""
     AsymmetricSurfaceLeafProperties(leaf, surface_adaxial, surface_abaxial)
 
-One-zone homogeneous mesophyll (`leaf.N >= 2`, or `leaf.N == 1` unbroken slab;
-also supports all `leaf.N >= 1` when `surface_adaxial` and `surface_abaxial`
-share internal diffuse exit transmittance, such as `ConeSurface(α_ad, 1)` and
-`ConeSurface(α_ab, 1)`) bounded by distinct adaxial and abaxial surfaces.
+One-zone homogeneous mesophyll (`leaf.N >= 1` continuous) bounded by distinct
+adaxial and abaxial dielectric surfaces (`ConeSurface` or `RoughDielectricSurface`).
 """
 struct AsymmetricSurfaceLeafProperties{
     L<:Union{LeafProspectProProperties,LeafMultiPigmentProperties},
@@ -390,6 +563,11 @@ function _validate_single_zone_leaf(leaf::LeafProspectProProperties)
         leaf.Ccab, leaf.Ccar, leaf.Canth, leaf.Cbrown,
         leaf.Cw, leaf.Cm, leaf.Cprot, leaf.Ccbc,
     ))
+    BFT = _leaf_base_float(typeof(leaf.N))
+    if prospect_primal(leaf.Cm) > zero(BFT) &&
+       (prospect_primal(leaf.Cprot) > zero(BFT) || prospect_primal(leaf.Ccbc) > zero(BFT))
+        throw(ArgumentError("LeafProspectProProperties cannot set both Cm > 0 and Cprot/Ccbc > 0 (double-counts LMA)"))
+    end
 end
 
 function _validate_single_zone_leaf(leaf::LeafMultiPigmentProperties)
@@ -397,11 +575,19 @@ function _validate_single_zone_leaf(leaf::LeafMultiPigmentProperties)
         leaf.Cchla, leaf.Cchlb, leaf.Ccar, leaf.Canth, leaf.Cbrown,
         leaf.Cw, leaf.Cm, leaf.Cprot, leaf.Ccbc,
     ))
+    BFT = _leaf_base_float(typeof(leaf.N))
+    if prospect_primal(leaf.Cm) > zero(BFT) &&
+       (prospect_primal(leaf.Cprot) > zero(BFT) || prospect_primal(leaf.Ccbc) > zero(BFT))
+        throw(ArgumentError("LeafMultiPigmentProperties cannot set both Cm > 0 and Cprot/Ccbc > 0 (double-counts LMA)"))
+    end
 end
 
 """
     dorsiventral_budget(leaf::DorsiventralLeafProperties, optics;
-                        μ_ad = 1, μ_ab = 1, hemispherical = false)
+                        μ_ad = 1, μ_ab = 1, hemispherical = false,
+                        n_surface = nothing,
+                        n_surface_adaxial = n_surface,
+                        n_surface_abaxial = n_surface)
 
 Compute paired adaxial-illuminated and abaxial-illuminated leaf optical budgets
 `(; adaxial, abaxial)`, where each face budget is a `NamedTuple` containing
@@ -413,7 +599,8 @@ Guarantees:
    have equal per-plate optical depth and `ConeSurface(40, 1)` on both faces.
 3. Exact hemispherical (`hemispherical = true`) Helmholtz reciprocity
    `adaxial.transmission ≈ abaxial.transmission` even for arbitrary pigment,
-   structural (`N_pal != N_spo`), and cuticular (`surf_ad != surf_ab`) asymmetry.
+   structural (`N_pal != N_spo`), cuticular (`surf_ad != surf_ab`), and wax
+   (`n_surface_adaxial != n_surface_abaxial`) asymmetry across all `N_tot >= 1`.
 """
 function dorsiventral_budget(
     leaf::DorsiventralLeafProperties,
@@ -421,19 +608,27 @@ function dorsiventral_budget(
     μ_ad::Real = one(_leaf_base_float(eltype(optics.nᵣ))),
     μ_ab::Real = one(_leaf_base_float(eltype(optics.nᵣ))),
     hemispherical::Bool = false,
+    n_surface::Union{Nothing,AbstractVector{<:Real}} = nothing,
+    n_surface_adaxial::Union{Nothing,AbstractVector{<:Real}} = n_surface,
+    n_surface_abaxial::Union{Nothing,AbstractVector{<:Real}} = n_surface,
 )
     _validate_single_zone_leaf(leaf.palisade)
     _validate_single_zone_leaf(leaf.spongy)
     _validate_optics_arrays(optics)
+    nλ = length(optics.nᵣ)
+    _validate_n_surface_vec(n_surface_adaxial, nλ, "n_surface_adaxial")
+    _validate_n_surface_vec(n_surface_abaxial, nλ, "n_surface_abaxial")
 
     K_pal_vec = _total_optical_depth_vector(leaf.palisade, optics)
     K_spo_vec = _total_optical_depth_vector(leaf.spongy, optics)
 
     FTS1 = _surface_ft(leaf.surface_adaxial)
     FTS2 = _surface_ft(leaf.surface_abaxial)
+    FTW1 = n_surface_adaxial === nothing ? eltype(optics.nᵣ) : eltype(n_surface_adaxial)
+    FTW2 = n_surface_abaxial === nothing ? eltype(optics.nᵣ) : eltype(n_surface_abaxial)
     FT = float(promote_type(
         eltype(K_pal_vec), eltype(K_spo_vec), typeof(leaf.palisade.N), typeof(leaf.spongy.N),
-        eltype(optics.nᵣ), FTS1, FTS2, typeof(μ_ad), typeof(μ_ab),
+        eltype(optics.nᵣ), FTS1, FTS2, typeof(μ_ad), typeof(μ_ab), FTW1, FTW2,
     ))
     BFT = _leaf_base_float(FT)
     if !hemispherical
@@ -442,7 +637,6 @@ function dorsiventral_budget(
             throw(ArgumentError("μ_ad and μ_ab must lie in (0, 1]"))
     end
 
-    nλ = length(optics.nᵣ)
     T_ad = Vector{FT}(undef, nλ); R_ad = Vector{FT}(undef, nλ); A_ad = Vector{FT}(undef, nλ)
     Ap_ad = Vector{FT}(undef, nλ); As_ad = Vector{FT}(undef, nλ); Rv_ad = Vector{FT}(undef, nλ)
     T_ab = Vector{FT}(undef, nλ); R_ab = Vector{FT}(undef, nλ); A_ab = Vector{FT}(undef, nλ)
@@ -450,23 +644,43 @@ function dorsiventral_budget(
 
     N_pal = FT(leaf.palisade.N)
     N_spo = FT(leaf.spongy.N)
+    N_tot = N_pal + N_spo
+    exact_one = _same_val_and_partials(N_tot, one(FT))
+    sub_two = prospect_primal(N_tot) < BFT(2)
     μ_ad_ft = FT(μ_ad)
     μ_ab_ft = FT(μ_ab)
 
     @inbounds for idx in 1:nλ
         nr = FT(optics.nᵣ[idx])
-        res = if leaf.single_slab
+        ns_ad = n_surface_adaxial === nothing ? nr : FT(n_surface_adaxial[idx])
+        ns_ab = n_surface_abaxial === nothing ? nr : FT(n_surface_abaxial[idx])
+        Kp = FT(K_pal_vec[idx])
+        Ks = FT(K_spo_vec[idx])
+
+        res = if leaf.single_slab || exact_one
             single_slab_dorsiventral_budget(
-                FT(K_pal_vec[idx]), FT(K_spo_vec[idx]), nr,
-                leaf.surface_adaxial, leaf.surface_abaxial;
+                Kp, Ks, nr, leaf.surface_adaxial, leaf.surface_abaxial;
                 μ_ad = μ_ad_ft, μ_ab = μ_ab_ft, hemispherical,
+                n_surface_adaxial = ns_ad, n_surface_abaxial = ns_ab,
             )
+        elseif sub_two
+            bd_1 = single_slab_dorsiventral_budget(
+                Kp, Ks, nr, leaf.surface_adaxial, leaf.surface_abaxial;
+                μ_ad = μ_ad_ft, μ_ab = μ_ab_ft, hemispherical,
+                n_surface_adaxial = ns_ad, n_surface_abaxial = ns_ab,
+            )
+            bd_2 = _two_zone_dorsiventral_scalar(
+                Kp, one(FT), Ks, one(FT),
+                nr, leaf.surface_adaxial, leaf.surface_abaxial,
+                μ_ad_ft, μ_ab_ft, hemispherical, ns_ad, ns_ab,
+            )
+            _blend_dorsiventral_result(bd_1, bd_2, N_tot - one(FT))
         else
             _two_zone_dorsiventral_scalar(
-                FT(K_pal_vec[idx]) / N_pal, N_pal,
-                FT(K_spo_vec[idx]) / N_spo, N_spo,
+                Kp / N_pal, N_pal,
+                Ks / N_spo, N_spo,
                 nr, leaf.surface_adaxial, leaf.surface_abaxial,
-                μ_ad_ft, μ_ab_ft, hemispherical,
+                μ_ad_ft, μ_ab_ft, hemispherical, ns_ad, ns_ab,
             )
         end
         ad, ab = res.adaxial, res.abaxial
@@ -494,16 +708,24 @@ function dorsiventral_budget(
     μ_ad::Real = one(_leaf_base_float(eltype(optics.nᵣ))),
     μ_ab::Real = one(_leaf_base_float(eltype(optics.nᵣ))),
     hemispherical::Bool = false,
+    n_surface::Union{Nothing,AbstractVector{<:Real}} = nothing,
+    n_surface_adaxial::Union{Nothing,AbstractVector{<:Real}} = n_surface,
+    n_surface_abaxial::Union{Nothing,AbstractVector{<:Real}} = n_surface,
 )
     _validate_single_zone_leaf(asym.leaf)
     _validate_optics_arrays(optics)
+    nλ = length(optics.nᵣ)
+    _validate_n_surface_vec(n_surface_adaxial, nλ, "n_surface_adaxial")
+    _validate_n_surface_vec(n_surface_abaxial, nλ, "n_surface_abaxial")
 
     K_tot = _total_optical_depth_vector(asym.leaf, optics)
     FTS1 = _surface_ft(asym.surface_adaxial)
     FTS2 = _surface_ft(asym.surface_abaxial)
+    FTW1 = n_surface_adaxial === nothing ? eltype(optics.nᵣ) : eltype(n_surface_adaxial)
+    FTW2 = n_surface_abaxial === nothing ? eltype(optics.nᵣ) : eltype(n_surface_abaxial)
     FT = float(promote_type(
         eltype(K_tot), typeof(asym.leaf.N), eltype(optics.nᵣ),
-        FTS1, FTS2, typeof(μ_ad), typeof(μ_ab),
+        FTS1, FTS2, typeof(μ_ad), typeof(μ_ab), FTW1, FTW2,
     ))
     BFT = _leaf_base_float(FT)
     if !hemispherical
@@ -515,62 +737,50 @@ function dorsiventral_budget(
     N_ft = FT(asym.leaf.N)
     two = one(FT) + one(FT)
     half = inv(two)
-    n_val = prospect_primal(N_ft)
+    exact_one = _same_val_and_partials(N_ft, one(FT))
+    sub_two = prospect_primal(N_ft) < BFT(2)
     μ_ad_ft = FT(μ_ad)
     μ_ab_ft = FT(μ_ab)
 
-    # When both faces are ConeSurface(..., 1) with exact unit n_scale (including zero Dual partials),
-    # internal exit t21 == calctav(90°, nr)/nr^2 on both faces, so _asymmetric_top_prospect_budget is C^∞ smooth wrt N for ALL N >= 1!
-    can_use_cone_1zone = (asym.surface_adaxial isa ConeSurface &&
-                          asym.surface_abaxial isa ConeSurface &&
-                          _same_val_and_partials(asym.surface_adaxial.n_scale, one(typeof(asym.surface_adaxial.n_scale))) &&
-                          _same_val_and_partials(asym.surface_abaxial.n_scale, one(typeof(asym.surface_abaxial.n_scale))))
-    if one(BFT) < n_val < BFT(2) && !can_use_cone_1zone
-        throw(ArgumentError(
-            "AsymmetricSurfaceLeafProperties with non-unit n_scale or RoughDielectricSurface requires N == 1 or N >= 2 (use DorsiventralLeafProperties with N_pal >= 1, N_spo >= 1, or symmetric prospect_budget for 1 < N < 2)",
-        ))
-    end
-
-    nλ = length(optics.nᵣ)
     T_ad = Vector{FT}(undef, nλ); R_ad = Vector{FT}(undef, nλ); A_ad = Vector{FT}(undef, nλ); Rv_ad = Vector{FT}(undef, nλ)
     T_ab = Vector{FT}(undef, nλ); R_ab = Vector{FT}(undef, nλ); A_ab = Vector{FT}(undef, nλ); Rv_ab = Vector{FT}(undef, nλ)
 
     @inbounds for idx in 1:nλ
         nr = FT(optics.nᵣ[idx])
+        ns_ad = n_surface_adaxial === nothing ? nr : FT(n_surface_adaxial[idx])
+        ns_ab = n_surface_abaxial === nothing ? nr : FT(n_surface_abaxial[idx])
         K = FT(K_tot[idx])
-        if can_use_cone_1zone
-            s_ad = surface_interface_optics(asym.surface_adaxial, μ_ad_ft, nr; hemispherical)
-            s_ab = surface_interface_optics(asym.surface_abaxial, μ_ab_ft, nr; hemispherical)
-            k_unit = K / N_ft
-            b_ad = _asymmetric_top_prospect_budget(k_unit, N_ft, s_ad.t_ext, s_ad.t_int_diffuse, nr)
-            b_ab = _asymmetric_top_prospect_budget(k_unit, N_ft, s_ab.t_ext, s_ab.t_int_diffuse, nr)
-            T_ad[idx] = b_ad.transmission; R_ad[idx] = b_ad.reflectance
-            A_ad[idx] = b_ad.absorptance; Rv_ad[idx] = b_ad.reflectance_volume
-            T_ab[idx] = b_ab.transmission; R_ab[idx] = b_ab.reflectance
-            A_ab[idx] = b_ab.absorptance; Rv_ab[idx] = b_ab.reflectance_volume
-        elseif n_val == one(BFT)
-            res = single_slab_dorsiventral_budget(
+        res = if exact_one
+            single_slab_dorsiventral_budget(
                 K * half, K * half, nr, asym.surface_adaxial, asym.surface_abaxial;
                 μ_ad = μ_ad_ft, μ_ab = μ_ab_ft, hemispherical,
+                n_surface_adaxial = ns_ad, n_surface_abaxial = ns_ab,
             )
-            T_ad[idx] = res.adaxial.transmission; R_ad[idx] = res.adaxial.reflectance
-            A_ad[idx] = res.adaxial.absorptance; Rv_ad[idx] = res.adaxial.reflectance_volume
-            T_ab[idx] = res.abaxial.transmission; R_ab[idx] = res.abaxial.reflectance
-            A_ab[idx] = res.abaxial.absorptance; Rv_ab[idx] = res.abaxial.reflectance_volume
+        elseif sub_two
+            bd_1 = single_slab_dorsiventral_budget(
+                K * half, K * half, nr, asym.surface_adaxial, asym.surface_abaxial;
+                μ_ad = μ_ad_ft, μ_ab = μ_ab_ft, hemispherical,
+                n_surface_adaxial = ns_ad, n_surface_abaxial = ns_ab,
+            )
+            bd_2 = _two_zone_dorsiventral_scalar(
+                K * half, one(FT), K * half, one(FT), nr,
+                asym.surface_adaxial, asym.surface_abaxial,
+                μ_ad_ft, μ_ab_ft, hemispherical, ns_ad, ns_ab,
+            )
+            _blend_dorsiventral_result(bd_1, bd_2, N_ft - one(FT))
         else
-            # Exact semigroup split N_pal = N/2 >= 1, N_spo = N/2 >= 1, k_unit = K / N
             N_half = N_ft * half
             k_unit = K / N_ft
-            res = _two_zone_dorsiventral_scalar(
+            _two_zone_dorsiventral_scalar(
                 k_unit, N_half, k_unit, N_half, nr,
                 asym.surface_adaxial, asym.surface_abaxial,
-                μ_ad_ft, μ_ab_ft, hemispherical,
+                μ_ad_ft, μ_ab_ft, hemispherical, ns_ad, ns_ab,
             )
-            T_ad[idx] = res.adaxial.transmission; R_ad[idx] = res.adaxial.reflectance
-            A_ad[idx] = res.adaxial.absorptance; Rv_ad[idx] = res.adaxial.reflectance_volume
-            T_ab[idx] = res.abaxial.transmission; R_ab[idx] = res.abaxial.reflectance
-            A_ab[idx] = res.abaxial.absorptance; Rv_ab[idx] = res.abaxial.reflectance_volume
         end
+        T_ad[idx] = res.adaxial.transmission; R_ad[idx] = res.adaxial.reflectance
+        A_ad[idx] = res.adaxial.absorptance; Rv_ad[idx] = res.adaxial.reflectance_volume
+        T_ab[idx] = res.abaxial.transmission; R_ab[idx] = res.abaxial.reflectance
+        A_ab[idx] = res.abaxial.absorptance; Rv_ab[idx] = res.abaxial.reflectance_volume
     end
 
     return (;

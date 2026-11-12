@@ -315,13 +315,13 @@ end
     μ::FT,
     sθ::FT,
     surf_exit::RoughDielectricSurface,
-    nr::FT,
+    n_surf_exit::FT,
     t_hem_exit::FT,
     γ::FT,
     c_norm::FT,
 ) where {FT<:Real}
     BFT = _leaf_base_float(FT)
-    n_eff = FT(surf_exit.n_scale) * nr
+    n_eff = FT(surf_exit.n_scale) * n_surf_exit
     σ = FT(surf_exit.σ)
     pi_ft = FT(π)
     acc = zero(FT)
@@ -347,8 +347,20 @@ end
     return acc / c_norm
 end
 
+"""
+    PreparedLeafBSDFSpectrum{FT<:Real}
+
+Wavelength-resolved precomputation returned by [`prepare_leaf_bsdf`](@ref) storing
+adaxial and abaxial cuticular surface parameters, outer refractive-index spectra
+(`n_surf_ad`, `n_surf_ab`), hemispherical volume/transmission/absorption budgets,
+and Kelemen–Szirmay-Kalos directional transmission normalization constants.
+Enables `O(1)` multi-angle BRDF, BTDF, and Stokes Mueller evaluations via
+[`leaf_bsdf_spectrum`](@ref) and [`leaf_directional_budget`](@ref).
+"""
 struct PreparedLeafBSDFSpectrum{FT<:Real}
     nᵣ::Vector{FT}
+    n_surf_ad::Vector{FT}
+    n_surf_ab::Vector{FT}
     σ_ad::FT
     n_scale_ad::FT
     σ_ab::FT
@@ -367,36 +379,65 @@ struct PreparedLeafBSDFSpectrum{FT<:Real}
 end
 
 """
-    prepare_leaf_bsdf(model::CoupledLeafBSDF, optics::AbstractProspectProperties)
+    prepare_leaf_bsdf(model::CoupledLeafBSDF, optics::AbstractProspectProperties;
+                      n_surface = nothing,
+                      n_surface_adaxial = n_surface,
+                      n_surface_abaxial = n_surface)
 
 Precompute wavelength-dependent hemispherical internal budgets and symmetric
 Kelemen–Szirmay-Kalos transmission normalization constants once per leaf state,
 so subsequent multi-angle BRDF / BTDF / Stokes Mueller evaluations are O(1) per
-wavelength and direction pair!
+wavelength and direction pair. Pass `n_surface = load_wax_refractive_index(λ_bnds)`
+(or face-specific `n_surface_adaxial`, `n_surface_abaxial` on dorsiventral /
+asymmetric-surface leaves) to include epicuticular wax dispersion.
 """
 function prepare_leaf_bsdf(
     model::CoupledLeafBSDF{L,SAd,SAb,FTM},
-    optics::AbstractProspectProperties,
+    optics::AbstractProspectProperties;
+    n_surface::Union{Nothing,AbstractVector{<:Real}} = nothing,
+    n_surface_adaxial::Union{Nothing,AbstractVector{<:Real}} = n_surface,
+    n_surface_abaxial::Union{Nothing,AbstractVector{<:Real}} = n_surface,
 ) where {L,SAd,SAb,FTM<:Real}
     _validate_optics_arrays(optics)
     nλ = length(optics.nᵣ)
+    _validate_n_surface_vec(n_surface_adaxial, nλ, "n_surface_adaxial")
+    _validate_n_surface_vec(n_surface_abaxial, nλ, "n_surface_abaxial")
+
     FTS1 = _surface_ft(model.surface_adaxial)
     FTS2 = _surface_ft(model.surface_abaxial)
+    FTW1 = n_surface_adaxial === nothing ? eltype(optics.nᵣ) : eltype(n_surface_adaxial)
+    FTW2 = n_surface_abaxial === nothing ? eltype(optics.nᵣ) : eltype(n_surface_abaxial)
 
     # Evaluate hemispherical internal budgets using the exact RoughDielectricSurface boundaries
     hem_ad, hem_ab, FT = if model.leaf isa Union{DorsiventralLeafProperties,AsymmetricSurfaceLeafProperties}
-        b = dorsiventral_budget(model.leaf, optics; hemispherical = true)
-        FT0 = float(promote_type(eltype(b.adaxial.transmission), FTS1, FTS2, FTM))
+        b = dorsiventral_budget(
+            model.leaf, optics;
+            hemispherical = true,
+            n_surface_adaxial = n_surface_adaxial,
+            n_surface_abaxial = n_surface_abaxial,
+        )
+        FT0 = float(promote_type(eltype(b.adaxial.transmission), FTS1, FTS2, FTM, FTW1, FTW2))
         (b.adaxial, b.abaxial, FT0)
     else
         _validate_single_zone_leaf(model.leaf)
+        if !(n_surface_adaxial === n_surface_abaxial)
+            v_ad_chk = n_surface_adaxial === nothing ? optics.nᵣ : n_surface_adaxial
+            v_ab_chk = n_surface_abaxial === nothing ? optics.nᵣ : n_surface_abaxial
+            all(idx -> _same_val_and_partials(v_ad_chk[idx], v_ab_chk[idx]), 1:nλ) ||
+                throw(ArgumentError(
+                    "prepare_leaf_bsdf with single-zone LeafProspectProProperties or LeafMultiPigmentProperties requires identical adaxial and abaxial n_surface; wrap the leaf in AsymmetricSurfaceLeafProperties or DorsiventralLeafProperties for distinct surfaces",
+                ))
+        end
         K_tot = _total_optical_depth_vector(model.leaf, optics)
-        FT0 = float(promote_type(eltype(K_tot), typeof(model.leaf.N), eltype(optics.nᵣ), FTS1, FTS2, FTM))
+        FT0 = float(promote_type(eltype(K_tot), typeof(model.leaf.N), eltype(optics.nᵣ), FTS1, FTS2, FTM, FTW1, FTW2))
         T_v = Vector{FT0}(undef, nλ); Rv_v = Vector{FT0}(undef, nλ); A_v = Vector{FT0}(undef, nλ)
         N_ft = FT0(model.leaf.N)
         @inbounds for idx in 1:nλ
             nr = FT0(optics.nᵣ[idx])
-            s_hem = surface_interface_optics(model.surface_adaxial, one(FT0), nr; hemispherical = true)
+            ns_idx = n_surface_adaxial === nothing ? nr : FT0(n_surface_adaxial[idx])
+            s_hem = surface_interface_optics(
+                model.surface_adaxial, one(FT0), nr; hemispherical = true, n_surface = ns_idx,
+            )
             bh = _asymmetric_top_prospect_budget(
                 FT0(K_tot[idx]) / N_ft, N_ft, s_hem.t_hem_ext, s_hem.t_int_diffuse, nr,
             )
@@ -410,6 +451,8 @@ function prepare_leaf_bsdf(
 
     BFT = _leaf_base_float(FT)
     nr_vec = FT.(optics.nᵣ)
+    n_surf_ad_vec = n_surface_adaxial === nothing ? nr_vec : FT.(n_surface_adaxial)
+    n_surf_ab_vec = n_surface_abaxial === nothing ? nr_vec : FT.(n_surface_abaxial)
     σ_ad = FT(model.surface_adaxial.σ)
     ns_ad = FT(model.surface_adaxial.n_scale)
     σ_ab = FT(model.surface_abaxial.σ)
@@ -424,8 +467,11 @@ function prepare_leaf_bsdf(
 
     two = one(FT) + one(FT)
     c_sph = _forward_lobe_sphere_scale(γ_t)
-    same_surf = (model.surface_adaxial === model.surface_abaxial) ||
-                (_same_val_and_partials(σ_ad, σ_ab) && _same_val_and_partials(ns_ad, ns_ab))
+    same_nsurf = (n_surf_ad_vec === n_surf_ab_vec) ||
+                 all(idx -> _same_val_and_partials(n_surf_ad_vec[idx], n_surf_ab_vec[idx]), 1:nλ)
+    same_surf = (((model.surface_adaxial === model.surface_abaxial) ||
+                  (_same_val_and_partials(σ_ad, σ_ab) && _same_val_and_partials(ns_ad, ns_ab))) &&
+                 same_nsurf)
     has_lobe = prospect_primal(η_t) > zero(BFT)
 
     E_ad_gl12 = has_lobe ? Vector{FT}(undef, 12) : FT[]
@@ -433,12 +479,18 @@ function prepare_leaf_bsdf(
 
     @inbounds for idx in 1:nλ
         nr = nr_vec[idx]
-        s_ad = surface_interface_optics(model.surface_adaxial, one(FT), nr; hemispherical = true)
+        nsurf_ad = n_surf_ad_vec[idx]
+        nsurf_ab = n_surf_ab_vec[idx]
+        s_ad = surface_interface_optics(
+            model.surface_adaxial, one(FT), nr; hemispherical = true, n_surface = nsurf_ad,
+        )
         th_ad = s_ad.t_hem_ext
         th_ab = if same_surf
             th_ad
         else
-            surface_interface_optics(model.surface_abaxial, one(FT), nr; hemispherical = true).t_hem_ext
+            surface_interface_optics(
+                model.surface_abaxial, one(FT), nr; hemispherical = true, n_surface = nsurf_ab,
+            ).t_hem_ext
         end
         t_hem_ad[idx] = th_ad
         t_hem_ab[idx] = th_ab
@@ -446,8 +498,8 @@ function prepare_leaf_bsdf(
         if has_lobe
             cn = two * c_sph * sqrt(inv(th_ad * th_ad) + inv(th_ab * th_ab))
             c_norm_vec[idx] = cn
-            n_eff_ad = ns_ad * nr
-            n_eff_ab = ns_ab * nr
+            n_eff_ad = ns_ad * nsurf_ad
+            n_eff_ab = ns_ab * nsurf_ab
             for kv in 1:12
                 v = (BFT(_SURF_GL12_X[kv]) + one(BFT)) * BFT(0.5)
                 μ = FT(sqrt(v))
@@ -476,7 +528,8 @@ function prepare_leaf_bsdf(
     end
 
     return PreparedLeafBSDFSpectrum{FT}(
-        nr_vec, σ_ad, ns_ad, σ_ab, ns_ab, η_t, γ_t,
+        nr_vec, n_surf_ad_vec, n_surf_ab_vec,
+        σ_ad, ns_ad, σ_ab, ns_ab, η_t, γ_t,
         t_hem_ad, t_hem_ab,
         FT.(hem_ad.reflectance_volume), FT.(hem_ab.reflectance_volume),
         FT.(hem_ad.transmission),
@@ -487,7 +540,9 @@ end
 
 """
     leaf_directional_budget(prep::PreparedLeafBSDFSpectrum, μ_i; face = :adaxial)
-    leaf_directional_budget(model::CoupledLeafBSDF, optics, μ_i; face = :adaxial)
+    leaf_directional_budget(model::CoupledLeafBSDF, optics, μ_i;
+                            face = :adaxial, n_surface = nothing,
+                            n_surface_adaxial = n_surface, n_surface_abaxial = n_surface)
 
 Exact directional-hemispherical `(; reflectance, reflectance_surface, reflectance_volume, transmission, absorptance)`
 for collimated incidence at cosine `μ_i ∈ (0, 1]` on `face ∈ (:adaxial, :abaxial)`.
@@ -508,6 +563,7 @@ function leaf_directional_budget(
     is_ad = face === :adaxial
     σ = is_ad ? prep.σ_ad : prep.σ_ab
     ns = is_ad ? prep.n_scale_ad : prep.n_scale_ab
+    n_surf = is_ad ? prep.n_surf_ad : prep.n_surf_ab
     t_hem_ext = is_ad ? prep.t_hem_ext_ad : prep.t_hem_ext_ab
     r_vol_hem = is_ad ? prep.r_vol_hem_ad : prep.r_vol_hem_ab
     a_hem = is_ad ? prep.a_hem_ad : prep.a_hem_ab
@@ -520,8 +576,8 @@ function leaf_directional_budget(
     A_dir = Vector{FT}(undef, nλ)
 
     @inbounds for idx in 1:nλ
-        nr = prep.nᵣ[idx]
-        r_s = microfacet_directional_reflectance(μi, ns * nr, σ)
+        nsurf_idx = FT(n_surf[idx])
+        r_s = microfacet_directional_reflectance(μi, ns * nsurf_idx, σ)
         t_ext = one(FT) - r_s
         E_i = t_ext / t_hem_ext[idx]
         rv = E_i * r_vol_hem[idx]
@@ -548,8 +604,11 @@ function leaf_directional_budget(
     optics::AbstractProspectProperties,
     μ_i::Real;
     face::Symbol = :adaxial,
+    n_surface::Union{Nothing,AbstractVector{<:Real}} = nothing,
+    n_surface_adaxial::Union{Nothing,AbstractVector{<:Real}} = n_surface,
+    n_surface_abaxial::Union{Nothing,AbstractVector{<:Real}} = n_surface,
 )
-    prep = prepare_leaf_bsdf(model, optics)
+    prep = prepare_leaf_bsdf(model, optics; n_surface_adaxial, n_surface_abaxial)
     return leaf_directional_budget(prep, μ_i; face)
 end
 
@@ -594,8 +653,10 @@ function leaf_bsdf_spectrum(
     is_ad = face === :adaxial
     σ_in = is_ad ? prep.σ_ad : prep.σ_ab
     ns_in = is_ad ? prep.n_scale_ad : prep.n_scale_ab
+    n_surf_in = is_ad ? prep.n_surf_ad : prep.n_surf_ab
     σ_tr = is_ad ? prep.σ_ab : prep.σ_ad
     ns_tr = is_ad ? prep.n_scale_ab : prep.n_scale_ad
+    n_surf_tr = is_ad ? prep.n_surf_ab : prep.n_surf_ad
     th_in = is_ad ? prep.t_hem_ext_ad : prep.t_hem_ext_ab
     th_tr = is_ad ? prep.t_hem_ext_ab : prep.t_hem_ext_ad
     rv_hem = is_ad ? prep.r_vol_hem_ad : prep.r_vol_hem_ab
@@ -621,9 +682,10 @@ function leaf_bsdf_spectrum(
     dolp_vec = zeros(FT, nλ)
 
     @inbounds for idx in 1:nλ
-        nr = FT(prep.nᵣ[idx])
-        n_eff_in = ns_in * nr
-        n_eff_tr = ns_tr * nr
+        nsurf_i = FT(n_surf_in[idx])
+        nsurf_t = FT(n_surf_tr[idx])
+        n_eff_in = ns_in * nsurf_i
+        n_eff_tr = ns_tr * nsurf_t
 
         # 1. Polarized surface BRDF Mueller matrix
         M_s = surface_brdf_mueller(μi, ϕi, μo, ϕo, n_eff_in, σ_in, n)
@@ -631,7 +693,7 @@ function leaf_bsdf_spectrum(
         # 2. Directional entry/escape factors
         r_ext_i = microfacet_directional_reflectance(μi, n_eff_in, σ_in)
         r_ext_o_refl = microfacet_directional_reflectance(μo, n_eff_in, σ_in)
-        r_ext_o_tran = (_same_val_and_partials(σ_in, σ_tr) && _same_val_and_partials(ns_in, ns_tr)) ? r_ext_o_refl :
+        r_ext_o_tran = (_same_val_and_partials(σ_in, σ_tr) && _same_val_and_partials(n_eff_in, n_eff_tr)) ? r_ext_o_refl :
                        microfacet_directional_reflectance(μo, n_eff_tr, σ_tr)
 
         E_i = (one(FT) - r_ext_i) / FT(th_in[idx])
@@ -669,8 +731,8 @@ function leaf_bsdf_spectrum(
         else
             cn = FT(prep.c_norm[idx])
             p_tilde = exp(γ_t * (c_trans_dot - one(FT))) / cn
-            L_tr_i = _btdf_lobe_escape_integral(μi, sθi, surf_tr_obj, nr, FT(th_tr[idx]), γ_t, cn)
-            L_in_o = _btdf_lobe_escape_integral(μo, sθo, surf_in_obj, nr, FT(th_in[idx]), γ_t, cn)
+            L_tr_i = _btdf_lobe_escape_integral(μi, sθi, surf_tr_obj, nsurf_t, FT(th_tr[idx]), γ_t, cn)
+            L_in_o = _btdf_lobe_escape_integral(μo, sθo, surf_in_obj, nsurf_i, FT(th_in[idx]), γ_t, cn)
             closure = (one(FT) - L_tr_i) * (one(FT) - L_in_o) * inv_pi / FT(prep.d_bar[idx])
             btdf_vec[idx] = t_hem_val * E_i * E_o_tran *
                             ((one(FT) - η_t) * inv_pi + η_t * (p_tilde + closure))
@@ -694,7 +756,10 @@ function leaf_bsdf_spectrum(
     ϕ_o::Real;
     face::Symbol = :adaxial,
     npol::Integer = 1,
+    n_surface::Union{Nothing,AbstractVector{<:Real}} = nothing,
+    n_surface_adaxial::Union{Nothing,AbstractVector{<:Real}} = n_surface,
+    n_surface_abaxial::Union{Nothing,AbstractVector{<:Real}} = n_surface,
 )
-    prep = prepare_leaf_bsdf(model, optics)
+    prep = prepare_leaf_bsdf(model, optics; n_surface_adaxial, n_surface_abaxial)
     return leaf_bsdf_spectrum(prep, μ_i, ϕ_i, μ_o, ϕ_o; face, npol)
 end

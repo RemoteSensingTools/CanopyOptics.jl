@@ -18,12 +18,15 @@ function build()
     tutorials_md = [joinpath("pages", "tutorials", tutorial[1:end-3]) * ".md" for tutorial in tutorials]
 
     pages = Any[
-            "Home"                  => "index.md",
-            "PROSPECT budgets"      => "pages/prospect_budget.md",
-            "Pigment excitation"    => "pages/pigment_excitation.md",
-            "Internal leaf emission" => "pages/plate_emission.md",
-            "Emission spectra"       => "pages/emission_spectrum.md",
-            "Tutorials"             => tutorials_md
+            "Home"                           => "index.md",
+            "PROSPECT budgets"               => "pages/prospect_budget.md",
+            "Leaf surfaces and BSDF"         => "pages/leaf_surfaces_and_bsdf.md",
+            "Dorsiventral and multi-pigment" => "pages/dorsiventral_and_multi_pigment.md",
+            "Pigment excitation"             => "pages/pigment_excitation.md",
+            "Internal leaf emission"         => "pages/plate_emission.md",
+            "Emission spectra"               => "pages/emission_spectrum.md",
+            "Model evaluations"              => "pages/leaf_model_evaluations.md",
+            "Tutorials"                      => tutorials_md
         ]
 
     mathengine = MathJax(Dict(
