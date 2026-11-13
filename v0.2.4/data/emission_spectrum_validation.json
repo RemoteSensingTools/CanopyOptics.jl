@@ -1,0 +1,43 @@
+{
+  "generated_utc": "2026-11-08T06:26:05.504347+00:00",
+  "scope": "Host conditional photon-spectrum preparation and shared matrix CPU/CUDA application, Float32 and Float64",
+  "source_sha256": {
+    "src/CanopyOptics.jl": "eb0847ffcf5086cb82cc9c06cff738f00ea824b283e1fab2ea6c25bd29067b61",
+    "src/leaf_optics/emission_spectrum.jl": "9bea05279c6bbcf042b129f205dad21e185642ed57f31c2770f6be94eda39961",
+    "src/leaf_optics/plate_emission.jl": "0c3d73e3cac005f5bca0016ce5170e409093e40dda5e1ac85e6fea66e8195f25",
+    "test/runtests.jl": "68dd7c6fee668f7a46d4857baed5af6d5736c78edadb9ff7bae246e80ff9bd6c",
+    "test/test_emission_spectrum.jl": "afd040a753acd439e8b90e2a57c5e1356cd1c60f8519a15cb0a231e46e582022",
+    "test/emission_spectrum_batches.jl": "7f56cdc24bc57ea08ee2d7d642155a2ff7eefa41571474aee6d9fdbea1aba0e5",
+    "test/emission_spectrum_gpu.jl": "599e57495c2d4b99893aea0935529571088dbabe4531739edea83b87b324359d",
+    "docs/make.jl": "ea356552d1583b11e2ae9c607c411824fba27f74da183e0b9f28630e7b276d32",
+    "docs/src/pages/emission_spectrum.md": "d5916f7c5bb66a01e495f30c254e3aa32ede79b6c467886e587526d51a5aea63",
+    "test/reference/record_emission_spectrum_validation.py": "8484aab8ef6ede8d959efcd26a040fbe2384e3ae99c3189a68a25a39bc4ef196"
+  },
+  "logs": {
+    "full-cpu.log": {
+      "sha256": "89ae577b7955af9e4ddd1a169d459c0eca63ab59f8ec54c1d0fa8aebe1711368",
+      "passed_checks": 187021,
+      "text": "[ Info: Testing spherical leaf G factor calculation ...\n\u250c Warning: Assuming unit of [nm] here for optical struct\n\u2514 @ CanopyOptics ~/code/gitHub/CanopyOptics-leaf-emission/src/initialization/loadProspect.jl:64\n\u250c Warning: Assuming unit of [nm] here for optical struct\n\u2514 @ CanopyOptics ~/code/gitHub/CanopyOptics-leaf-emission/src/initialization/loadProspect.jl:64\nTest Summary: |  Pass  Total   Time\nCanopyOptics  | 85541  85541  40.8s\nTest Summary:               | Pass  Total  Time\nShared leaf-area quadrature |   76     76  1.9s\nTest Summary:                                  | Pass  Total  Time\nSpecular azimuth preserves floating-point type |  312    312  0.8s\nTest Summary:                    | Pass  Total  Time\nSpecular roughness grazing limit |  170    170  0.3s\nTest Summary:                                                  | Pass  Total  Time\nSpecular reflection is independent of direction representation | 1024   1024  0.0s\nTest Summary:                         | Pass  Total  Time\nPROSPECT independent spectral budgets | 2832   2832  1.1s\nTest Summary:                                 | Pass  Total  Time\nPROSPECT extreme stacks and branch continuity |  178    178  0.3s\nTest Summary:                               | Pass  Total  Time\nPROSPECT actual optical data and public API |  168    168  3.9s\nTest Summary:                                     | Pass  Total  Time\nRegular plate emission construction and extension |   50     50  0.3s\nTest Summary:                                                    | Pass  Total  Time\nRegular plate numerical switches and independent path quadrature |  904    904  0.7s\nTest Summary:                                     |  Pass  Total  Time\nRegular plate independent high-precision balances | 43656  43656  0.9s\nTest Summary:                             | Pass  Total  Time\nDiffuse regular plate preparation domains |   62     62  0.1s\nTest Summary:                                         | Pass  Total  Time\nIndependent angular optics and source depth integrals | 1310   1310  0.1s\nTest Summary:                       | Pass  Total  Time\nExplicit conditional photon spectra |  148    148  1.2s\nTest Summary:                        | Pass  Total  Time\nConditional spectrum CPU application |  784    784  2.6s\nTest Summary:                      |  Pass  Total  Time\nRegular plate emission CPU batches | 37638  37638  1.9s\nTest Summary:                                               | Pass  Total  Time\nHomogeneous pigment partition and independent optical paths | 1264   1264  0.4s\nTest Summary:                                                 | Pass  Total  Time\nPigment domains, zero material and photon-selection endpoints | 4168   4168  0.3s\nTest Summary:                  | Pass  Total  Time\nPigment allocation CPU batches | 1228   1228  2.2s\nTest Summary:                       | Pass  Total  Time\nActual PROSPECT pigment spectra CPU | 5508   5508  3.0s\n"
+    },
+    "batches-gpu.log": {
+      "sha256": "43a61e845e5fc64791bfa40d51579282c471a4f783459e89e317204dd0d8c63a",
+      "passed_checks": 784,
+      "text": "CUDA toolchain: \n- runtime 13.2, artifact installation\n- driver 615.71.10 for 13.4\n- compiler 13.3, artifact installation\n\nCUDA libraries: \n- CUBLAS: 13.4.0\n- CURAND: 10.4.2\n- CUFFT: 12.2.0\n- CUSOLVER: 12.2.0\n- CUSPARSE: 12.7.10\n- CUPTI: 2026.1.1 (API 13.2.1)\n- NVML: 13.0.0+615.71.10\n\nJulia packages: \n- CUDA: 5.11.3\n- GPUArrays: 11.5.16\n- GPUCompiler: 1.17.1\n- KernelAbstractions: 0.9.45\n- CUDA_Driver_jll: 13.3.6+0\n- CUDA_Compiler_jll: 0.4.4+1\n- CUDA_Runtime_jll: 0.21.0+1\n\nToolchain:\n- Julia: 1.12.6\n- LLVM: 18.1.7\n\n1 device:\n  0: NVIDIA L40S (sm_89, 44.470 GiB / 44.988 GiB available)\nTest Summary:                         | Pass  Total   Time\nConditional spectrum CUDA application |  784    784  22.3s\n"
+    },
+    "docs.log": {
+      "sha256": "4931a0fa98663247e1a1feb90136f979da54bb8ad828a2ed54bc5824dcf03b43",
+      "passed_checks": null,
+      "text": "\u250c Info: Building docs with CanopyOptics source\n\u2514   path = \"/home/cfranken/code/gitHub/CanopyOptics-leaf-emission/src/CanopyOptics.jl\"\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/bilambertian.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/bilambertian.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/specular.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/specular.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_hotspot.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_hotspot.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_brdf.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_brdf.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/dielectric.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/dielectric.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/tree_canopy.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/tree_canopy.md`\n[ Info: SetupBuildDirectory: setting up build directory.\n[ Info: Doctest: running doctests.\n[ Info: ExpandTemplates: expanding markdown templates.\n[ Info: CrossReferences: building cross-references.\n[ Info: CheckDocument: running document checks.\n[ Info: Populate: populating indices.\n[ Info: RenderDocument: rendering document.\n[ Info: HTMLWriter: rendering HTML pages.\n\u250c Warning: Generated search index over size_threshold_warn limit:\n\u2502     Generated file size: 756.82 (KiB)\n\u2502     search_size_threshold_warn: 500.0 (KiB)\n\u2502     Search index file:   build/search_index.js\n\u2514 @ Documenter.HTMLWriter ~/.julia/packages/Documenter/eCrmY/src/html/HTMLWriter.jl:973\n[ Info: Automatic `version=\"0.2.2\"` for inventory from ../Project.toml\n"
+    }
+  },
+  "references": [
+    "BigFloat normalization of retained raw masses",
+    "BigFloat accumulation of prepared operators, independent of CPU/CUDA BLAS"
+  ],
+  "limitations": [
+    "No empirical source shape or calibration is installed.",
+    "No GPU or AD claim for host preparation.",
+    "Existing regular-plate physics is independently validated in its separate certificate.",
+    "Photon and Stokes energy bounds are not complete leaf thermal closure."
+  ]
+}
