@@ -6,7 +6,7 @@
 # direct/direct and diffuse contributions, which makes it easy to
 # diagnose what each pathway contributes at a given wavelength.
 using CanopyOptics
-using CairoMakie
+include(joinpath(@__DIR__, "..", "..", "..", "d3_plots.jl")) # hide
 
 # ## Geometry, leaf, soil
 #
@@ -73,14 +73,22 @@ soil_λ = fill(0.20, length(λs))
 
 sweep = foursail(ρ_λ, τ_λ, soil_λ, geom, lai; hotspot = 0.05)
 
-fig = Figure(size = (640, 360))
-ax = Axis(fig[1, 1]; xlabel = "wavelength (µm)", ylabel = "reflectance",
-          title = "4SAIL BRF and its decomposition  (LAI = 3, sza/vza/raa = 30/20/40°)")
-lines!(ax, λs, sweep.rsost; label = "rsost (direct/direct)", linestyle = :dash)
-lines!(ax, λs, sweep.rsodt; label = "rsodt (diffuse)",       linestyle = :dot)
-lines!(ax, λs, sweep.rsot;  label = "rsot  (full BRF)",      linewidth = 2)
-axislegend(ax; position = :rt)
-fig
+D3Figure(
+    cols = 1,
+    rowHeight = 320,
+    panels = [
+        d3_cartesian(
+            title = "4SAIL BRF and its decomposition (LAI = 3, sza/vza/raa = 30°/20°/40°)",
+            xlabel = "wavelength (µm)",
+            ylabel = "reflectance",
+            series = [
+                d3_line(λs, sweep.rsost; label = "rsost (direct/direct)", color = "#ff7f0e", dash = "dash", width = 2.0),
+                d3_line(λs, sweep.rsodt; label = "rsodt (diffuse)", color = "#2ca02c", dash = "dot", width = 2.0),
+                d3_line(λs, sweep.rsot;  label = "rsot (full BRF)", color = "#1f77b4", width = 2.5),
+            ],
+        ),
+    ],
+)
 
 # ## Batched geometries — single-pass directional response
 #

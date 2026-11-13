@@ -11,9 +11,9 @@
 #   directional grid in one go — no Julia-level loop over view angles.
 # * NDVI is not a single number for a canopy: even a vegetation-only
 #   scene with a fixed leaf spectrum shows several percent of angular
-#   spread, with a peak on the hotspot side.
+#   spread, with a dip on the hotspot side.
 using CanopyOptics
-using CairoMakie
+include(joinpath(@__DIR__, "..", "..", "..", "d3_plots.jl")) # hide
 
 # ## Scene
 const sza_deg     = 30.0
@@ -83,63 +83,32 @@ println("NDVI at nadir: ", nadir_ndvi,
 
 # ## Polar BRDF plots
 #
-# Closing the azimuth loop (`hcat(..., grid[:, 1])`) avoids the visible
-# seam at `vaz = 0/360°` in the polar surface plots. The red star marks
-# the hotspot direction at `(vza = sza, vaz = 0°)`, which in 4SAIL's
-# convention is the same azimuth as the sun.
-θ_rad = deg2rad.(vcat(vazs_deg, 360.0))
-close_az(grid) = hcat(grid, grid[:, 1])
-
-fig = Figure(size = (1500, 700))
-
-for (iλ, λ) in pairs(lambda_nm)
-    grid = brf[iλ, :, :]
-    ax = PolarAxis(fig[1, 2(iλ-1) + 1];
-        title    = "$(Int(round(λ))) nm BRF (rsot)",
-        theta_0  = π / 2,
-        direction = -1,
-        rticks   = 0:20:80,
-        rticklabelsize = 10,
-        thetaticks = (deg2rad.(0:45:315), string.(0:45:315) .* "°"))
-    hm = surface!(ax, θ_rad, vzas_deg, close_az(grid)';
-                  colormap = :viridis, shading = NoShading)
-    scatter!(ax, [deg2rad(0.0)], [sza_deg];
-             color = :red, markersize = 12, marker = :star5,
-             strokecolor = :white, strokewidth = 1.0)
-    Colorbar(fig[1, 2(iλ-1) + 2], hm; label = "BRF")
-end
-
+# Interactive polar hemisphere plots over `(VZA, VAZ)` with `0°` azimuth at top
+# (same azimuth as the sun in 4SAIL's convention). The red star marks the hotspot
+# direction at `(vza = sza, vaz = 0°)`.
 Δlim = maximum(abs, ΔNDVI)
-ax_ndvi = PolarAxis(fig[2, 1];
-    title = "NDVI",
-    theta_0 = π / 2, direction = -1,
-    rticks = 0:20:80, rticklabelsize = 10,
-    thetaticks = (deg2rad.(0:45:315), string.(0:45:315) .* "°"))
-hm_ndvi = surface!(ax_ndvi, θ_rad, vzas_deg, close_az(NDVI)';
-                   colormap = :viridis, shading = NoShading)
-Colorbar(fig[2, 2], hm_ndvi; label = "NDVI")
+hs_marker = [(; vza = sza_deg, vaz = 0.0, color = "#ef4444", label = "hotspot")]
 
-ax_delta = PolarAxis(fig[2, 3];
-    title = "NDVI − NDVI(nadir)",
-    theta_0 = π / 2, direction = -1,
-    rticks = 0:20:80, rticklabelsize = 10,
-    thetaticks = (deg2rad.(0:45:315), string.(0:45:315) .* "°"))
-hm_delta = surface!(ax_delta, θ_rad, vzas_deg, close_az(ΔNDVI)';
-                    colormap = :balance, colorrange = (-Δlim, Δlim),
-                    shading = NoShading)
-Colorbar(fig[2, 4], hm_delta; label = "ΔNDVI")
-
-for ax in (ax_ndvi, ax_delta)
-    scatter!(ax, [deg2rad(0.0)], [sza_deg];
-             color = :red, markersize = 12, marker = :star5,
-             strokecolor = :white, strokewidth = 1.0)
-end
-
-Label(fig[0, 1:4],
-      "4SAIL polar BRDF and NDVI angular effect " *
-      "(SZA = $(Int(sza_deg))°, LAI = $(lai), planophile LAD, soil albedo = $(soil_albedo), h = $(hotspot_h))";
-      fontsize = 16)
-fig
+D3Figure(
+    title = "4SAIL polar BRDF and NDVI angular effect",
+    subtitle = "SZA = $(Int(sza_deg))°, LAI = $(lai), planophile LAD, soil albedo = $(soil_albedo), h = $(hotspot_h)",
+    cols = 2,
+    rowHeight = 310,
+    panels = [
+        d3_polar(vzas_deg, vazs_deg, brf[1, :, :];
+                 title = "685 nm BRF (rsot)", cbarLabel = "BRF",
+                 colormap = "viridis", markers = hs_marker),
+        d3_polar(vzas_deg, vazs_deg, brf[2, :, :];
+                 title = "800 nm BRF (rsot)", cbarLabel = "BRF",
+                 colormap = "viridis", markers = hs_marker),
+        d3_polar(vzas_deg, vazs_deg, NDVI;
+                 title = "NDVI", cbarLabel = "NDVI",
+                 colormap = "viridis", markers = hs_marker),
+        d3_polar(vzas_deg, vazs_deg, ΔNDVI;
+                 title = "NDVI − NDVI(nadir)", cbarLabel = "ΔNDVI",
+                 colormap = "balance", clim = [-Δlim, Δlim], markers = hs_marker),
+    ],
+)
 
 # ## Reading the figure
 #
