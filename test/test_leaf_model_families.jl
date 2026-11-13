@@ -896,12 +896,15 @@ const _u_nm = u"nm"
         @test_throws ArgumentError DorsiventralBirthProfile(0.0, 0.0)
         @test_throws ArgumentError DorsiventralBirthProfile(1.0, 0.0, 0.5, 0.0, 0.0, 0.5, 1.0, 0.0)
 
-        # Zero host allocations on scalar evaluation
+        # Zero host allocations on scalar evaluation (function-wrapped for Julia 1.10 @testset scope)
+        _alloc_dv_fates(e, bp) = @allocated leaf_emission_fates(e, bp)
         esc_alloc = DorsiventralPlateEscape(0.6, 0.4, 0.45, 0.42, 0.85)
         bp_alloc = DorsiventralBirthProfile(0.75, 0.25, 1.8, 1.0, 0.05, 0.6, 1.0, 0.12)
-        leaf_emission_fates(esc_alloc, bp_alloc)
-        @test (@allocated leaf_emission_fates(esc_alloc, bp_alloc)) == 0
-        @test (@allocated leaf_emission_fates(esc_alloc, UniformBirthProfile())) == 0
+        u_alloc = UniformBirthProfile()
+        _alloc_dv_fates(esc_alloc, bp_alloc)
+        _alloc_dv_fates(esc_alloc, u_alloc)
+        @test _alloc_dv_fates(esc_alloc, bp_alloc) == 0
+        @test _alloc_dv_fates(esc_alloc, u_alloc) == 0
 
         # Exact reduction to RegularPlateEscape(b, t) when splitting a homogeneous plate
         # at arbitrary fraction η ∈ (0, 1) with interface_transmission = 1!
