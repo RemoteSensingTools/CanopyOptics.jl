@@ -1,5 +1,3 @@
-pushfirst!(LOAD_PATH, dirname(@__DIR__))
-
 using Documenter, CanopyOptics
 using Literate, UnitfulEquivalences, Distributions
 
@@ -18,16 +16,27 @@ function build()
     tutorials_md = [joinpath("pages", "tutorials", tutorial[1:end-3]) * ".md" for tutorial in tutorials]
 
     pages = Any[
-            "Home"                           => "index.md",
-            "PROSPECT budgets"               => "pages/prospect_budget.md",
-            "Leaf surfaces and BSDF"         => "pages/leaf_surfaces_and_bsdf.md",
-            "Dorsiventral and multi-pigment" => "pages/dorsiventral_and_multi_pigment.md",
-            "Pigment excitation"             => "pages/pigment_excitation.md",
-            "Internal leaf emission"         => "pages/plate_emission.md",
-            "Emission spectra"               => "pages/emission_spectrum.md",
-            "Angular normalization"          => "pages/angular_normalization.md",
-            "Model evaluations"              => "pages/leaf_model_evaluations.md",
-            "Tutorials"                      => tutorials_md
+            "Home" => "index.md",
+            "Leaf Optics & Fluorescence" => [
+                "PROSPECT budgets"               => "pages/prospect_budget.md",
+                "Leaf surfaces and BSDF"         => "pages/leaf_surfaces_and_bsdf.md",
+                "Dorsiventral and multi-pigment" => "pages/dorsiventral_and_multi_pigment.md",
+                "Pigment excitation"             => "pages/pigment_excitation.md",
+                "Internal leaf emission"         => "pages/plate_emission.md",
+                "Emission spectra"               => "pages/emission_spectrum.md",
+                "Model evaluations"              => "pages/leaf_model_evaluations.md",
+            ],
+            "Canopy Radiative Transfer" => [
+                "Angular normalization"          => "pages/angular_normalization.md",
+            ],
+            "Tutorials" => tutorials_md,
+            "API Reference" => [
+                "Overview & Index"                 => "api/index.md",
+                "Leaf Optics & BSDF"               => "api/leaf_optics.md",
+                "Excitation & Leaf Fluorescence"   => "api/fluorescence_and_excitation.md",
+                "Canopy Structure & Scattering"    => "api/canopy_scattering.md",
+                "FourSAIL & Microwave Dielectrics" => "api/foursail_and_dielectrics.md",
+            ],
         ]
 
     mathengine = MathJax(Dict(
@@ -54,7 +63,6 @@ function build()
             format = format,
             clean = true,
             checkdocs = :exports,
-            warnonly = [:cross_references],
             modules = [CanopyOptics],
             pages = pages)
 end

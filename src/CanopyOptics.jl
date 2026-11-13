@@ -25,7 +25,7 @@ using Distributions: Beta, Uniform, UnivariateDistribution, params, pdf, support
 using FastGaussQuadrature: gausslegendre
 using ForwardDiff: ForwardDiff
 using KernelAbstractions: KernelAbstractions, @index, @kernel
-using LazyArtifacts: @artifact_str
+using LazyArtifacts: LazyArtifacts, @artifact_str
 using LinearAlgebra: ⋅
 using SpecialFunctions: erfcx, expint
 using Statistics: mean

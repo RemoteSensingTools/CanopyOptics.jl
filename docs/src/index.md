@@ -55,26 +55,12 @@ The latest release of CanopyOptics can be installed from the Julia REPL prompt w
 julia> ]add https://github.com/RemoteSensingTools/CanopyOptics.jl
 ```
 
-## Code docs:
+## Documentation & API Reference
 
-### Module
-
-```@docs
-CanopyOptics
-```
-
-### Types
-
-```@autodocs
-Modules = [CanopyOptics]
-Private = false
-Order = [:type, :constant]
-```
-
-### Functions
-
-```@autodocs
-Modules = [CanopyOptics]
-Private = false
-Order = [:function]
-```
+| Topic | Conceptual Guides | Structured API Reference |
+| --- | --- | --- |
+| **Leaf Optics & BSDF** | [PROSPECT budgets](pages/prospect_budget.md), [Leaf surfaces and BSDF](pages/leaf_surfaces_and_bsdf.md), [Dorsiventral and multi-pigment](pages/dorsiventral_and_multi_pigment.md), [Model evaluations](pages/leaf_model_evaluations.md) | [Leaf Optics & BSDF](api/leaf_optics.md) |
+| **Excitation & Leaf Fluorescence** | [Pigment excitation](pages/pigment_excitation.md), [Internal leaf emission](pages/plate_emission.md), [Emission spectra](pages/emission_spectrum.md) | [Excitation & Leaf Fluorescence](api/fluorescence_and_excitation.md) |
+| **Canopy Structure & Scattering** | [Angular normalization](pages/angular_normalization.md), Tutorials | [Canopy Structure & Scattering](api/canopy_scattering.md) |
+| **FourSAIL & Microwave Dielectrics** | FourSAIL & Dielectric Tutorials | [FourSAIL & Microwave Dielectrics](api/foursail_and_dielectrics.md) |
+| **Full Module & Symbol Index** | — | [Overview & Symbol Index](api/index.md) |

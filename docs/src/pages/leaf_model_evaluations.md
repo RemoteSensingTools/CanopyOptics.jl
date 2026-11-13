@@ -114,7 +114,7 @@ Five physical lessons emerge directly from the fixed-chemistry residuals:
    that leaves nonzero default `Cprot + Ccbc` active when a user passes bulk `Cm`
    silently double-counts ``0.010\text{ g cm}^{-2}`` of dry matter.
    [`LeafProspectProProperties`](@ref), [`LeafMultiPigmentProperties`](@ref), and
-   [`LeafSIPProperties`](@ref) now zero omitted `Cprot, Ccbc` whenever `Cm` is
+   [`LeafSIPProperties`](@ref) zero omitted `Cprot, Ccbc` whenever `Cm` is
    supplied and reject positive `Cm` combined with positive `Cprot` or `Ccbc`.
 5. **Anthocyanin mass-unit consistency (`[µg cm⁻²]`)**: In `OPTI_2021`, `Kant`
    peaks at ``0.0725\text{ cm}^2\,\mu\text{g}^{-1}`` at ``535\text{ nm}``.

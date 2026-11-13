@@ -20,7 +20,9 @@ using Unitful
     if VERSION >= v"1.11"
         @testset "ExplicitImports.jl hygiene" begin
             @test check_no_implicit_imports(CanopyOptics) === nothing
-            @test check_no_stale_explicit_imports(CanopyOptics) === nothing
+            # LazyArtifacts must be bound in CanopyOptics module scope so @artifact_str
+            # can trigger on-demand artifact downloads on clean depots.
+            @test check_no_stale_explicit_imports(CanopyOptics; ignore = (:LazyArtifacts,)) === nothing
             @test check_all_explicit_imports_via_owners(CanopyOptics) === nothing
             @test check_all_qualified_accesses_via_owners(CanopyOptics) === nothing
             @test check_no_self_qualified_accesses(CanopyOptics) === nothing

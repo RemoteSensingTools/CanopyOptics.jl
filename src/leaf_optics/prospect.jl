@@ -3,7 +3,7 @@
 
 Compute leaf spectral transmittance `T` and reflectance `R` from a
 [`LeafProspectProProperties`](@ref) or [`LeafMultiPigmentProperties`](@ref) state
-and an [`AbstractProspectProperties`](@ref) optical database.
+and an `AbstractProspectProperties` optical database.
 
 Optionally supply an [`AbstractLeafSurface`](@ref) (`ConeSurface` or
 `RoughDielectricSurface`) and cuticular refractive-index vector `n_surface`.
