@@ -1,15 +1,15 @@
-"""
+@doc raw"""
     DirectionCosine{FT}(μ, ϕ)
     DirectionCosine(; μ = nothing, θ = nothing, ϕ = 0)
 
-Represent a unit spherical direction by polar cosine `μ = cos(θ) ∈ [-1, 1]` and
-azimuth angle `ϕ` in radians.
+Represent a unit spherical direction by polar cosine ``\mu = \cos\theta \in [-1, 1]``
+and azimuth angle `ϕ` in radians.
 
 Passing keyword `θ` instead of `μ` computes `μ = cos(θ)` (see also
 [`direction_from_angles`](@ref)).
 
 # Fields
-- `μ::FT`: polar cosine `cos(θ)` in `[-1, 1]`.
+- `μ::FT`: polar cosine ``\cos\theta`` in ``[-1, 1]``.
 - `ϕ::FT`: azimuth angle in radians.
 
 # Examples
@@ -106,11 +106,12 @@ function dot(Ω₁::DirectionCosine, Ω₂::DirectionCosine)
     return μ₁ * μ₂ + s₁ * s₂ * cos(FT(Ω₂.ϕ) - FT(Ω₁.ϕ))
 end
 
-"""
+@doc raw"""
     dot_product(μ₁, μ₂, dϕ)
 
-Compute the Cartesian inner product `μ₁ μ₂ + √(1 - μ₁²) √(1 - μ₂²) cos(dϕ)`
-between two unit directions parameterized by polar cosines `μ₁, μ₂ ∈ [-1, 1]`
+Compute the Cartesian inner product
+``\mu_1 \mu_2 + \sqrt{1 - \mu_1^2}\sqrt{1 - \mu_2^2}\cos(\Delta\phi)``
+between two unit directions parameterized by polar cosines ``\mu_1, \mu_2 \in [-1, 1]``
 and relative azimuth `dϕ` in radians.
 """
 function dot_product(μ₁_in::Real, μ₂_in::Real, dϕ_in::Real)

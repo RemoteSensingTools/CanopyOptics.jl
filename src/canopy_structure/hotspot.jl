@@ -14,23 +14,23 @@ _hotspot_parameter_type(args...) = float(promote_type(map(typeof, args)...))
 @inline _hotspot_value(x) = x
 @inline _hotspot_value(x::ForwardDiff.Dual) = ForwardDiff.value(x)
 
-"""
+@doc raw"""
     NoHotSpot()
     NoHotSpot{FT}()
 
 Default model with independent sun and view gaps. The joint gap probability is
-`exp(-(k_s + k_o)L)`.
+``\exp[-(k_s + k_o)L]``.
 """
 struct NoHotSpot{FT<:Real} <: AbstractHotSpot{FT} end
 
 NoHotSpot() = NoHotSpot{Float64}()
 
-"""
+@doc raw"""
     KuuskHotSpot(; h = 0.1)
     KuuskHotSpot{FT}(; h = FT(0.1))
 
 Kuusk-style hotspot correction with dimensionless size parameter `h`, roughly
-leaf size divided by canopy height. Larger `h` broadens the hotspot. `h <= 0`
+leaf size divided by canopy height. Larger `h` broadens the hotspot; ``h \le 0``
 disables the correction and returns the independent-gap probability.
 """
 struct KuuskHotSpot{FT<:Real} <: AbstractHotSpot{FT}
@@ -45,11 +45,11 @@ end
 KuuskHotSpot{FT}(; h = FT(0.1)) where {FT<:Real} =
     KuuskHotSpot{FT}(FT(h))
 
-"""
+@doc raw"""
     canopy_extinction(G_value, μ)
 
-Convert projected area `G(μ)` into the directional extinction coefficient
-`k = G(μ) / μ` used by Beer-Lambert canopy gap probabilities.
+Convert projected area `G_value` (``G(\mu)``) into the directional extinction
+coefficient ``k = G(\mu) / \mu`` used by Beer–Lambert canopy gap probabilities.
 """
 function canopy_extinction(G_value::Real, μ::Real)
     FT = _hotspot_parameter_type(G_value, μ)

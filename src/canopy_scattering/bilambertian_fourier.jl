@@ -1,21 +1,25 @@
-"""
+@doc raw"""
     compute_Γ(mod::BiLambertianCanopyScattering, Ωⁱⁿ::DirectionCosine, Ωᵒᵘᵗ::DirectionCosine,
               LD::AbstractLeafDistribution; quadrature = CanopyQuadrature())
 
-Computes the azimuthally-resolved area scattering transfer function
-`Γ(Ωⁱⁿ → Ωᵒᵘᵗ)` for a specific direction pair by direct double integration over
-leaf polar and azimuthal angles, following Shultis & Myneni (1988) Eqs. (38)–(39):
+Compute the azimuthally resolved area scattering transfer function
+``\Gamma(\Omega^{\mathrm{in}} \to \Omega^{\mathrm{out}})`` for a direction pair by
+direct double integration over leaf polar and azimuthal angles, following Shultis &
+Myneni (1988), Eqs. (38)–(39):
 
-``Γ = R\\,Γ^- + T\\,Γ^+``
+```math
+\Gamma = R\,\Gamma^- + T\,\Gamma^+ ,
+```
 
-where `Γ⁻` integrates the negative (reflection) part and `Γ⁺` the positive
-(transmission) part of `(Ωⁱⁿ ⋅ Ωᴸ)(Ωᵒᵘᵗ ⋅ Ωᴸ)` over all leaf orientations.
+where ``\Gamma^-`` integrates the negative (reflection) part and ``\Gamma^+`` the
+positive (transmission) part of ``(\Omega^{\mathrm{in}} \cdot \Omega_L)(\Omega^{\mathrm{out}} \cdot \Omega_L)``
+over all leaf orientations.
 
 Retained as a direct-quadrature reference path for validating the analytic
-Fourier closure. Production Z-matrix assembly uses
-[`compute_Z_matrices_aniso_analytic`](@ref).
-See [`compute_lambertian_Γ`](@ref) for the azimuthally averaged (m=0 only)
-equivalent.
+Fourier closure; production `Z`-matrix assembly uses
+[`compute_Z_matrices_aniso_analytic`](@ref). See
+[`CanopyOptics.compute_lambertian_Γ`](@ref) for the azimuthally averaged
+(``m = 0``) equivalent.
 """
 function compute_Γ(mod::BiLambertianCanopyScattering,
                    Ωⁱⁿ::DirectionCosine{FT1},
@@ -51,18 +55,18 @@ function compute_Γ(mod::BiLambertianCanopyScattering,
     return R * Γ⁻ + T * Γ⁺ 
 end
 
-"""
+@doc raw"""
     compute_Γ_isotropic(mod::BiLambertianCanopyScattering, Ωⁱⁿ, Ωᵒᵘᵗ)
 
-Analytic area scattering transfer function for a spherical leaf-angle
-distribution, following Shultis and Myneni (1988), Eq. (40):
+Compute the analytic area scattering transfer function for a spherical leaf-angle
+distribution following Shultis & Myneni (1988), Eq. (40):
 
 ```math
-Γ_{iso}(β) = \\frac{ω}{3π}(\\sin β - β\\cos β) + \\frac{T}{3}\\cos β,
+\Gamma_{\mathrm{iso}}(\beta) = \frac{\omega}{3\pi}(\sin\beta - \beta\cos\beta) + \frac{T}{3}\cos\beta ,
 ```
 
-where `β = acos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ)` and `ω = R + T`. This is a lightweight
-reference for tests of the general Fourier assembly.
+where ``\beta = \arccos(\Omega^{\mathrm{in}} \cdot \Omega^{\mathrm{out}})`` and
+``\omega = R + T``.
 """
 function compute_Γ_isotropic(mod::BiLambertianCanopyScattering,
                              Ωⁱⁿ::DirectionCosine{FT1},
@@ -163,25 +167,25 @@ N_m = \\frac{1}{2π}\\int_0^{2π} \\max(-x(ψ), 0)\\cos(mψ)\\,dψ.
 The function `max(x, 0)` clips away the back-facing half of the signed
 projection (rather than clipping a probability distribution).
 
-The `m = 0` value `P_0` is the Shultis and Myneni (1988) projected-area
-function `H` (their Eq. 35/46 in this codebase).  For `|a| < b`, with
-`ψ* = acos(-a / b)`, the antiderivative gives
+The `m = 0` value ``P_0`` is the Shultis and Myneni (1988) projected-area
+function `H` (their Eq. 35/46 in this codebase).  For ``|a| < b``, with
+``\\psi^* = \\arccos(-a / b)``, the antiderivative gives
 
 ```math
 P_m =
 \\frac{1}{π}\\left[
-\\frac{a\\sin(mψ*)}{m} +
+\\frac{a\\sin(m\\psi^*)}{m} +
 \\frac{b}{2}\\left(
-\\frac{\\sin((m-1)ψ*)}{m-1} +
-\\frac{\\sin((m+1)ψ*)}{m+1}
+\\frac{\\sin((m-1)\\psi^*)}{m-1} +
+\\frac{\\sin((m+1)\\psi^*)}{m+1}
 \\right)\\right],
 ```
 
 with the removable limits
 
 ```math
-P_0 = \\frac{aψ* + b\\sin ψ*}{π}, \\qquad
-P_1 = \\frac{a\\sin ψ* + \\frac{b}{2}ψ* + \\frac{b}{4}\\sin(2ψ*)}{π}.
+P_0 = \\frac{a\\psi^* + b\\sin\\psi^*}{π}, \\qquad
+P_1 = \\frac{a\\sin\\psi^* + \\frac{b}{2}\\psi^* + \\frac{b}{4}\\sin(2\\psi^*)}{π}.
 ```
 
 `N_m` is derived from the exact identity
@@ -255,7 +259,7 @@ _clipped_projection_moments!(P::AbstractVector{FT}, N::AbstractVector{FT},
 _clipped_projection_moments(μ::FT, μ_L::FT, m_max::Int) where {FT<:Real} =
     _one_sided_projection_moments(μ, μ_L, m_max)
 
-"""
+@doc raw"""
     compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,
                                       μ::AbstractVector{FT},
                                       LD::AbstractLeafDistribution,
@@ -268,51 +272,52 @@ canopy phase matrices without azimuthal quadrature.
 
 The scalar default returns arrays of shape `(length(μ), length(μ), m_max + 1)`.
 Passing `npol = 3` or `npol = 4` expands those scalar moments into
-Stokes-block matrices of shape `(npol*length(μ), npol*length(μ), m_max + 1)`.
-Because bi-Lambertian scattering is unpolarized here, only the I→I entry of
+Stokes-block matrices of shape `(npol * length(μ), npol * length(μ), m_max + 1)`.
+Because bi-Lambertian scattering is unpolarized here, only the ``I \to I`` entry of
 each stream block is populated.
 
 All cases use the vSmartMOM convention
 
 ```math
-Z[i_{out}, j_{in}, m+1],
+Z[i_{\mathrm{out}}, j_{\mathrm{in}}, m+1],
 ```
 
-where `Z⁺⁺` is same-sign transmission and `Z⁻⁺` is sign-change reflection.
-The single-scattering albedo `ϖ = R + T` is divided out, so for
-conservative leaves the `m = 0` column integral of `Z⁺⁺ + Z⁻⁺` targets
-`≈ 2` under the same quadrature and `G(μ)` convention used by vSmartMOM.
+where ``Z^{++}`` is same-sign transmission and ``Z^{-+}`` is sign-change reflection.
+The single-scattering albedo ``\varpi = R + T`` is divided out, so for
+conservative leaves the ``m = 0`` column integral of ``Z^{++} + Z^{-+}`` equals
+``\approx 2`` under the same quadrature and ``G(\mu)`` convention used by vSmartMOM.
 
 # Origin trace
 
-Shultis and Myneni (1988), Eq. 45 writes the azimuthally averaged
+Shultis & Myneni (1988), Eq. 45 writes the azimuthally averaged
 Lambertian canopy kernels as products of one-direction projected-area
 functions. For each leaf inclination this implementation generalizes that
-factorization from `m = 0` to arbitrary cosine Fourier order by using the
+factorization from ``m = 0`` to arbitrary cosine Fourier order using the
 closed-form moments returned by `_one_sided_projection_moments`.
 
-For signed incoming/outgoing directions, let `(Pᵢ, Nᵢ)` and `(Pₒ, Nₒ)` be
+For signed incoming/outgoing directions, let ``(P_i, N_i)`` and ``(P_o, N_o)`` be
 the positive-face and negative-face projection moments. The circular-convolution
 theorem gives the per-leaf Fourier coefficients
 
 ```math
-Ψ^+_m = P_{i,m}P_{o,m} + N_{i,m}N_{o,m},
-\\qquad
-Ψ^-_m = P_{i,m}N_{o,m} + N_{i,m}P_{o,m}.
+\Psi^+_m = P_{i,m}P_{o,m} + N_{i,m}N_{o,m},
+\qquad
+\Psi^-_m = P_{i,m}N_{o,m} + N_{i,m}P_{o,m}.
 ```
 
-The code multiplies these products by `2` before applying the existing
-`f_0 = 2`, `f_{m>0} = 4` factors.  That leading `2` is not leaf physics; it
-converts the `1/(2π)` Fourier coefficients above to the half-range cosine
-moment used by the historical `compute_Z_matrices_aniso` implementation:
-`(2/π)∫_0^π Γ(Δϕ)cos(mΔϕ)dΔϕ`.  This is the normalization expected by
-vSmartMOM's elemental kernels, where `ϖ` is applied outside `Z`.
+Multiplying these products by ``2`` before applying ``f_0 = 2`` and ``f_{m>0} = 4``
+converts the ``1/(2\pi)`` Fourier coefficients above to the half-range cosine
+moment used by `compute_Z_matrices_aniso`:
+```math
+\frac{2}{\pi}\int_0^{\pi} \Gamma(\Delta\phi)\cos(m\Delta\phi)\,d\Delta\phi ,
+```
+matching vSmartMOM's elemental kernels where ``\varpi`` is applied outside `Z`.
 
 `angular_normalization = ContinuousAngularNormalization()` retains the default
-continuous angular law. Pass `DiscreteAngularNormalization(μ, weights; atol)`
+continuous angular law. Pass [`DiscreteAngularNormalization`](@ref)`(μ, weights; atol)`
 to normalize each leaf's angular redistribution on that outgoing quadrature
 before integrating over leaf inclination. This preserves the area kernel's
-reciprocity and its discrete zeroth-mode column integral without modifying G or
+reciprocity and its discrete zeroth-mode column integral without modifying ``G`` or
 leaf albedo. Use the same normalization for emitted leaf-source moments.
 """
 function compute_Z_matrices_aniso_analytic(mod::BiLambertianCanopyScattering,

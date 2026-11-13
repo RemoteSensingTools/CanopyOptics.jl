@@ -56,15 +56,16 @@ abstract type AbstractLeafSurface{FT<:Real} end
     return true
 end
 
-"""
+@doc raw"""
     ConeSurface(α_deg = 40, n_scale = 1)
 
 Isotropic incidence-cone dielectric boundary generalizing PROSPECT's Stern–Allen
 surface (`α_deg = 40` reproduces legacy PROSPECT; `α_deg = 0` models collimated
-nadir integrating-sphere illumination; `α_deg = 8` models 8°-port integrating
-spheres). `n_scale` scales the aqueous refractive index `nr` at the external
-epicuticular film (`n_eff = n_scale * nr`), while internal diffuse exit into the
-common `nr` mesophyll obeys exact `1 / nr²` étendue invariance.
+nadir integrating-sphere illumination; `α_deg = 8` models ``8^\circ``-port
+integrating spheres). `n_scale` scales the outer cuticular refractive index
+(``n_{\mathrm{eff}} = n_{\mathrm{scale}} \, n_{\mathrm{surface}}``), while
+internal diffuse exit into the aqueous mesophyll of index ``n_r`` obeys exact
+``1 / n_r^2`` étendue invariance.
 """
 struct ConeSurface{FT<:Real} <: AbstractLeafSurface{FT}
     α_deg::FT
@@ -98,14 +99,15 @@ function ConeSurface{FT}(; α_deg = FT(40), n_scale = one(FT)) where {FT<:Real}
     return ConeSurface{FT}(FT(α_deg), FT(n_scale))
 end
 
-"""
+@doc raw"""
     RoughDielectricSurface(σ = 0.15, n_scale = 1)
 
 Rough Beckmann microfacet dielectric leaf surface with RMS facet slope
-`σ >= 0.02` and effective epicuticular refractive-index factor `n_scale`
-(`n_eff = n_scale * nr`). Uses exact `erfcx`-based Smith separable
-masking-shadowing (`0 <= R_surf < 1` strictly) and thermodynamic `1 / nr²`
-étendue scaling into the `nr` aqueous mesophyll.
+``\sigma \in [0.02, 1]`` and effective epicuticular refractive-index factor `n_scale`
+(``n_{\mathrm{eff}} = n_{\mathrm{scale}} \, n_{\mathrm{surface}}``). Uses exact
+`erfcx`-based Smith separable masking–shadowing (``0 \le R_{\mathrm{surf}} < 1``
+strictly) and thermodynamic ``1 / n_r^2`` étendue scaling into the aqueous
+mesophyll of refractive index ``n_r``.
 """
 struct RoughDielectricSurface{FT<:Real} <: AbstractLeafSurface{FT}
     σ::FT
@@ -139,19 +141,21 @@ function RoughDielectricSurface{FT}(; σ = FT(0.15), n_scale = one(FT)) where {F
     return RoughDielectricSurface{FT}(FT(σ), FT(n_scale))
 end
 
-"""
+@doc raw"""
     calctav_smooth(α_deg, nr)
 
-Cancellation-free Stern (1964) / Allen (1973) cone-averaged dielectric surface
-transmittance for `α_deg ∈ [0, 90]` and `nr > 1`, supporting `Float32`,
-`Float64`, and `ForwardDiff.Dual` without precision promotion or `0/0`
-singularities at `α_deg = 0` or `α_deg = 90`:
-- For `sind(α_deg)^2 <= 0.04` (`α_deg <= 11.54°`, including `0°` and `8°`),
-  evaluates the defining strictly-positive Fresnel integral `∫_0^1 T_F(sa2*ξ, nr) dξ`
-  by 5-point Gauss–Legendre quadrature (`< 1-2 ulp` in `Float32`/`Float64`, `C^∞` at `0°`).
-- Above `0.04` (including `40°` and `90°`), evaluates the exact Stern–Allen
-  closed form with `_b1 = cosd(α_deg) * sqrt(nr^2 - sa2)`, avoiding `sqrt(0)`
-  derivative blowup at `α_deg = 90°`.
+Evaluate cancellation-free Stern (1964) / Allen (1973) cone-averaged dielectric
+surface transmittance for ``\alpha_{\mathrm{deg}} \in [0, 90]`` and ``n_r > 1``,
+supporting `Float32`, `Float64`, and `ForwardDiff.Dual` without precision
+promotion or ``0/0`` singularities at ``\alpha_{\mathrm{deg}} = 0^\circ`` or ``90^\circ``:
+- For ``\sin^2\alpha \le 0.04`` (``\alpha_{\mathrm{deg}} \le 11.54^\circ``,
+  including ``0^\circ`` and ``8^\circ``), evaluates the strictly positive
+  Fresnel cone integral ``\int_0^1 T_F(\xi\sin^2\alpha, n_r)\,\mathrm{d}\xi``
+  by 5-point Gauss–Legendre quadrature (``< 2\text{ ulp}`` in `Float32`/`Float64`,
+  ``C^\infty`` at ``0^\circ``).
+- Above ``0.04`` (including ``40^\circ`` and ``90^\circ``), evaluates the exact
+  Stern–Allen closed form using ``b_1 = \cos\alpha\sqrt{n_r^2 - \sin^2\alpha}``,
+  avoiding ``\sqrt{0}`` derivative singularities at ``\alpha_{\mathrm{deg}} = 90^\circ``.
 """
 @inline function calctav_smooth(α_deg::FTA, nr::FTN) where {FTA<:Real,FTN<:Real}
     FT = float(promote_type(FTA, FTN))
@@ -217,12 +221,16 @@ singularities at `α_deg = 0` or `α_deg = 90`:
     return (ts + tp) / (two * sa2)
 end
 
-"""
+@doc raw"""
     beckmann_D(tan2_theta_h, cos2_theta_h, σ)
 
-Beckmann isotropic microfacet normal distribution `D(h)` evaluated directly from
-`tan² θ_h = (H_x² + H_y²) / H_z²` and `cos² θ_h = H_z² / |H|²` without inverse
-trigonometric functions (`C^∞` smooth at `θ_h = 0`).
+Evaluate the isotropic Beckmann microfacet normal distribution
+```math
+D(\mathbf{h}) = \frac{\exp(-\tan^2\theta_h / \sigma^2)}{\pi \sigma^2 \cos^4\theta_h}
+```
+directly from ``\tan^2\theta_h = (H_x^2 + H_y^2) / H_z^2`` and
+``\cos^2\theta_h = H_z^2 / \|\mathbf{H}\|^2`` without inverse trigonometric
+functions (``C^\infty`` smooth at ``\theta_h = 0``).
 """
 @inline function beckmann_D(tan2_th::FT1, cos2_th::FT2, σ::FT3) where {FT1<:Real,FT2<:Real,FT3<:Real}
     FT = float(promote_type(FT1, FT2, FT3))
@@ -242,13 +250,15 @@ trigonometric functions (`C^∞` smooth at `θ_h = 0`).
     return exp(exponent) / (FT(π) * sig2 * c4)
 end
 
-"""
+@doc raw"""
     smith_beckmann_G1(μ, σ)
 
-Exact Beckmann 1D Smith masking-shadowing factor `G₁(μ; σ) = 1 / (1 + Λ(a))`
-evaluated via `SpecialFunctions.erfcx`. Guards the flat `C^∞` nadir neighborhood
-`(1 - μ²) σ² <= μ² / a_max²` before forming `sqrt(1 - μ²)`, eliminating `0/0`
-and `sqrt(0)` `ForwardDiff.Dual` singularities at `μ = 1`.
+Evaluate the exact Beckmann 1D Smith masking–shadowing factor
+``G_1(\mu; \sigma) = 1 / \bigl(1 + \Lambda(a)\bigr)`` with
+``a = \mu / (\sigma\sqrt{1 - \mu^2})`` via `SpecialFunctions.erfcx`. Guards the
+flat ``C^\infty`` nadir neighborhood ``(1 - \mu^2)\sigma^2 \le \mu^2 / a_{\max}^2``
+before forming ``\sqrt{1 - \mu^2}``, eliminating ``0/0`` and ``\sqrt{0}``
+`ForwardDiff.Dual` singularities at ``\mu = 1``.
 """
 @inline function smith_beckmann_G1(μ_in::FT1, σ_in::FT2) where {FT1<:Real,FT2<:Real}
     FT = float(promote_type(FT1, FT2))
@@ -557,14 +567,16 @@ end
     return (; r_ext, t_ext, r_int_diffuse, t_int_diffuse, t_hem_ext, n_eff)
 end
 
-"""
+@doc raw"""
     microfacet_directional_reflectance(μ_in, n_eff, σ)
 
-Single-bounce directional-hemispherical reflectance `R_{surf,1}(μ_in, n_eff, σ)`
-of a Beckmann–Smith dielectric surface (`0 < R_{surf,1} < 1` strictly), evaluated
-via exact Beckmann slope-cdf `(u, ϕ_h)` change of variables (`D(h) μ_h dω_h = du dϕ_h / 2π`),
-which eliminates peak-width aliasing across all `σ >= 0.02`. Preserves exact
-`ForwardDiff` tangents even at nadir `μ_in = 1`.
+Compute single-bounce directional-hemispherical reflectance
+``R_{\mathrm{surf},1}(\mu_{\mathrm{in}}, n_{\mathrm{eff}}, \sigma)`` of a
+Beckmann–Smith dielectric surface (``0 < R_{\mathrm{surf},1} < 1`` strictly),
+evaluated via the Beckmann slope-CDF ``(u, \phi_h)`` change of variables
+``D(\mathbf{h})\,\mu_h\,\mathrm{d}\omega_h = \mathrm{d}u\,\mathrm{d}\phi_h / (2\pi)``,
+which eliminates peak-width aliasing across all ``\sigma \ge 0.02`` and preserves
+exact `ForwardDiff` tangents at nadir ``\mu_{\mathrm{in}} = 1``.
 """
 @inline function microfacet_directional_reflectance(
     μ_in::FT1,
@@ -606,11 +618,13 @@ which eliminates peak-width aliasing across all `σ >= 0.02`. Preserves exact
     return _microfacet_directional_reflectance_core(μi, sθi, n_eff, σ)
 end
 
-"""
+@doc raw"""
     microfacet_hemispherical_reflectance(n_eff, σ)
 
-Hemispherical-hemispherical single-bounce reflectance
-`2 ∫_0^1 R_{surf,1}(μ, n_eff, σ) μ dμ = ∫_0^1 R_{surf,1}(√v, n_eff, σ) dv`.
+Compute bi-hemispherical single-bounce microfacet reflectance:
+```math
+R_{\mathrm{hem}}(n_{\mathrm{eff}}, \sigma) = 2 \int_0^1 R_{\mathrm{surf},1}(\mu, n_{\mathrm{eff}}, \sigma)\,\mu\,\mathrm{d}\mu = \int_0^1 R_{\mathrm{surf},1}(\sqrt{v}, n_{\mathrm{eff}}, \sigma)\,\mathrm{d}v.
+```
 """
 @inline function microfacet_hemispherical_reflectance(n_eff_in::FT1, σ_in::FT2) where {FT1<:Real,FT2<:Real}
     FT = float(promote_type(FT1, FT2))
@@ -634,32 +648,35 @@ Hemispherical-hemispherical single-bounce reflectance
     return acc
 end
 
-"""
+@doc raw"""
     surface_interface_optics(surface::AbstractLeafSurface, μ_in, nr;
                              hemispherical = false, n_surface = nr)
 
 Evaluate external entry and internal diffuse exit probabilities across a leaf's
 external dielectric boundary:
-- `r_ext`, `t_ext = 1 - r_ext`: external reflectance and entry transmittance
-  (directional at `μ_in` when `hemispherical == false`, or hemispherical `2π -> 2π`
-  when `hemispherical == true`), evaluated at outer cuticular refractive index
-  `n_eff = surface.n_scale * n_surface`.
-- `t_hem_ext`: hemispherical (`2π -> 2π`) external transmittance across `surface`.
-- `t_int_diffuse = t_hem_ext / nr²`, `r_int_diffuse = 1 - t_int_diffuse`:
-  diffuse internal-to-air exit transmittance and internal reflectance from the
-  aqueous mesophyll (`nr > 1`) into air (`n = 1`).
+- `r_ext`, `t_ext` (``= 1 - r_{\mathrm{ext}}``): external reflectance and entry
+  transmittance (directional at ``\mu_{\mathrm{in}}`` when `hemispherical == false`,
+  or bi-hemispherical ``2\pi \to 2\pi`` when `hemispherical == true`), evaluated
+  at outer cuticular refractive index ``n_{\mathrm{eff}} = n_{\mathrm{scale}} \, n_{\mathrm{surface}}``.
+- `t_hem_ext`: bi-hemispherical (``2\pi \to 2\pi``) external transmittance across `surface`.
+- `t_int_diffuse`, `r_int_diffuse`: diffuse internal-to-air exit transmittance
+  ``t_{\mathrm{int,diffuse}} = t_{\mathrm{hem,ext}} / n_r^2`` and internal
+  reflectance ``1 - t_{\mathrm{int,diffuse}}`` from the aqueous mesophyll
+  (``n_r > 1``) into air (``n = 1``).
 
 Physical thin-cuticle approximation when `n_surface != nr` (e.g., Stuckens et al.
-2009 epicuticular wax `n_wax(λ)` via [`load_wax_refractive_index`](@ref)): across
-air (`n = 1`) — lossless thin wax cuticle (`n_eff`) — aqueous mesophyll (`nr`),
-smooth internal wax–mesophyll Fresnel reflection is `(n_eff - nr)² / (n_eff + nr)²`
-(`≈ 0.03–0.05%` in VNIR and `≤ 0.5%` at the `2450 nm` SWIR `nr ≈ 1.27` minimum),
-with zero wax→mesophyll total internal reflection for externally entering rays
-since `sin θ_wax ≤ 1 / n_eff < nr / n_eff` for all `nr > 1`. Neglecting that `< 0.5%`
-secondary internal wax–mesophyll bounce, external entry is governed by the high-contrast
-air–wax interface (`n_eff`), while diffuse internal exit from the aqueous mesophyll
-(`nr`) into air (`n = 1`) obeys exact isothermal detailed-balance étendue invariance
-`t_int_diffuse = t_hem_ext(n_eff) / nr² ∈ (0, 1)` strictly.
+2009 epicuticular wax ``n_{\mathrm{wax}}(\lambda)`` via [`load_wax_refractive_index`](@ref)):
+across air (``n = 1``) — lossless thin wax cuticle (``n_{\mathrm{eff}}``) — aqueous
+mesophyll (``n_r``), smooth internal wax–mesophyll Fresnel reflection is
+``(n_{\mathrm{eff}} - n_r)^2 / (n_{\mathrm{eff}} + n_r)^2`` (``\approx 0.03``–``0.05\%``
+in the VNIR and ``\le 0.5\%`` at the ``2450\text{ nm}`` SWIR ``n_r \approx 1.27``
+minimum), with zero wax-to-mesophyll total internal reflection for externally
+entering rays since ``\sin\theta_{\mathrm{wax}} \le 1 / n_{\mathrm{eff}} < n_r / n_{\mathrm{eff}}``
+for all ``n_r > 1``. Neglecting that ``< 0.5\%`` secondary internal bounce,
+external entry is governed by the air–wax interface (``n_{\mathrm{eff}}``), while
+diffuse internal exit from the aqueous mesophyll (``n_r``) into air (``n = 1``)
+obeys exact isothermal detailed-balance étendue invariance
+``t_{\mathrm{int,diffuse}} = t_{\mathrm{hem,ext}}(n_{\mathrm{eff}}) / n_r^2 \in (0, 1)``.
 """
 @inline function surface_interface_optics(
     surface::ConeSurface{FTS},

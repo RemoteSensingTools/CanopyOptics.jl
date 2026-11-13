@@ -5,9 +5,9 @@ optical constants from leaf structural/biochemical traits, dielectric surface
 boundaries, and directional BSDF assembly:
 
 1. **Optical tables** ([`LeafOpticalProperties`](@ref), [`MultiPigmentOpticalProperties`](@ref), [`load_wax_refractive_index`](@ref)) resample refractive indices and specific absorption spectra onto a caller-chosen wavelength grid.
-2. **Hemispherical mesophyll & dorsiventral budgets** ([`prospect_budget`](@ref), [`leaf_sip_budget`](@ref), [`dorsiventral_budget`](@ref), [`single_slab_dorsiventral_budget`](@ref)) compute directional-hemispherical or bi-hemispherical reflectance `R`, transmittance `T`, and directly integrated nonnegative material absorptance `A` (`R + T + A = 1`).
+2. **Hemispherical mesophyll & dorsiventral budgets** ([`prospect_budget`](@ref), [`leaf_sip_budget`](@ref), [`dorsiventral_budget`](@ref), [`single_slab_dorsiventral_budget`](@ref)) compute directional-hemispherical or bi-hemispherical reflectance ``R``, transmittance ``T``, and directly integrated nonnegative material absorptance ``A`` (``R + T + A = 1``).
 3. **Dielectric boundary models** ([`ConeSurface`](@ref), [`RoughDielectricSurface`](@ref)) evaluate smooth Stern–Allen cone transmittance or Beckmann microfacet reflection/transmission with energy-conserving multiple-scattering compensation.
-4. **Coupled `4×4` polarized leaf BSDF** ([`CoupledLeafBSDF`](@ref), [`prepare_leaf_bsdf`](@ref), [`leaf_bsdf_spectrum`](@ref)) couples specular surface reflection (`4×4` Fresnel Mueller matrix) with interface-transmitted diffuse interior transport while preserving Helmholtz reciprocity and directional energy conservation `R_dir(μ_in) + T_dir(μ_in) + A_dir(μ_in) = 1`.
+4. **Coupled ``4\times 4`` polarized leaf BSDF** ([`CoupledLeafBSDF`](@ref), [`prepare_leaf_bsdf`](@ref), [`leaf_bsdf_spectrum`](@ref)) couples specular surface reflection (``4\times 4`` Fresnel Mueller matrix) with interface-transmitted diffuse interior transport while preserving Helmholtz reciprocity and directional energy conservation ``R_{\mathrm{dir}}(\mu_{\mathrm{in}}) + T_{\mathrm{dir}}(\mu_{\mathrm{in}}) + A_{\mathrm{dir}}(\mu_{\mathrm{in}}) = 1``.
 
 ```@contents
 Pages = ["leaf_optics.md"]

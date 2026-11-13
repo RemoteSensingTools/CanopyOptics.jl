@@ -39,24 +39,18 @@ function build()
             ],
         ]
 
-    mathengine = MathJax(Dict(
-            :TeX => Dict(
-                :equationNumbers => Dict(:autoNumber => "AMS"),
-                :Macros => Dict(),
-            ),
-        ))
-    
     format = Documenter.HTML(
-        #assets = [
-        #    asset("https://fonts.googleapis.com/css?family=Montserrat|Source+Code+Pro&display=swap", class=:css),
-        #    ],
+        assets = [
+            "assets/canopy_plots.css",
+            "assets/canopy_plots.js",
+        ],
         prettyurls = get(ENV, "CI", nothing) == "true",
-        mathengine = mathengine,
+        mathengine = Documenter.KaTeX(),
         collapselevel = 1,
         size_threshold = nothing,
         size_threshold_warn = nothing,
         example_size_threshold = nothing,
-        )
+    )
     DocMeta.setdocmeta!(CanopyOptics, :DocTestSetup, :(using CanopyOptics); recursive = true)
     makedocs(
             sitename = "Canopy Optics",

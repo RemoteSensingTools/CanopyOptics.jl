@@ -231,20 +231,25 @@ end
     return m11, m12, m13, m21, m22, m23, m31, m32, m33, m44
 end
 
-"""
+@doc raw"""
     compute_reflection_mueller(mod, Ωin, Ωout, LD, npol=1)
 
 Compute the specular leaf bidirectional scattering Mueller matrix for `(Ωin, Ωout)`,
-where `Ωin` points toward the illumination source (`k_in = -_cartesian(Ωin)`)
-and `Ωout` points along the reflected ray (`k_out = +_cartesian(Ωout)`).
+where `Ωin` points toward the illumination source (``\mathbf{k}_{\mathrm{in}} = -\hat{\boldsymbol{\Omega}}_{\mathrm{in}}``)
+and `Ωout` points along the reflected ray (``\mathbf{k}_{\mathrm{out}} = +\hat{\boldsymbol{\Omega}}_{\mathrm{out}}``).
 
-The scalar `I → I` element reduces identically to [`compute_reflection`](@ref).
-For `npol = 3` or `4`, the local Fresnel Mueller matrix (`+Q` perpendicular to the
-local reflection plane, `-Q` parallel) is rotated algebraically from the incoming
-canopy meridian-plane triad `(e_s,in, e_p,in, k_in)` into the local reflection
-plane and out to the outgoing canopy meridian-plane triad `(e_s,out, e_p,out, k_out)`,
-matching the vSmartMOM Fourier `cos(m dϕ)` / `sin(m dϕ)` parity convention and
-satisfying exact 4×4 Hovenier reciprocity `M(Ω2, Ω1) = P M(Ω1, Ω2)ᵀ P` (`P = diag(1, 1, -1, 1)`).
+The scalar ``I \to I`` element reduces identically to [`compute_reflection`](@ref).
+For `npol = 3` or `4`, the local Fresnel Mueller matrix (``+Q`` perpendicular to the
+local reflection plane, ``-Q`` parallel) is rotated algebraically from the incoming
+canopy meridian-plane triad ``(\mathbf{e}_{s,\mathrm{in}}, \mathbf{e}_{p,\mathrm{in}}, \mathbf{k}_{\mathrm{in}})``
+into the local reflection plane and out to the outgoing canopy meridian-plane triad
+``(\mathbf{e}_{s,\mathrm{out}}, \mathbf{e}_{p,\mathrm{out}}, \mathbf{k}_{\mathrm{out}})``,
+matching the vSmartMOM Fourier ``\cos(m\Delta\phi)`` / ``\sin(m\Delta\phi)`` parity
+convention and satisfying exact ``4\times 4`` Hovenier reciprocity
+```math
+\mathbf{M}(\Omega_2, \Omega_1) = \mathbf{P}\,\mathbf{M}(\Omega_1, \Omega_2)^{\mathsf{T}}\,\mathbf{P},
+\qquad \mathbf{P} = \operatorname{diag}(1, 1, -1, 1) .
+```
 """
 function compute_reflection_mueller(mod::SpecularCanopyScattering,
                                     Ωin::DirectionCosine{FT1},

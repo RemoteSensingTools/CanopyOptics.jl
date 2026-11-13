@@ -478,22 +478,23 @@ end
            p.brown_material + p.water + p.dry_matter + p.protein + p.carbon_constituents
 end
 
-"""
+@doc raw"""
     prospect_budget(leaf, optics, surface::AbstractLeafSurface;
                     μ_in = one(FT), n_surface = nothing)
 
-Generalized PROSPECT plate budget accepting any [`AbstractLeafSurface`](@ref)
-(`ConeSurface` or `RoughDielectricSurface`), optional directional incidence
-cosine `μ_in ∈ (0, 1]`, and optional outer cuticular refractive-index spectrum
-`n_surface` (e.g., [`load_wax_refractive_index`](@ref)), for either
-[`LeafProspectProProperties`](@ref) or [`LeafMultiPigmentProperties`](@ref).
+Compute a generalized PROSPECT plate budget accepting any [`AbstractLeafSurface`](@ref)
+([`ConeSurface`](@ref) or [`RoughDielectricSurface`](@ref)), optional directional
+incidence cosine ``\mu_{\mathrm{in}} \in (0, 1]``, and optional outer cuticular
+refractive-index spectrum `n_surface` (e.g., [`load_wax_refractive_index`](@ref)),
+for either [`LeafProspectProProperties`](@ref) or [`LeafMultiPigmentProperties`](@ref).
 
-Note: First-surface entry uses `surface_interface_optics(surface, μ_in, nr; n_surface)` and
-symmetric diffuse plate interfaces use `t_int_diffuse = t_hem_ext / nr²` across all
-`N >= 1` plates (smoothly supporting `1 <= N < 2`), reducing identically to legacy
-`prospect_budget` when `surface == ConeSurface(40, 1)` and `n_surface === nothing`.
-For distinct outer-epidermis vs internal aqueous cell-wall interfaces, see
-[`DorsiventralLeafProperties`](@ref). Returns `(; transmission, reflectance, absorptance, reflectance_volume)`.
+First-surface entry uses `surface_interface_optics(surface, μ_in, nr; n_surface)` and
+symmetric diffuse plate interfaces use ``t_{\mathrm{int,diffuse}} = t_{\mathrm{hem,ext}} / n_r^2``
+across all ``N \ge 1`` plates (smoothly supporting ``1 \le N < 2``), reducing
+identically to `prospect_budget(leaf, optics)` when `surface == ConeSurface(40, 1)`
+and `n_surface === nothing`. For distinct outer-epidermis vs internal aqueous
+cell-wall interfaces, see [`DorsiventralLeafProperties`](@ref). Returns
+`(; transmission, reflectance, absorptance, reflectance_volume)`.
 """
 function prospect_budget(
     leaf::Union{LeafProspectProProperties{FTL},LeafMultiPigmentProperties{FTL}},
@@ -779,7 +780,7 @@ function LeafSIPProperties(;
     )
 end
 
-"""
+@doc raw"""
     leaf_sip_budget(leaf::LeafSIPProperties, optics; surface = nothing, μ_in = 1, n_surface = nothing)
 
 Evaluate the Wu et al. (2020) `Leaf-SIP` spectral-invariants leaf optical budget
@@ -788,14 +789,15 @@ Fresnel reflection) or a surface-coupled `Leaf-SIP+Fresnel` budget when an
 [`AbstractLeafSurface`](@ref) is supplied (`surface = ConeSurface(...)` or
 `RoughDielectricSurface(...)`, with optional `n_surface` wax dispersion).
 
-Note: Wu et al. (2020)'s default slopes (`alpha_lma = 600`, `f_lma_slope = 2765`,
+Wu et al. (2020)'s default slopes (`alpha_lma = 600`, `f_lma_slope = 2765`,
 `g_lma_slope = 102.8`) were empirically calibrated for bare `surface = nothing`;
 adding an external `surface` restores physical blue/red cuticular reflectance
-floors, and `alpha_lma`/`f_lma_slope`/`g_lma_slope` can be recalibrated when
+floors, and `alpha_lma`, `f_lma_slope`, and `g_lma_slope` can be recalibrated when
 fitting NIR/SWIR plateaus jointly with surface coupling.
 
-Computes absorptance directly via `-expm1(-k_elem)` without `1 - R - T`
-subtraction, preserving exact `R + T + A == 1` into the nonabsorbing limit.
+Computes absorptance directly via ``-\operatorname{expm1}(-k_{\mathrm{elem}})``
+without ``1 - R - T`` subtraction, preserving ``R + T + A = 1`` into the
+nonabsorbing limit.
 """
 function leaf_sip_budget(
     leaf::LeafSIPProperties{FTL},

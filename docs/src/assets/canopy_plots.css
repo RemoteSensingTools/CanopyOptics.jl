@@ -1,0 +1,234 @@
+/* Interactive D3.js documentation visualizations for CanopyOptics.jl */
+
+.canopy-d3-plot {
+  --cp-bg: #ffffff;
+  --cp-panel-bg: #fcfcfd;
+  --cp-border: #dfe3eb;
+  --cp-grid: rgba(35, 48, 68, 0.11);
+  --cp-axis: #526075;
+  --cp-text: #1c2430;
+  --cp-muted: #5a6679;
+  --cp-accent: #1d6fd6;
+  --cp-tooltip-bg: rgba(20, 26, 36, 0.94);
+  --cp-tooltip-fg: #f8fafc;
+  position: relative;
+  margin: 1.25rem 0 1.6rem 0;
+  padding: 0.9rem 1rem 1rem 1rem;
+  background: var(--cp-bg);
+  border: 1px solid var(--cp-border);
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--cp-text);
+  box-sizing: border-box;
+}
+
+html.theme--documenter-dark .canopy-d3-plot,
+html.theme--catppuccin-mocha .canopy-d3-plot,
+html.theme--catppuccin-macchiato .canopy-d3-plot,
+html.theme--catppuccin-frappe .canopy-d3-plot {
+  --cp-bg: #1b1f27;
+  --cp-panel-bg: #222733;
+  --cp-border: #333b4d;
+  --cp-grid: rgba(226, 232, 240, 0.12);
+  --cp-axis: #9aa6b8;
+  --cp-text: #e6edf5;
+  --cp-muted: #a3b1c6;
+  --cp-accent: #58a6ff;
+  --cp-tooltip-bg: rgba(10, 14, 22, 0.95);
+  --cp-tooltip-fg: #f1f5f9;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+}
+
+.canopy-d3-header {
+  margin-bottom: 0.65rem;
+}
+
+.canopy-d3-title {
+  font-size: 1.02rem;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--cp-text);
+  margin: 0;
+}
+
+.canopy-d3-subtitle {
+  font-size: 0.84rem;
+  color: var(--cp-muted);
+  margin: 0.2rem 0 0 0;
+}
+
+.canopy-d3-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0.55rem 0 0.75rem 0;
+  padding: 0.45rem 0.7rem;
+  background: var(--cp-panel-bg);
+  border: 1px solid var(--cp-border);
+  border-radius: 7px;
+  font-size: 0.84rem;
+}
+
+.canopy-d3-play-btn {
+  appearance: none;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-bg);
+  color: var(--cp-text);
+  border-radius: 5px;
+  padding: 0.22rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.canopy-d3-play-btn:hover {
+  border-color: var(--cp-accent);
+  color: var(--cp-accent);
+}
+
+.canopy-d3-slider {
+  flex: 1 1 180px;
+  max-width: 320px;
+  accent-color: var(--cp-accent);
+  cursor: pointer;
+}
+
+.canopy-d3-frame-label {
+  font-weight: 600;
+  color: var(--cp-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.canopy-d3-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cp-cols, 1), minmax(0, 1fr));
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .canopy-d3-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.canopy-d3-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--cp-panel-bg);
+  border: 1px solid var(--cp-border);
+  border-radius: 8px;
+  padding: 0.55rem 0.6rem 0.45rem 0.6rem;
+  min-width: 0;
+  position: relative;
+}
+
+.canopy-d3-panel-title {
+  font-size: 0.88rem;
+  font-weight: 620;
+  color: var(--cp-text);
+  margin: 0 0 0.3rem 0.2rem;
+  line-height: 1.25;
+}
+
+.canopy-d3-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem 0.65rem;
+  margin: 0 0.2rem 0.35rem 0.2rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.canopy-d3-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  cursor: pointer;
+  user-select: none;
+  color: var(--cp-text);
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.canopy-d3-legend-item:hover {
+  background: rgba(127, 140, 160, 0.12);
+}
+
+.canopy-d3-legend-item.is-muted {
+  opacity: 0.38;
+  text-decoration: line-through;
+}
+
+.canopy-d3-swatch {
+  width: 16px;
+  height: 10px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.canopy-d3-stage {
+  position: relative;
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+.canopy-d3-stage svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.canopy-d3-stage canvas {
+  position: absolute;
+  pointer-events: none;
+}
+
+.canopy-d3-tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  background: var(--cp-tooltip-bg, rgba(20, 26, 36, 0.94));
+  color: var(--cp-tooltip-fg, #f8fafc);
+  padding: 0.42rem 0.62rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  line-height: 1.38;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  max-width: 310px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity 0.08s ease;
+}
+
+.canopy-d3-tooltip.is-visible {
+  opacity: 1;
+}
+
+.canopy-d3-tooltip-head {
+  font-weight: 650;
+  margin-bottom: 0.18rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  padding-bottom: 0.12rem;
+}
+
+.canopy-d3-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.canopy-d3-tooltip-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 0.35rem;
+  flex-shrink: 0;
+}

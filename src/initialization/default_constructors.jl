@@ -16,22 +16,22 @@ function planophile_leaves(::Type{FT} = Float64) where {FT<:Real}
     return LeafDistribution(Beta(FT(α), FT(β)), FT(2) / FT(π))
 end
 
-"""
+@doc raw"""
     planophile_leaves2(FT = Float64)
 
 Construct a `Beta(1, 2.768)` planophile [`LeafDistribution`](@ref)
-approximating Bunnik's `g_L(θ_L) = (2/π)(1 + cos 2θ_L)` distribution
-(Shultis & Myneni, 1988, Eq. 59).
+approximating Bunnik's ``g_L(\theta_L) = \frac{2}{\pi}(1 + \cos 2\theta_L)``
+distribution (Shultis & Myneni, 1988, Eq. 59).
 """
 function planophile_leaves2(::Type{FT} = Float64) where {FT<:Real}
     return LeafDistribution(Beta(one(FT), FT(2.768)), FT(2) / FT(π))
 end
 
-"""
+@doc raw"""
     uniform_leaves(FT = Float64)
 
-Construct a uniform [`LeafDistribution`](@ref) (`g_L(θ_L) = 2/π` over
-`θ_L ∈ [0, π/2]`).
+Construct a uniform [`LeafDistribution`](@ref) (``g_L(\theta_L) = 2/\pi`` over
+``\theta_L \in [0, \pi/2]``).
 """
 function uniform_leaves(::Type{FT} = Float64) where {FT<:Real}
     return LeafDistribution(Uniform(zero(FT), one(FT)), FT(2) / FT(π))

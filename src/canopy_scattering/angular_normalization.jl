@@ -14,13 +14,13 @@ Its integral on a finite outgoing-stream quadrature need not be exactly one.
 """
 struct ContinuousAngularNormalization <: AbstractAngularNormalization end
 
-"""
+@doc raw"""
     DiscreteAngularNormalization(μ, weights; atol)
 
 Normalize each leaf face's angular redistribution against the supplied positive-
 hemisphere cosine quadrature. Both arrays must share a floating-point type;
-`0 < μ ≤ 1`, nonnegative weights, and `abs(sum(weights)-1) ≤ atol` are required.
-Zero-weight viewing/solar nodes are allowed. No weights are rescaled.
+``0 < \mu \le 1``, nonnegative weights, and ``\lvert\sum_i w_i - 1\rvert \le \mathrm{atol}``
+are required. Zero-weight viewing/solar nodes are allowed. No weights are rescaled.
 
 The constructor copies the host arrays. Treat the owned arrays as read-only and
 reconstruct the object when angles or weights change. Scattering calls require
@@ -28,7 +28,7 @@ the exact same angle values, order and precision. Include the normalization and
 both angular arrays in any downstream optical-cache identity.
 
 This is an opt-in discretization of a bi-Lambertian angular PDF, not a change to
-leaf albedo, projected area G, absorbed PAR or photon yield. It preserves the
+leaf albedo, projected area ``G``, absorbed PAR or photon yield. It preserves the
 scalar area kernel's reciprocity while making its zeroth-mode column integral
 conservative to rounding accuracy. Finite angular errors and solver depth errors
 remain. Specular/composite normalization is not provided by this policy.
@@ -67,15 +67,17 @@ function _check_angular_normalization(normalization::DiscreteAngularNormalizatio
     nothing
 end
 
-"""
+@doc raw"""
     leaf_angular_scale(normalization, μ_leaf)
 
-Host geometry factor for one leaf inclination. The continuous convention returns
-one. The discrete convention returns `1/H`, where
-`H = 2sum(wᵢ * (P₀(μᵢ, μ_leaf) + N₀(μᵢ, μ_leaf)))` is the quadrature integral
-of a single Lambertian leaf face. `μ_leaf` lies in `[0,1]` and uses the measure's
-floating-point precision. Multiply each leaf's scattering contribution or source
-projection by this factor once; do not change G, leaf area or physiological yield.
+Compute the host geometry factor for one leaf inclination `μ_leaf` in ``[0, 1]``.
+The continuous convention returns `1`. The discrete convention returns ``1 / H``, where
+```math
+H = 2 \sum_i w_i \bigl(P_0(\mu_i, \mu_{\mathrm{leaf}}) + N_0(\mu_i, \mu_{\mathrm{leaf}})\bigr)
+```
+is the quadrature integral of a single Lambertian leaf face. Multiply each leaf's
+scattering contribution or source projection by this factor once without altering
+``G``, leaf area, or physiological yield.
 
 Precompute this host geometry before copying optical/source arrays to a GPU.
 """
@@ -119,20 +121,24 @@ function _leaf_angular_scale_for_Z(
     return inv(H)
 end
 
-"""
+@doc raw"""
     leaf_projection_moments(μ, μ_leaf, m_max;
                             normalization=ContinuousAngularNormalization())
 
-Return `(P, N)`, cosine Fourier moments of the positive/negative leaf-face
+Return `(P, N)`, the cosine Fourier moments of the positive and negative leaf-face
 projections for orders `0:m_max`. Ray cosine `μ` is signed; the leaf normal points
-upwards with inclination cosine `μ_leaf ∈ [0,1]`. Both use the same precision.
-The continuous moments contain `1/(2π) ∫ projection*cos(mϕ) dϕ`.
+upward with inclination cosine ``\mu_{\mathrm{leaf}} \in [0, 1]`` using the same
+floating-point precision. The continuous moments evaluate
+```math
+\frac{1}{2\pi} \int_0^{2\pi} \text{projection}(\phi)\cos(m\phi)\,d\phi .
+```
 
-For a two-face Lambertian source, `2P*front + 2N*back` gives its azimuth-integrated
-source coefficients before leaf-normal azimuth factors. The optional discrete
-normalization applies [`leaf_angular_scale`](@ref) once to both arrays, consistently
-with bi-Lambertian scattering on that measure. The azimuth convention and μ path
-factor of a particular RT solver belong in its adapter, not in these moments.
+For a two-face Lambertian source (`front`, `back`), ``2 P_m f_{\mathrm{front}} + 2 N_m f_{\mathrm{back}}``
+gives the azimuth-integrated source coefficients before leaf-normal azimuth factors.
+The optional discrete normalization applies [`leaf_angular_scale`](@ref) once to
+both arrays, consistently with bi-Lambertian scattering on that measure. The
+azimuth convention and ``\mu`` path factor of a particular radiative-transfer solver
+belong in its adapter rather than in these moments.
 """
 function leaf_projection_moments(μ::FT,μ_leaf::FT,m_max::Integer;
         normalization::AbstractAngularNormalization=ContinuousAngularNormalization()) where {FT<:Real}

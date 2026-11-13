@@ -6,7 +6,7 @@
 # one entry point — the `dielectric(material, T_kelvin, f_GHz)` function —
 # and dispatch is on the material type.
 using CanopyOptics
-using CairoMakie
+include(joinpath(@__DIR__, "..", "..", "..", "d3_plots.jl")) # hide
 
 # ## The shared contract
 #
@@ -47,15 +47,23 @@ freqs = range(0.2, 20.0, length = 80)
 ε_water = [dielectric(LiquidPureWater(),                280.0, f) for f in freqs]
 ε_leaf  = [dielectric(LeafUlabyElRayes1987(M_g = 0.5), 280.0, f) for f in freqs]
 
-fig = Figure(size = (640, 360))
-ax = Axis(fig[1, 1]; xlabel = "frequency (GHz)", ylabel = "ε",
-          title = "Permittivity vs frequency at T = 280 K")
-lines!(ax, freqs, real.(ε_water); label = "water  ε'")
-lines!(ax, freqs, imag.(ε_water); label = "water  ε''", linestyle = :dash)
-lines!(ax, freqs, real.(ε_leaf);  label = "leaf   ε'")
-lines!(ax, freqs, imag.(ε_leaf);  label = "leaf   ε''", linestyle = :dash)
-axislegend(ax; position = :rt)
-fig
+D3Figure(
+    cols = 1,
+    rowHeight = 310,
+    panels = [
+        d3_cartesian(
+            title = "Permittivity vs frequency at T = 280 K",
+            xlabel = "frequency (GHz)",
+            ylabel = "relative permittivity ε",
+            series = [
+                d3_line(freqs, real.(ε_water); label = "water ε'",  color = "#1f77b4", width = 2.2),
+                d3_line(freqs, imag.(ε_water); label = "water ε''", color = "#1f77b4", dash = "dash", width = 2.0),
+                d3_line(freqs, real.(ε_leaf);  label = "leaf ε'",   color = "#2ca02c", width = 2.2),
+                d3_line(freqs, imag.(ε_leaf);  label = "leaf ε''",  color = "#2ca02c", dash = "dash", width = 2.0),
+            ],
+        ),
+    ],
+)
 
 # ## Moisture sweep — leaf
 #
@@ -65,13 +73,21 @@ fig
 mgs   = range(0.0, 0.7, length = 41)
 ε_mg  = [dielectric(LeafUlabyElRayes1987(M_g = m), 295.0, 5.0) for m in mgs]
 
-fig2 = Figure(size = (640, 360))
-ax2 = Axis(fig2[1, 1]; xlabel = "gravimetric moisture M_g",
-           ylabel = "ε", title = "Leaf permittivity at f = 5 GHz")
-lines!(ax2, mgs, real.(ε_mg); label = "ε'")
-lines!(ax2, mgs, imag.(ε_mg); label = "ε''", linestyle = :dash)
-axislegend(ax2; position = :lt)
-fig2
+D3Figure(
+    cols = 1,
+    rowHeight = 300,
+    panels = [
+        d3_cartesian(
+            title = "Leaf permittivity vs moisture at f = 5 GHz, T = 295 K",
+            xlabel = "gravimetric moisture M_g",
+            ylabel = "relative permittivity ε",
+            series = [
+                d3_line(mgs, real.(ε_mg); label = "ε' (real)", color = "#1f77b4", width = 2.3),
+                d3_line(mgs, imag.(ε_mg); label = "ε'' (loss)", color = "#d62728", dash = "dash", width = 2.1),
+            ],
+        ),
+    ],
+)
 
 # ## Adding a new material
 #

@@ -70,7 +70,7 @@ DorsiventralPlateEscape(
     return (f / total, b / total)
 end
 
-"""
+@doc raw"""
     DorsiventralBirthProfile(
         adaxial_weight, abaxial_weight,
         adaxial_excitation_depth, adaxial_forward, adaxial_backward,
@@ -81,22 +81,22 @@ end
 
 Two-zone normalized internal photon birth-depth distribution for [`DorsiventralPlateEscape`](@ref).
 
-Local dimensionless depth `ζ_i ∈ [0, 1]` runs **anatomically adaxial → abaxial in both zones**:
-- Zone 1 (adaxial / palisade): `ζ_1 = 0` at the outer adaxial epidermis and `ζ_1 = 1` at the
+Local dimensionless depth ``\zeta_i \in [0, 1]`` runs **anatomically adaxial ``\to`` abaxial in both zones**:
+- Zone 1 (adaxial / palisade): ``\zeta_1 = 0`` at the outer adaxial epidermis and ``\zeta_1 = 1`` at the
   internal palisade–spongy boundary, with conditional density proportional to
-  `adaxial_forward * exp(-a_1 * ζ_1) + adaxial_backward * exp(-a_1 * (1 - ζ_1))`.
-- Zone 2 (abaxial / spongy): `ζ_2 = 0` at the internal palisade–spongy boundary and `ζ_2 = 1`
+  ``f_1 \exp(-a_1 \zeta_1) + g_1 \exp\bigl(-a_1 (1 - \zeta_1)\bigr)``.
+- Zone 2 (abaxial / spongy): ``\zeta_2 = 0`` at the internal palisade–spongy boundary and ``\zeta_2 = 1``
   at the outer abaxial epidermis, with conditional density proportional to
-  `abaxial_forward * exp(-a_2 * ζ_2) + abaxial_backward * exp(-a_2 * (1 - ζ_2))`.
+  ``f_2 \exp(-a_2 \zeta_2) + g_2 \exp\bigl(-a_2 (1 - \zeta_2)\bigr)``.
 
-Reversing the anatomical leaf orientation (`adaxial ↔ abaxial`) therefore maps
-`(w_1, a_1, f_1, g_1) ↔ (w_2, a_2, g_2, f_2)`, swapping `front` and `back` escape
+Reversing the anatomical leaf orientation (`adaxial` ``\leftrightarrow`` `abaxial`) therefore maps
+``(w_1, a_1, f_1, g_1) \leftrightarrow (w_2, a_2, g_2, f_2)``, swapping `front` and `back` escape
 while leaving `reabsorbed` invariant.
 
 The two-argument `DorsiventralBirthProfile(adaxial_weight, abaxial_weight)` constructor
-creates a piecewise-uniform birth profile (`a_1 = a_2 = 0`) with normalized zone weights.
+creates a piecewise-uniform birth profile (``a_1 = a_2 = 0``) with normalized zone weights.
 Passing [`UniformBirthProfile`](@ref) directly to [`leaf_emission_fates`](@ref) on a
-[`DorsiventralPlateEscape`](@ref) weights both zones equally (`1/2, 1/2`).
+[`DorsiventralPlateEscape`](@ref) weights both zones equally (``(1/2, 1/2)``).
 """
 struct DorsiventralBirthProfile{FT<:AbstractFloat} <: AbstractLeafBirthProfile
     adaxial_weight::FT
@@ -329,7 +329,7 @@ end
     return tau, loss, b
 end
 
-"""
+@doc raw"""
     dorsiventral_plate_optics(
         k_adaxial, k_abaxial, nr;
         surface_adaxial = ConeSurface(40, 1),
@@ -341,24 +341,26 @@ end
     )
 
 Host preparation helper mapping finite nonnegative palisade (`k_adaxial`) and spongy
-(`k_abaxial`) material optical depths and aqueous mesophyll refractive index `nr > 1`
+(`k_abaxial`) material optical depths and aqueous mesophyll refractive index ``n_r > 1``
 into effective exponential emission depths, outer entry/exit transmissions, internal
 palisade–spongy boundary transmission, and a prepared [`DorsiventralPlateEscape`](@ref).
 
-Outer diffuse internal exit transmissions `t_exit = t_hem_ext(n_eff, σ) / nr²` obey
-isothermal detailed-balance étendue conservation (`n_eff = n_scale * n_surface_face`),
+Outer diffuse internal exit transmissions ``t_{\mathrm{exit}} = t_{\mathrm{hem,ext}}(n_{\mathrm{eff}}, \sigma) / n_r^2``
+obey isothermal detailed-balance étendue conservation (``n_{\mathrm{eff}} = n_{\mathrm{scale}} \, n_{\mathrm{surface}}``),
 supporting both [`ConeSurface`](@ref) and [`RoughDielectricSurface`](@ref) as well as
 epicuticular wax refractive indices (`n_surface_adaxial`, `n_surface_abaxial`).
-`hemispherical` selects hemispherical (`90°`) vs `40°`-cone external **entry**
+`hemispherical` selects hemispherical (``90^\circ``) vs ``40^\circ``-cone external **entry**
 transmission (`adaxial_entry_transmission`, `abaxial_entry_transmission`) for excitation
 transport; diffuse internal **exit** transmission is always hemispherical.
 
 For the internal boundary between zones:
 - `internal_air_gap = false` (default): `interface_transmission = 1` (unbroken
   index-matched mesophyll boundary, exact two-sublayer slab limit).
-- `internal_air_gap = true`: symmetric diffuse mesophyll (`nr`) → intercellular air space
-  (`n = 1`) → mesophyll (`nr`) transmission `t_gap = t90 / (nr² * (2 - t90))` where
-  `t90 = calctav(90, nr)`, accounting for multiple internal reflections within the air gap.
+- `internal_air_gap = true`: symmetric diffuse mesophyll (``n_r``) ``\to`` intercellular
+  air space (``n = 1``) ``\to`` mesophyll (``n_r``) transmission
+  ``t_{\mathrm{gap}} = t_{90} / \bigl(n_r^2 (2 - t_{90})\bigr)`` where
+  ``t_{90} = \operatorname{calctav}(90^\circ, n_r)``, accounting for multiple internal
+  reflections within the air gap.
 """
 function dorsiventral_plate_optics(
     k_adaxial::FT,

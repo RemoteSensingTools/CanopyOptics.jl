@@ -1,5 +1,11 @@
 # Leaf model evaluations and physical diagnostics
 
+```@setup eval_figs
+using CanopyOptics
+include(joinpath(pkgdir(CanopyOptics), "docs", "d3_plots.jl"))
+eval_data_dir = joinpath(pkgdir(CanopyOptics), "docs", "src", "data", "evaluations")
+```
+
 This page documents empirical and physical evaluations of leaf radiative transfer
 models implemented and benchmarked in `CanopyOptics`. Rather than evaluating models
 solely by in-sample spectral curve fitting—where structural parameters such as ``N``
@@ -69,7 +75,9 @@ for [`CoupledLeafBSDF`](@ref).
 Holding measured leaf chemistry fixed and fitting only the structural scalar ``N``
 (one scalar per leaf) exposes systematic physical errors across model families.
 
-![Fixed-chemistry spectral residuals across model families](../assets/evaluations/fig1_fixed_chemistry_residuals.png)
+```@example eval_figs
+d3_from_file(joinpath(eval_data_dir, "fig1_fixed_chemistry_residuals.json")) # hide
+```
 
 | Dataset | Model & boundary | Green ``R`` RMSE | Red-edge ``R`` RMSE | NIR ``R`` RMSE | SWIR ``T`` RMSE | Full ``R`` RMSE | Full ``T`` RMSE |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -137,7 +145,9 @@ and biological prior regularization: at typical pigment loadings
 and ``\partial R/\partial C_{\mathrm{chlb}}`` into strong collinearity except on the
 ``455``–``485\text{ nm}`` Chl *b* shoulder and ``645``–``665\text{ nm}`` trough.
 
-![Chlorophyll a and b spectral basis and blind cross-dataset transfer](../assets/evaluations/fig2_pigment_identifiability.png)
+```@example eval_figs
+d3_from_file(joinpath(eval_data_dir, "fig2_pigment_identifiability.json")) # hide
+```
 
 To prevent per-leaf overfitting, `:calibrated_in_vivo`
 ([`MultiPigmentOpticalProperties`](@ref)) learns smooth perturbations around
@@ -175,14 +185,20 @@ chemistry used during basis or prior calibration), as well as in the reverse
 ## Experiment C: Dorsiventral asymmetry and Helmholtz reciprocity
 
 Across the ``35`` `LOTUS` leaves measured on both adaxial and abaxial faces in the
-Cary-5000 integrating sphere, empirical directional-hemispherical transmittance is
-symmetric across illumination faces (median ``|T_{\mathrm{ad}} - T_{\mathrm{ab}}| \le 0.005``
-across VNIR–SWIR, consistent with exact linear Helmholtz reciprocity), whereas
-abaxial reflectance exceeds adaxial reflectance by ``+0.06`` to ``+0.10`` across
-``400``–``700\text{ nm}`` because incident photons encounter the lacunose spongy
+Cary-5000 integrating sphere, empirical directional-hemispherical transmittance shows
+nearly zero visible face difference (median ``|T_{\mathrm{ab}} - T_{\mathrm{ad}}| \le 0.003``
+across ``400``–``700\text{ nm}``) alongside a small ``+0.025`` to ``+0.029`` NIR
+collimated-entry / sphere-geometry offset across ``750``–``1350\text{ nm}``—because linear
+Helmholtz reciprocity equates collimated-to-hemispherical ``T_{\mathrm{ad}}(0^\circ \to 2\pi)``
+with hemispherical-to-directional ``T_{\mathrm{ab}}(2\pi \to 0^\circ)`` while strictly
+requiring bi-hemispherical ``T_{\mathrm{ad}}(2\pi \to 2\pi) = T_{\mathrm{ab}}(2\pi \to 2\pi)``.
+By contrast, abaxial reflectance exceeds adaxial reflectance by ``+0.06`` to ``+0.10``
+across ``400``–``700\text{ nm}`` because incident photons encounter the lacunose spongy
 mesophyll and lower-chlorophyll layers before reaching the dense palisade.
 
-![Empirical and modeled dorsiventral asymmetry and reciprocity](../assets/evaluations/fig3_dorsiventral_reciprocity.png)
+```@example eval_figs
+d3_from_file(joinpath(eval_data_dir, "fig3_dorsiventral_reciprocity.json")) # hide
+```
 
 | Protocol (`LOTUS`, ``n = 35`` pairs) | Leaf model | ``R_{\mathrm{ad}}`` RMSE | ``R_{\mathrm{ab}}`` RMSE | VNIR ``\Delta R`` RMSE | ``T_{\mathrm{ad}}`` RMSE | ``\max |T_{\mathrm{ad}} - T_{\mathrm{ab}}|`` |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -226,7 +242,9 @@ scans, chemistry fixed to measured values), withholding **all** GoSPo angular
 transmittance (`y_T`), Cary-5000 sphere `R_cary` and `T_cary`, and `55°` degree of
 linear polarization (`DoLP`) strictly for out-of-sample evaluation:
 
-![LOTUS angular BRDF/BTDF, missing-cone operator and polarization](../assets/evaluations/fig4_lotus_angular_btdf_polarization.png)
+```@example eval_figs
+d3_from_file(joinpath(eval_data_dir, "fig4_lotus_angular_btdf_polarization.json")) # hide
+```
 
 | Model (`LOTUS`, ``n = 266``) | Fit ``y_R`` RMSE | Unseen ``y_T`` RMSE | Unseen ``T_{\mathrm{Cary}}`` RMSE | ``R_{\mathrm{GoSPo}}`` (full ``[0^\circ,90^\circ]``) | ``R_{\mathrm{GoSPo}}`` (``\ge 7.5^\circ`` cone) | Unseen ``55^\circ`` DoLP RMSE (bias) |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -270,9 +288,11 @@ above ``\theta_i \approx 55^\circ`` (`R + T = 1.187` at ``80^\circ`` for the med
 [`CoupledLeafBSDF`](@ref) satisfies ``R(\theta_i) + T(\theta_i) + A(\theta_i) = 1``
 to machine precision (``< 10^{-15}``) at all ``\theta_i \in [0^\circ, 89.9^\circ]``.
 
-![SZA energy conservation and aqueous-nr 2D off-azimuth baseline (see Fig. 7A for wax dispersion)](../assets/evaluations/fig5_sza_conservation_and_2d_generalization.png)
+```@example eval_figs
+d3_from_file(joinpath(eval_data_dir, "fig5_sza_conservation_and_2d_generalization.json")) # hide
+```
 
-> **Note on Figure 5B vs. Figure 7A:** Panel B above shows the initial aqueous-mesophyll ``n_r(\lambda)`` baseline for [`CoupledLeafBSDF`](@ref) (`SWIR RMSE = 0.1399` and `0.0493`), which revealed the far-SWIR cuticle dispersion offset subsequently resolved in Figure 7A and the table below by supplying Stuckens et al. (2009) epicuticular wax dispersion ``n_{\mathrm{wax}}(\lambda)`` (`SWIR RMSE = 0.1098` and `0.0355`).
+> **Note on Figure 5B vs. Figure 7A:** Panel B above shows the initial aqueous-mesophyll ``n_r(\lambda)`` baseline for [`CoupledLeafBSDF`](@ref) (with 2D off-azimuth bars plotting per-scan mean RMSE and the table below reporting pooled RMSE across all observations: `SWIR RMSE = 0.1399` and `0.0493`), which revealed the far-SWIR cuticle dispersion offset subsequently resolved in Figure 7A and the table below by supplying Stuckens et al. (2009) epicuticular wax dispersion ``n_{\mathrm{wax}}(\lambda)`` (`SWIR RMSE = 0.1098` and `0.0355`).
 
 When extrapolating from low incidence angles (``\theta_i \in \{20^\circ, 30^\circ\}``)
 to unseen oblique angles (``\theta_i \in \{40^\circ, 50^\circ\}``) or from the
@@ -306,7 +326,9 @@ Propagating leaf models into a multi-layer Fourier canopy solver (``\mathrm{LAI}
 ``\theta_s \in \{20^\circ, 45^\circ, 65^\circ\}``, planophile/spherical/erectophile
 leaf angle distributions) highlights three canopy-scale effects:
 
-![Canopy BRF, fAPAR and vertical absorption profiles](../assets/evaluations/fig6_canopy_rt_impact.png)
+```@example eval_figs
+d3_from_file(joinpath(eval_data_dir, "fig6_canopy_rt_impact.json")) # hide
+```
 
 1. **Incident-direction sign & meridian Stokes rotation fixes in [`SpecularCanopyScattering`](@ref)**:
    Passing outgoing convention ``+\mathbf{k}_{\mathrm{in}}`` instead of incoming
@@ -338,7 +360,9 @@ quantifies how internal pigment stratification and the palisade–spongy interce
 air interface reshape escaping solar-induced chlorophyll fluorescence (`SIF`) across
 ``640``–``850\text{ nm}``:
 
-![Epicuticular wax SWIR dispersion and two-zone dorsiventral SIF escape](../assets/evaluations/fig7_wax_and_dorsiventral_sif.png)
+```@example eval_figs
+d3_from_file(joinpath(eval_data_dir, "fig7_wax_and_dorsiventral_sif.json")) # hide
+```
 
 | Excitation & illuminated face | Structural escape model | Palisade birth share ``w_1`` | ``685\text{ nm}`` front escape | ``740\text{ nm}`` front escape | ``740\text{ nm}`` front share | Escaping ``F_{685}/F_{740}`` (front) | Escaping ``F_{685}/F_{740}`` (back) | Max photon closure error |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

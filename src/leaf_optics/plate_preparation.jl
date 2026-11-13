@@ -6,12 +6,12 @@ and refractive index `nr > 1`, using the same floating-point type. Return
 `traversal_transmission`, `traversal_absorptance`, `effective_depth`,
 `interface_entry_transmission` and `interface_exit_transmission`.
 
-Traversal transmission is `2E₃(k)` and absorption is evaluated directly near
+Traversal transmission is ``2 E_3(k)`` and absorption is evaluated directly near
 zero. The effective exponential depth is its negative logarithm, computed from
 direct loss near the conservative limit so a rounded unit transmission does not
 erase weak absorption. This depth is an internal-source approximation, not
-angle-resolved propagation. Both interfaces use hemispheric (90-degree) Fresnel
-transmission, with `t_exit=t_entry/nr²`. The entry convention differs from default
+angle-resolved propagation. Both interfaces use hemispheric (``90^\\circ``) Fresnel
+transmission, with ``t_{\\mathrm{exit}} = t_{\\mathrm{entry}} / n_r^2``. The entry convention differs from default
 PROSPECT's first-surface 40-degree cone and is not a solar zenith angle.
 
 This is host preparation, tested in Float32/Float64 over the native optical

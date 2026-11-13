@@ -12,7 +12,7 @@ r_s = \\frac{\\cos\\theta_i - n\\cos\\theta_t}{\\cos\\theta_i + n\\cos\\theta_t}
 r_p = \\frac{n\\cos\\theta_i - \\cos\\theta_t}{n\\cos\\theta_i + \\cos\\theta_t},
 ```
 
-where `sin θ_t = sin θ_i / n`.
+where ``\\sin\\theta_t = \\sin\\theta_i / n``.
 
 # Examples
 ```jldoctest
@@ -41,8 +41,8 @@ end
 """
     Fᵣ(n, θᵢ)
 
-Compute unpolarized Fresnel power reflectance `(r_s² + r_p²) / 2` for an
-air-to-medium interface with real refractive index `n` at incidence angle `θᵢ`
+Compute unpolarized Fresnel power reflectance ``(r_s^2 + r_p^2) / 2`` for an
+air-to-medium interface with real refractive index ``n`` at incidence angle `θᵢ`
 in radians. See [`fresnel_components`](@ref).
 
 # Examples

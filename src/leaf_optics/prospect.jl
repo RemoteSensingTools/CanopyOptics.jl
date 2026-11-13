@@ -28,26 +28,23 @@ function prospect(leaf::LeafProspectProProperties, optis)
     return budget.transmission, budget.reflectance
 end
 
-"""
+@doc raw"""
     prospect_budget(leaf, optis)
 
-PROSPECT-PRO transmission, reflection and directly integrated material absorption.
-Returns a named tuple of spectral arrays. Unlike `1-R-T`, the local absorptance
-remains meaningful in the nonabsorbing/weak-absorption limit. No flux is clipped
-or rescaled. `prospect` retains its `(T, R)` return interface.
-Absorptance is the monochromatic fraction of incident energy (equivalently photon
-count) absorbed by all material, not chlorophyll-only absorption or energy retained
-after fluorescence emission.
+Compute PROSPECT-PRO transmission, reflection, and directly integrated material
+absorption, returning `(; transmission, reflectance, absorptance)`. Unlike
+``1 - R - T``, the local absorptance remains accurate in the nonabsorbing and
+weak-absorption limits without clipping or rescaling. [`prospect`](@ref) retains
+its `(T, R)` return interface. Absorptance is the monochromatic fraction of
+incident energy (equivalently photon count) absorbed by all material, not
+chlorophyll-only absorption or energy retained after fluorescence emission.
 
-Requires finite `N >= 1`, finite nonnegative constituent contents/absorption coefficients
-and refractive indices `> 1`. Both `prospect` and `prospect_budget` enforce `N >= 1`. The
-PROSPECT first-surface 40-degree and internal diffuse 90-degree conventions and
-Fresnel routine are used. Its accuracy is tested across the optical database's
-index range; the nearly index-matched limit is ill-conditioned and is not covered
-by that accuracy claim. Invalid computed surface transmissions are rejected.
-CPU and first-order ForwardDiff paths are
-supported; this function does not claim CUDA execution. The physical absorption
-Hessian is singular at exactly zero material optical depth.
+Requires finite ``N \ge 1``, finite nonnegative constituent contents and absorption
+coefficients, and refractive indices ``n_r > 1``. Uses the PROSPECT first-surface
+``40^\circ`` and internal diffuse ``90^\circ`` Stern–Allen Fresnel conventions;
+the nearly index-matched limit (``n_r \to 1^+``) is rejected if computed surface
+transmissions leave ``(0, 1]``. Supports CPU scalars/arrays and first-order
+`ForwardDiff.Dual` inputs (the absorption Hessian is singular at zero optical depth).
 """
 function prospect_budget(
     leaf::LeafProspectProProperties{FT},

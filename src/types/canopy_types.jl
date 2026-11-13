@@ -214,17 +214,18 @@ Supertype for canopy element inclination angle distributions over `[0, π/2]`.
 """
 abstract type AbstractLeafDistribution{FT<:Real} end
 
-"""
+@doc raw"""
     LeafDistribution{FT<:Real,D<:UnivariateDistribution}(LD, scaling)
     LeafDistribution(LD, scaling)
 
-Represent a leaf inclination angle distribution `g_L(θ_L)` on `θ_L ∈ [0, π/2]`
-via a `Distributions.UnivariateDistribution` `LD` on `u = 2 θ_L / π ∈ [0, 1]`
-and Jacobian normalization factor `scaling` (typically `2/π`).
+Represent a leaf inclination angle distribution ``g_L(\theta_L)`` on
+``\theta_L \in [0, \pi/2]`` via a `Distributions.UnivariateDistribution` `LD` on
+``u = 2\theta_L / \pi \in [0, 1]`` and Jacobian normalization factor `scaling`
+(typically ``2/\pi``).
 
 # Fields
-- `LD::D`: univariate probability distribution on `[0, 1]`.
-- `scaling::FT`: density normalization factor mapping `[0, 1]` to `[0, π/2]`.
+- `LD::D`: univariate probability distribution on ``[0, 1]``.
+- `scaling::FT`: density normalization factor mapping ``[0, 1]`` to ``[0, \pi/2]``.
 """
 struct LeafDistribution{FT<:Real,D<:UnivariateDistribution} <: AbstractLeafDistribution{FT}
     LD::D

@@ -109,7 +109,7 @@ Compute the area-index-weighted canopy projected area:
 G_{bulk}(μ) = \\sum_c AI_c G_c(μ),
 ```
 
-or `\\sum_c AI_c Ω_c(μ)G_c(μ)` when `clumped = true`.
+or ``\\sum_c AI_c Ω_c(μ)G_c(μ)`` when `clumped = true`.
 """
 function bulk_G(canopy::MixedCanopy, μ::AbstractVector; clumped::Bool = true,
                 quadrature::CanopyQuadrature = CanopyQuadrature())

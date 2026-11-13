@@ -233,20 +233,21 @@ function createMultiPigmentOpticalStruct(
     return MultiPigmentOpticalProperties{FT}(λ_bnds; basis = basis)
 end
 
-"""
+@doc raw"""
     load_wax_refractive_index(λ_bnds = (399.5:2500.5)u"nm"; FT = ...)
 
 Load the Stuckens et al. (2009, *Remote Sens. Environ.* 113(12), 2560–2573;
-DOI `10.1016/j.rse.2009.07.014`) epicuticular
-leaf wax refractive-index dispersion spectrum `n_wax(λ)` (`data/epicuticular_wax_stuckens2009.csv`)
+DOI `10.1016/j.rse.2009.07.014`) epicuticular leaf wax refractive-index dispersion
+spectrum ``n_{\mathrm{wax}}(\lambda)`` (`data/epicuticular_wax_stuckens2009.csv`)
 averaged onto `λ_bnds`.
 
-Unlike aqueous internal leaf refractive index `nᵣ(λ)` (which drops from `~1.42` in
-VNIR to `~1.27` near `2450 nm` due to liquid-water dispersion), epicuticular wax
-exhibits weak hydrocarbon dispersion (`n_wax ≈ 1.48` at `400 nm` to `1.40` at `2500 nm`),
-sustaining cuticular surface specular reflectance in the SWIR when passed via
-`n_surface` to [`prospect_budget`](@ref), [`dorsiventral_budget`](@ref), or
-[`prepare_leaf_bsdf`](@ref).
+Unlike aqueous internal leaf refractive index ``n_r(\lambda)`` (which drops from
+``\sim 1.42`` in the VNIR to ``\sim 1.27`` near ``2450\;\mathrm{nm}`` due to
+liquid-water dispersion), epicuticular wax exhibits weak hydrocarbon dispersion
+(``n_{\mathrm{wax}} \approx 1.48`` at ``400\;\mathrm{nm}`` to ``1.40`` at
+``2500\;\mathrm{nm}``), sustaining cuticular surface specular reflectance in the
+SWIR when passed via `n_surface` to [`prospect_budget`](@ref),
+[`dorsiventral_budget`](@ref), or [`prepare_leaf_bsdf`](@ref).
 """
 function load_wax_refractive_index(
     λ_bnds = (399.5:2500.5)u"nm";

@@ -3,9 +3,8 @@
 # CanopyOptics represents the diffuse part of a leaf as a bi-Lambertian
 # scatterer with leaf reflectance `R` and transmittance `T`.
 using CanopyOptics
-using CairoMakie
 using Distributions
-using Base64
+include(joinpath(@__DIR__, "..", "..", "..", "d3_plots.jl")) # hide
 
 # Use a positive-μ quadrature grid and a standard planophile leaf-angle
 # distribution.
@@ -61,27 +60,40 @@ Z_erect⁺⁺, Z_erect⁻⁺ =
 
 maximum(abs.(Z_erect⁻⁺[:, :, 1] .- Z⁻⁺[:, :, 1]))
 
-# ## Lightweight animation
+# ## Interactive leaf-angle sweep
 
-# CairoMakie renders without a Python backend. This animation sweeps a family
-# of beta leaf-angle distributions and updates the `m = 0` reflection matrix.
+# Sweep a family of `Beta(α, β)` leaf-angle distributions from planophile to
+# erectophile and inspect how the `m = 0` canopy reflection matrix `Z⁻⁺` shifts
+# with incoming and outgoing stream cosine `μ`.
 function reflection_matrix_for_beta(a, b)
-    LD = CanopyOptics.LeafDistribution(Beta(a, b), 2 / π)
-    _, Z⁻⁺ = CanopyOptics.compute_Z_matrices(leaf, μ, LD, 0:0; quadrature)
-    return Z⁻⁺[:, :, 1]
+    ld = CanopyOptics.LeafDistribution(Beta(a, b), 2 / π)
+    _, Z_mp = CanopyOptics.compute_Z_matrices(leaf, μ, ld, 0:0; quadrature)
+    return permutedims(Z_mp[:, :, 1])
 end
 
-αβ = [(0.8, 5.0), (1.5, 4.0), (2.5, 2.5), (4.0, 1.5), (5.0, 0.8)]
-Zobs = Observable(reflection_matrix_for_beta(αβ[1]...))
+αβ = [(0.8, 5.0), (1.2, 4.2), (1.8, 3.2), (2.5, 2.5), (3.2, 1.8), (4.2, 1.2), (5.0, 0.8)]
+Z_frames = [reflection_matrix_for_beta(a, b) for (a, b) in αβ]
+z_hi = ceil(maximum(maximum, Z_frames); digits = 2)
 
-fig = Figure(size = (560, 420))
-ax = Axis(fig[1, 1]; xlabel = "outgoing μ", ylabel = "incoming μ",
-          title = "Z⁻⁺, m = 0")
-hm = heatmap!(ax, μ, μ, Zobs; colormap = :viridis)
-Colorbar(fig[1, 2], hm; label = "Z⁻⁺")
-
-path = record(fig, "anim_bilambertian.gif", eachindex(αβ); framerate = 3) do i
-    Zobs[] = reflection_matrix_for_beta(αβ[i]...)
-    ax.title = "Z⁻⁺, m = 0, Beta$(αβ[i])"
-end
-HTML("<img src=\"data:image/gif;base64,$(base64encode(read(path)))\" />")
+D3Figure(
+    title = "Bi-Lambertian Canopy Reflection Matrix Z⁻⁺ (m = 0)",
+    subtitle = "Drag the slider or press Play to sweep Beta(α, β) from planophile to erectophile",
+    cols = 1,
+    rowHeight = 340,
+    frames = [
+        (;
+            label = "Beta(α = $(a), β = $(b))",
+            panels = [
+                d3_heatmap(
+                    μ, μ, Z_frames[i];
+                    title = "Z⁻⁺(μ_out, μ_in), m = 0 — Beta($(a), $(b))",
+                    xlabel = "outgoing μ",
+                    ylabel = "incoming μ",
+                    cbarLabel = "Z⁻⁺",
+                    clim = [0.0, z_hi],
+                    colormap = "viridis",
+                ),
+            ],
+        ) for (i, (a, b)) in enumerate(αβ)
+    ],
+)

@@ -1,4 +1,4 @@
-"""
+@doc raw"""
     CoupledLeafBSDF(leaf, surface; η_t = 0, γ_t = 4)
     CoupledLeafBSDF(dorsiventral_leaf; η_t = 0, γ_t = 4)
     CoupledLeafBSDF(asymmetric_surface_leaf; η_t = 0, γ_t = 4)
@@ -7,19 +7,23 @@ Energy-conserving, Helmholtz-reciprocal, Stokes-polarized leaf bidirectional
 scattering distribution function (BRDF + BTDF + Mueller matrix) coupling rough
 dielectric microfacet surface optics consistently with internal plate transport:
 
-1. **First-surface reflection (`M_{r,surf}`)**: Beckmann normal distribution
-   (`tan² θ_h = (H_x² + H_y²) / H_z²`), `erfcx`-based Smith `G₂ = G₁(μ_i) G₁(μ_o)`,
-   trigonometric-free Fresnel amplitudes, and algebraic meridian-plane Stokes
-   rotations (`npol ∈ (1, 3, 4)`), obeying exact Hovenier reciprocity
-   `M(ω_o -> ω_i) = P M(ω_i -> ω_o)ᵀ P` (`P = diag(1, 1, -1, 1)`).
-2. **Internal volume BRDF (`f_{r,vol}`)**: Coupled through `T_{ext,s}(μ_i) = 1 - R_{surf,s}(μ_i)`
-   and directional escape `E_s(μ_o) = T_{ext,s}(μ_o) / T_{hem,ext,s}` using the
-   *same* [`RoughDielectricSurface`](@ref) (never a mismatched `ConeSurface`).
-3. **Directional transmission (`f_t`)**: Symmetric Kelemen–Szirmay-Kalos /
-   Kulla–Conty closure combining diffuse escape (`1 - η_t`) with a normalized
-   forward lobe (`η_t ∈ [0, 1)`, concentration `γ_t >= 0`), guaranteeing strict
-   nonnegativity, exact hemispherical conservation `R(μ_i) + T(μ_i) + A(μ_i) == 1`,
-   and exact directional Helmholtz reciprocity `f_t(Ω_in -> Ω_out) == f_t(-Ω_out -> -Ω_in)`.
+1. **First-surface reflection** (``\mathbf{M}_{r,\mathrm{surf}}``): Beckmann normal
+   distribution (``\tan^2\theta_h = (H_x^2 + H_y^2) / H_z^2``), `erfcx`-based Smith
+   shadowing–masking ``G_2 = G_1(\mu_i)\,G_1(\mu_o)``, trigonometric-free Fresnel
+   amplitudes, and algebraic meridian-plane Stokes rotations (`npol` in ``\{1, 3, 4\}``),
+   obeying exact Hovenier reciprocity
+   ``\mathbf{M}(\boldsymbol{\omega}_o \to \boldsymbol{\omega}_i) = \mathbf{P}\,\mathbf{M}(\boldsymbol{\omega}_i \to \boldsymbol{\omega}_o)^\top \mathbf{P}``
+   with ``\mathbf{P} = \operatorname{diag}(1, 1, -1, 1)``.
+2. **Internal volume BRDF** (``f_{r,\mathrm{vol}}``): Coupled through external entry
+   ``T_{\mathrm{ext},s}(\mu_i) = 1 - R_{\mathrm{surf},s}(\mu_i)`` and directional
+   escape ``E_s(\mu_o) = T_{\mathrm{ext},s}(\mu_o) / T_{\mathrm{hem,ext},s}`` using
+   the *same* [`RoughDielectricSurface`](@ref) (never a mismatched `ConeSurface`).
+3. **Directional transmission** (``f_t``): Symmetric Kelemen–Szirmay-Kalos /
+   Kulla–Conty closure combining diffuse escape (``1 - \eta_t``) with a normalized
+   forward lobe (``\eta_t \in [0, 1)``, concentration ``\gamma_t \ge 0``),
+   guaranteeing strict nonnegativity, exact hemispherical conservation
+   ``R(\mu_i) + T(\mu_i) + A(\mu_i) = 1``, and exact directional Helmholtz
+   reciprocity ``f_t(\boldsymbol{\Omega}_{\mathrm{in}} \to \boldsymbol{\Omega}_{\mathrm{out}}) = f_t(-\boldsymbol{\Omega}_{\mathrm{out}} \to -\boldsymbol{\Omega}_{\mathrm{in}})``.
 """
 struct CoupledLeafBSDF{
     L<:AbstractLeafProperties,
@@ -229,17 +233,20 @@ end
     return prefactor * f_plus
 end
 
-"""
+@doc raw"""
     surface_brdf_mueller(μ_i, ϕ_i, μ_o, ϕ_o, n_eff, σ, npol = 1)
 
-Single-bounce polarized microfacet BRDF Mueller matrix `M_{r,surf}` (`npol × npol`,
-`npol ∈ (1, 3, 4)`) in the leaf local frame (`ẑ = (0, 0, 1)` outward face normal),
-where `(μ_i, ϕ_i)` points toward the illumination source (`k_in = -ω_i`) and
-`(μ_o, ϕ_o)` points toward the detector (`k_out = +ω_o`), with `μ_i, μ_o ∈ (0, 1]`.
+Evaluate the single-bounce polarized microfacet BRDF Mueller matrix
+``\mathbf{M}_{r,\mathrm{surf}}`` (size `npol × npol`, `npol` in ``\{1, 3, 4\}``)
+in the leaf local frame (``\hat{\mathbf{z}} = (0, 0, 1)`` outward face normal),
+where ``(\mu_i, \phi_i)`` points toward the illumination source
+(``\mathbf{k}_{\mathrm{in}} = -\boldsymbol{\omega}_i``) and ``(\mu_o, \phi_o)``
+points toward the detector (``\mathbf{k}_{\mathrm{out}} = +\boldsymbol{\omega}_o``),
+with ``\mu_i, \mu_o \in (0, 1]``.
 
-In the meridian-plane Stokes convention of `CanopyOptics`, `+Q` denotes
-perpendicular (`s` / horizontal) linear polarization and `-Q` denotes parallel
-(`p` / in-meridian) linear polarization. All geometry and Stokes rotations are
+In the meridian-plane Stokes convention of `CanopyOptics`, ``+Q`` denotes
+perpendicular (``s`` / horizontal) linear polarization and ``-Q`` denotes parallel
+(``p`` / in-meridian) linear polarization. All geometry and Stokes rotations are
 computed algebraically without `acos`, `asin`, or `atan` singularities.
 """
 function surface_brdf_mueller(
@@ -662,15 +669,16 @@ end
     return _eval_cheb32_fresnel(w, n_eff)
 end
 
-"""
+@doc raw"""
     leaf_directional_budget(prep::PreparedLeafBSDFSpectrum, μ_i; face = :adaxial)
     leaf_directional_budget(model::CoupledLeafBSDF, optics, μ_i;
                             face = :adaxial, n_surface = nothing,
                             n_surface_adaxial = n_surface, n_surface_abaxial = n_surface)
 
-Exact directional-hemispherical `(; reflectance, reflectance_surface, reflectance_volume, transmission, absorptance)`
-for collimated incidence at cosine `μ_i ∈ (0, 1]` on `face ∈ (:adaxial, :abaxial)`.
-Satisfies `reflectance + transmission + absorptance == 1` identically across all `μ_i`.
+Compute the exact directional-hemispherical budget
+`(; reflectance, reflectance_surface, reflectance_volume, transmission, absorptance)`
+for collimated incidence at cosine ``\mu_i \in (0, 1]`` on `face` (`:adaxial` or `:abaxial`).
+Satisfies ``R(\mu_i) + T(\mu_i) + A(\mu_i) = 1`` across all ``\mu_i \in (0, 1]``.
 """
 function leaf_directional_budget(
     prep::PreparedLeafBSDFSpectrum{FTP},
@@ -738,23 +746,26 @@ function leaf_directional_budget(
     return leaf_directional_budget(prep, μ_i; face)
 end
 
-"""
+@doc raw"""
     leaf_bsdf_spectrum(prep::PreparedLeafBSDFSpectrum, μ_i, ϕ_i, μ_o, ϕ_o;
                        face = :adaxial, npol = 1)
     leaf_bsdf_spectrum(model::CoupledLeafBSDF, optics, μ_i, ϕ_i, μ_o, ϕ_o;
                        face = :adaxial, npol = 1)
 
-Evaluate the full spectral leaf BSDF at incident source direction `(μ_i, ϕ_i)` on
-`face ∈ (:adaxial, :abaxial)`, reflected detector direction `(μ_o, ϕ_o)` (`μ_o > 0`
-on the illuminated face), and transmitted detector direction `(μ_o, ϕ_o)` (`μ_o > 0`
-measured from the opposite face normal `-ẑ`, so straight-through forward continuation
-of `(θ_i, ϕ_i = 0)` is `(θ_o = θ_i, ϕ_o = π)`):
-- `brdf`: total scalar BRDF `[sr⁻¹]` (`nλ`-vector, `= brdf_surface + brdf_volume`)
-- `btdf`: total scalar BTDF `[sr⁻¹]` (`nλ`-vector)
-- `brdf_mueller`: `(npol, npol, nλ)` polarized BRDF Mueller array (`I -> I` equals `brdf`;
-  diffuse internal multiple scattering populates `(1, 1)` unpolarized)
-- `dolp`: reflected degree of linear polarization `hypot(M[2,1], M[3,1]) / M[1,1]` when
-  `npol >= 3` (for unpolarized incident light), else `zeros(FT, nλ)`.
+Evaluate the spectral leaf BSDF at incident source direction ``(\mu_i, \phi_i)`` on
+`face` (`:adaxial` or `:abaxial`), reflected detector direction ``(\mu_o, \phi_o)``
+(``\mu_o > 0`` on the illuminated face), and transmitted detector direction
+``(\mu_o, \phi_o)`` (``\mu_o > 0`` measured from the opposite face normal
+``-\hat{\mathbf{z}}``, so straight-through forward continuation of
+``(\theta_i, \phi_i = 0)`` is ``(\theta_o = \theta_i, \phi_o = \pi)``):
+- `brdf`: total scalar BRDF ``[\mathrm{sr}^{-1}]`` (`nλ`-vector, equal to
+  ``f_{r,\mathrm{surf}} + f_{r,\mathrm{vol}}``).
+- `btdf`: total scalar BTDF ``[\mathrm{sr}^{-1}]`` (`nλ`-vector).
+- `brdf_mueller`: `(npol, npol, nλ)` polarized BRDF Mueller array (``M_{11}`` equals
+  `brdf`; diffuse internal multiple scattering populates ``(1, 1)`` unpolarized).
+- `dolp`: reflected degree of linear polarization
+  ``\sqrt{M_{21}^2 + M_{31}^2} / M_{11}`` when `npol >= 3` (for unpolarized
+  incident light), or `zeros(FT, nλ)` when `npol == 1`.
 """
 function leaf_bsdf_spectrum(
     prep::PreparedLeafBSDFSpectrum{FTP},

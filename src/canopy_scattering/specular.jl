@@ -1,22 +1,26 @@
-"""
+@doc raw"""
     compute_reflection(mod::SpecularCanopyScattering, Ωⁱⁿ, Ωᵒᵘᵗ, LD)
 
 Compute the specular bidirectional scattering coefficient for direction pair
 `(Ωⁱⁿ, Ωᵒᵘᵗ)`, following Knyazikhin & Marshak, *Discrete Ordinates Method for
 Photon Transport in Leaf Canopies*, Eq. 2.39:
 
-``f_s(Ω' \\to Ω) = \\frac{1}{8}\\,g_L(θ^*)\\,K(κ, α^*)\\,F_r(n_r, α^*)``
+```math
+f_s(\Omega' \to \Omega) = \frac{1}{8}\,g_L(\theta^*)\,K(\kappa, \alpha^*)\,F_r(n_r, \alpha^*) ,
+```
 
-where `θ*` is the polar angle of the specular leaf normal (from [`getSpecularΩ`](@ref)),
-`α* = arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ) / 2` is the incidence half-angle, `K(κ, α*)` is the
-Nilson–Kuusk roughness factor, and `Fᵣ(nᵣ, α*)` is unpolarized Fresnel reflectance.
-Accepts [`DirectionCosine`](@ref) directions (construct from `(θ, ϕ)` via
+where ``\theta^*`` is the polar angle of the specular leaf normal (from [`CanopyOptics.getSpecularΩ`](@ref)),
+``\alpha^* = \arccos(\Omega^{\mathrm{in}} \cdot \Omega^{\mathrm{out}}) / 2`` is the
+incidence half-angle, ``K(\kappa, \alpha^*)`` is the Nilson–Kuusk roughness factor,
+and ``F_r(n_r, \alpha^*)`` is unpolarized Fresnel reflectance. Accepts
+[`DirectionCosine`](@ref) directions (construct from `(θ, ϕ)` via
 [`direction_from_angles`](@ref)).
 
 For Stokes-vector propagation, use [`compute_reflection_mueller`](@ref). Note that
-`Ωⁱⁿ` points toward the illumination source (`-k_in`) and `Ωᵒᵘᵗ` points along the
-reflected ray (`+k_out`); only reflection is modelled here (for coupled surface,
-volume, and directional transmission, see [`CoupledLeafBSDF`](@ref)).
+`Ωⁱⁿ` points toward the illumination source (``-\mathbf{k}_{\mathrm{in}}``) and
+`Ωᵒᵘᵗ` points along the reflected ray (``+\mathbf{k}_{\mathrm{out}}``); only
+reflection is modelled here (for coupled surface, volume, and directional
+transmission, see [`CoupledLeafBSDF`](@ref)).
 """
 function compute_reflection(
     mod::SpecularCanopyScattering,
@@ -60,7 +64,7 @@ function _normalise_specular_projected_area!(Z⁺⁺::AbstractMatrix{FT},
     return Z⁺⁺, Z⁻⁺
 end
 
-"""
+@doc raw"""
     compute_Z_matrices(mod::SpecularCanopyScattering, μ::AbstractVector,
                        LD::AbstractLeafDistribution, m::Integer;
                        quadrature = CanopyQuadrature(), npol = 1) -> (Z⁺⁺, Z⁻⁺)
@@ -69,12 +73,12 @@ Compute the Fourier-`m` component of the single-scattering phase matrices
 `(Z⁺⁺, Z⁻⁺)` for a specular leaf surface by integrating [`compute_reflection`](@ref)
 (or [`compute_reflection_mueller`](@ref) when `npol > 1`) over the azimuthal
 quadrature grid:
-- `Z⁺⁺[i, j]`: same-hemisphere scattering (`μ > 0 → μ > 0`, forward scatter).
-- `Z⁻⁺[i, j]`: opposite-hemisphere scattering (`μ > 0 → μ < 0`, backscatter).
+- `Z⁺⁺[i, j]`: same-hemisphere scattering (``\mu > 0 \to \mu > 0``, forward scatter).
+- `Z⁻⁺[i, j]`: opposite-hemisphere scattering (``\mu > 0 \to \mu < 0``, backscatter).
 
-Azimuth integration uses `quadrature.n_azimuth` Gauss-Legendre points over `[0, 2π]`
-with `cos(m ϕ)` weights for scalar `I` (`npol = 1`) and the vSmartMOM Stokes
-`cos`/`sin` parity kernel for `npol = 3` or `4`. Columns are normalized by `G(μ_in)`
+Azimuth integration uses `quadrature.n_azimuth` Gauss–Legendre points over ``[0, 2\pi]``
+with ``\cos(m\phi)`` weights for scalar ``I`` (`npol = 1`) and the vSmartMOM Stokes
+`cos`/`sin` parity kernel for `npol = 3` or `4`. Columns are normalized by ``G(\mu_{\mathrm{in}})``
 while retaining the Fresnel/roughness strength in the returned kernel.
 """
 function compute_Z_matrices(mod::SpecularCanopyScattering,
@@ -192,16 +196,18 @@ function compute_Z_matrices(mod::SpecularCanopyScattering,
     end
     return _normalise_specular_projected_area!(𝐙⁺⁺, 𝐙⁻⁺, G_in, m_int, n)
 end
-"""
+@doc raw"""
     K(κ, α)
 
 Compute the Nilson–Kuusk leaf-surface roughness reduction factor:
 
-``K(κ, α) = e^{-κ \\tan |α|}``
+```math
+K(\kappa, \alpha) = e^{-\kappa \tan |\alpha|} .
+```
 
-- `κ ≈ 0.1–0.3` controls surface roughness (`κ = 0` gives a smooth Fresnel surface).
-- `α` is the incidence half-angle in radians, with `abs(α) ≤ π/2`.
-- At grazing incidence (`abs(α) = π/2`), returns `0` for `κ > 0` and `1` for `κ = 0`
+- ``\kappa \approx 0.1\text{–}0.3`` controls surface roughness (`κ = 0` gives a smooth Fresnel surface).
+- `α` is the incidence half-angle in radians, with ``|\alpha| \le \pi/2``.
+- At grazing incidence (``|\alpha| = \pi/2``), returns `0` for `κ > 0` and `1` for `κ = 0`
   without evaluating `tan(Float32(π/2))`.
 
 Used in [`compute_reflection`](@ref) to attenuate specular reflectance for rough leaves.

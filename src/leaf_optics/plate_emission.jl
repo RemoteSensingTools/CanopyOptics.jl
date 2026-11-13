@@ -12,20 +12,21 @@ Uniform photon production over dimensionless depth `0 ≤ z ≤ 1`.
 """
 struct UniformBirthProfile <: AbstractLeafBirthProfile end
 
-"""
+@doc raw"""
     ExponentialBirthProfile(excitation_depth, forward_amplitude, backward_amplitude)
 
 Conditional birth density proportional to
-`forward_amplitude*exp(-a*z) + backward_amplitude*exp(-a*(1-z))`, where
-`a = excitation_depth` and `z=0` is the fixed anatomical front face.
+``f\,\exp(-a z) + g\,\exp\bigl(-a(1 - z)\bigr)``, where ``a`` is `excitation_depth`,
+``(f, g)`` are `forward_amplitude` and `backward_amplitude`, and ``z = 0`` is the
+fixed anatomical front face.
 These amplitudes weight excitation-depth contributions, not emission directions.
 The host constructor conditions finite nonnegative relative amplitudes on their
 positive sum, using scaling to avoid overflow and retaining both proportions
 when representable (extreme amplitude ratios can underflow).
-Depth must be finite and nonnegative; all three arguments have the same FT.
+Depth must be finite and nonnegative; all three arguments share the same `FT`.
 
 For a homogeneous, front-illuminated regular plate, the relative amplitudes are
-`(1, r_exc*exp(-a))`. The effective depth follows TOTAL material attenuation;
+``(1,\, r_{\mathrm{exc}}\exp(-a))``. The effective depth follows total material attenuation;
 depth-independent pigment allocation and physiological yield cancel on conditioning.
 This effective exponential closure is not an exact angular solution inside a leaf.
 """

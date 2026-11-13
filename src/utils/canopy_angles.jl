@@ -30,20 +30,20 @@ function βparameters(θₗ::Real, s::Real)
     return α, β
 end
 
-"""
+@doc raw"""
     H(μ, μₗ)
 
-Evaluate the one-sided azimuthally averaged leaf projection factor `H(μ, μₗ)`
-for stream polar cosine `μ = cos θ ∈ [-1, 1]` and leaf-normal cosine
-`μₗ = cos θₗ ∈ [-1, 1]` (Shultis & Myneni, 1988, Eqs. 46–47):
+Evaluate the one-sided azimuthally averaged leaf projection factor ``H(\mu, \mu_L)``
+for stream polar cosine ``\mu = \cos\theta \in [-1, 1]`` and leaf-normal cosine
+``\mu_L = \cos\theta_L \in [-1, 1]`` (Shultis & Myneni, 1988, Eqs. 46–47):
 
 ```math
-H(\\mu, \\mu_L) = \\frac{1}{2\\pi} \\int_0^{2\\pi} \\max\\!\\big(0,\\; \\mu\\mu_L + \\sqrt{1-\\mu^2}\\sqrt{1-\\mu_L^2}\\cos\\phi\\big)\\,d\\phi .
+H(\mu, \mu_L) = \frac{1}{2\pi} \int_0^{2\pi} \max\!\big(0,\; \mu\mu_L + \sqrt{1-\mu^2}\sqrt{1-\mu_L^2}\cos\phi\big)\,d\phi .
 ```
 
-Evaluated algebraically without `cot(acos(⋅))` singularities so boundary inputs
-(`|μ| == 1` or `μₗ == 0`) remain finite and `ForwardDiff`-compatible. Assembles
-the azimuthally averaged `Ψ` kernels in [`compute_Ψ`](@ref).
+Evaluated algebraically without ``\cot(\arccos(\cdot))`` singularities so boundary inputs
+(``|\mu| = 1`` or ``\mu_L = 0``) remain finite and `ForwardDiff`-compatible. Assembles
+the azimuthally averaged ``\Psi`` kernels in [`CanopyOptics.compute_Ψ`](@ref).
 
 # Examples
 ```jldoctest
@@ -154,17 +154,18 @@ end
     return prospect_primal(θ) < zero(BFT) ? θ + FT(2) * FT(π) : θ
 end
 
-"""
+@doc raw"""
     getSpecularΩ(Ωⁱⁿ::DirectionCosine, Ωᵒᵘᵗ::DirectionCosine) -> (Ωᴸ, α)
 
 Compute the unit specular leaf normal `Ωᴸ` bisecting incoming source direction
-`Ωⁱⁿ` (`-k_in`) and outgoing ray direction `Ωᵒᵘᵗ` (`+k_out`), together with the
-local incidence half-angle `α = arccos(Ωⁱⁿ ⋅ Ωᵒᵘᵗ) / 2` (Knyazikhin & Marshak,
-1991, Eq. 18).
+`Ωⁱⁿ` (``-\mathbf{k}_{\mathrm{in}}``) and outgoing ray direction `Ωᵒᵘᵗ`
+(``+\mathbf{k}_{\mathrm{out}}``), together with the local incidence half-angle
+``\alpha = \arccos(\Omega^{\mathrm{in}} \cdot \Omega^{\mathrm{out}}) / 2``
+(Knyazikhin & Marshak, 1991, Eq. 18).
 
-At the antipodal forward-grazing limit (`Ωᵒᵘᵗ ≈ -Ωⁱⁿ`, `α = π/2`), returns a
-deterministic unit normal orthogonal to `Ωⁱⁿ` without coordinate singularity or
-`ForwardDiff.Dual` `NaN` tangents.
+At the antipodal forward-grazing limit (``\Omega^{\mathrm{out}} \approx -\Omega^{\mathrm{in}}``,
+``\alpha = \pi/2``), returns a deterministic unit normal orthogonal to `Ωⁱⁿ` without
+coordinate singularity or `ForwardDiff.Dual` `NaN` tangents.
 """
 function getSpecularΩ(Ωⁱⁿ::DirectionCosine{FT1}, Ωᵒᵘᵗ::DirectionCosine{FT2}) where {FT1<:Real,FT2<:Real}
     FT = _canopy_parameter_type(Ωⁱⁿ.μ, Ωᵒᵘᵗ.μ)

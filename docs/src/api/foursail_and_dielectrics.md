@@ -1,8 +1,8 @@
 # FourSAIL & Microwave Dielectrics
 
 This page documents the `FourSAIL` four-stream turbid-medium canopy radiative-transfer
-solver, complex microwave relative permittivity models `ε(T, f)` (`dielectric`), and
-deprecated directional compatibility aliases.
+solver, complex microwave relative permittivity models ``\varepsilon(T, f)`` ([`dielectric`](@ref)), and
+deprecated compatibility aliases.
 
 ```@contents
 Pages = ["foursail_and_dielectrics.md"]

@@ -190,13 +190,14 @@ end
     )
 end
 
-"""
+@doc raw"""
     single_slab_dorsiventral_budget(k_pal, k_spo, nr, surf_ad, surf_ab;
                                     μ_ad = 1, μ_ab = 1, hemispherical = false,
                                     n_surface_adaxial = nr, n_surface_abaxial = nr)
 
-Exact `N = 1` unbroken two-sublayer dorsiventral slab (`I_ad ⋆ S₂(k_pal, k_spo) ⋆ I_ab`)
-without any artificial internal air gap or `(2 E₃(k/2))²` splitting error.
+Evaluate the exact ``N = 1`` unbroken two-sublayer dorsiventral slab operator
+``I_{\mathrm{ad}} \star S_2(k_{\mathrm{pal}}, k_{\mathrm{spo}}) \star I_{\mathrm{ab}}``
+without an artificial internal air gap or ``(2 E_3(k/2))^2`` chord-splitting error.
 """
 @inline function single_slab_dorsiventral_budget(
     k_pal_in::FT1,
@@ -347,7 +348,7 @@ function _validate_n_surface_vec(v, nλ::Int, label::AbstractString)
     return v
 end
 
-"""
+@doc raw"""
     DorsiventralLeafProperties{LP<:AbstractLeafProperties, LS<:AbstractLeafProperties, SAd<:AbstractLeafSurface, SAb<:AbstractLeafSurface} <: AbstractLeafProperties
 
 Two-zone dorsiventral leaf representation separating **palisade** (adaxial) and
@@ -356,18 +357,24 @@ Two-zone dorsiventral leaf representation separating **palisade** (adaxial) and
 bounded by distinct adaxial (`surface_adaxial`) and abaxial (`surface_abaxial`)
 dielectric surfaces.
 
-Supported structural domains (`N_tot = palisade.N + spongy.N`):
-- `N_pal >= 1` and `N_spo >= 1` (`N_tot >= 2`): exact two-zone Redheffer stack.
-- `0 < N_pal <= 1`, `0 < N_spo <= 1`, and `1 <= N_tot < 2`: continuous convex
-  bridge `(2 - N_tot) * B_slab + (N_tot - 1) * B_two_plate` between the unbroken
-  `N_tot = 1` two-sublayer slab and the `N_pal = N_spo = 1` (`N_tot = 2`) stack,
-  preserving strict energy conservation, zone absorptances, and `T_ad == T_ab`
-  across thin/compact leaves (`1 <= N_tot < 2`, `C^0` continuous at `N_tot = 2`).
-- When `single_slab == true`, evaluates the unbroken `N = 1` two-sublayer operator
-  [`single_slab_dorsiventral_budget`](@ref) directly for any positive `(N_pal, N_spo)`.
+Supported structural domains (``N_{\mathrm{tot}} = N_{\mathrm{pal}} + N_{\mathrm{spo}}``):
+- ``N_{\mathrm{pal}} \ge 1`` and ``N_{\mathrm{spo}} \ge 1`` (``N_{\mathrm{tot}} \ge 2``):
+  exact two-zone Redheffer plate stack.
+- ``0 < N_{\mathrm{pal}} \le 1``, ``0 < N_{\mathrm{spo}} \le 1``, and
+  ``1 \le N_{\mathrm{tot}} < 2``: continuous convex bridge
+  ```math
+  \mathcal{B}(N_{\mathrm{tot}}) = (2 - N_{\mathrm{tot}})\,\mathcal{B}_{\mathrm{slab}} + (N_{\mathrm{tot}} - 1)\,\mathcal{B}_{1,1}
+  ```
+  between the unbroken ``N_{\mathrm{tot}} = 1`` two-sublayer slab and the
+  ``N_{\mathrm{pal}} = N_{\mathrm{spo}} = 1`` (``N_{\mathrm{tot}} = 2``) stack,
+  preserving strict energy conservation, nonnegative zone absorptances, and
+  bi-hemispherical reciprocity ``T_{\mathrm{ad}} = T_{\mathrm{ab}}`` across
+  thin/compact leaves (``C^0`` continuous at ``N_{\mathrm{tot}} = 2``).
+- When `single_slab == true`, evaluates the unbroken ``N = 1`` two-sublayer operator
+  [`single_slab_dorsiventral_budget`](@ref) directly for any positive ``(N_{\mathrm{pal}}, N_{\mathrm{spo}})``.
 
 See [`dorsiventral_from_traits`](@ref) to construct a dorsiventral leaf smoothly
-from whole-leaf traits across all `N_tot >= 1`.
+from whole-leaf traits across all ``N_{\mathrm{tot}} \ge 1``.
 """
 struct DorsiventralLeafProperties{
     LP<:AbstractLeafProperties,
@@ -412,7 +419,7 @@ struct DorsiventralLeafProperties{
     end
 end
 
-"""
+@doc raw"""
     dorsiventral_from_traits(whole_leaf; N_tot = whole_leaf.N,
                              mesophyll_fraction_palisade = 0.45,
                              pigment_fraction_palisade = 0.75,
@@ -422,17 +429,22 @@ end
 
 Partition a whole-leaf [`LeafProspectProProperties`](@ref) or
 [`LeafMultiPigmentProperties`](@ref) into a [`DorsiventralLeafProperties`](@ref)
-over all continuous total plate counts `N_tot >= 1`:
-- Photosynthetic and accessory pigments (`Ccab` or `Cchla, Cchlb`, `Ccar`, `Canth`,
-  `Cbrown`) are allocated by `fc = pigment_fraction_palisade ∈ [0, 1]`
-  (`palisade = fc * C`, `spongy = (1 - fc) * C`).
+over all continuous total plate counts ``N_{\mathrm{tot}} \ge 1``:
+- Photosynthetic and accessory pigments (`Ccab` or `Cchla`, `Cchlb`, `Ccar`, `Canth`,
+  `Cbrown`) are allocated by ``f_c \in [0, 1]`` (`pigment_fraction_palisade`):
+  ``C_{\mathrm{pal}} = f_c C`` and ``C_{\mathrm{spo}} = (1 - f_c) C``.
 - Water and dry matter (`Cw`, `Cm`, `Cprot`, `Ccbc`) are allocated by
-  `fm = mesophyll_fraction_palisade ∈ (0, 1)`.
-- Zone plate counts `(N_pal, N_spo)` satisfy `N_pal + N_spo == N_tot` and meet
-  continuously at `(1, 1)` across `N_tot = 2` (`C^0` continuous at `N_tot = 2`,
-  `C^∞` on `(1, 2)` and `(2, ∞)`):
-  - For `1 <= N_tot < 2`: `N_pal = fm + (N_tot - 1)*(1 - fm)`, `N_spo = (1 - fm) + (N_tot - 1)*fm`.
-  - For `N_tot >= 2`: `N_pal = 1 + (N_tot - 2)*fm`, `N_spo = 1 + (N_tot - 2)*(1 - fm)`.
+  ``f_m \in (0, 1)`` (`mesophyll_fraction_palisade`).
+- Zone plate counts ``(N_{\mathrm{pal}}, N_{\mathrm{spo}})`` satisfy
+  ``N_{\mathrm{pal}} + N_{\mathrm{spo}} = N_{\mathrm{tot}}`` and meet continuously
+  at ``(1, 1)`` across ``N_{\mathrm{tot}} = 2`` (``C^0`` continuous at
+  ``N_{\mathrm{tot}} = 2``, ``C^\infty`` on ``(1, 2)`` and ``(2, \infty)``):
+  ```math
+  (N_{\mathrm{pal}},\, N_{\mathrm{spo}}) = \begin{cases}
+  \bigl(f_m + (N_{\mathrm{tot}} - 1)(1 - f_m),\; (1 - f_m) + (N_{\mathrm{tot}} - 1) f_m\bigr), & 1 \le N_{\mathrm{tot}} < 2, \\[4pt]
+  \bigl(1 + (N_{\mathrm{tot}} - 2) f_m,\; 1 + (N_{\mathrm{tot}} - 2)(1 - f_m)\bigr), & N_{\mathrm{tot}} \ge 2.
+  \end{cases}
+  ```
 """
 function dorsiventral_from_traits(
     whole_leaf::Union{LeafProspectProProperties{FTL},LeafMultiPigmentProperties{FTL}};
@@ -532,11 +544,12 @@ function dorsiventral_from_traits(
     end
 end
 
-"""
+@doc raw"""
     AsymmetricSurfaceLeafProperties(leaf, surface_adaxial, surface_abaxial)
 
-One-zone homogeneous mesophyll (`leaf.N >= 1` continuous) bounded by distinct
-adaxial and abaxial dielectric surfaces (`ConeSurface` or `RoughDielectricSurface`).
+One-zone homogeneous mesophyll (`leaf` with continuous ``N \ge 1``) bounded by
+distinct adaxial and abaxial dielectric surfaces ([`ConeSurface`](@ref) or
+[`RoughDielectricSurface`](@ref)).
 """
 struct AsymmetricSurfaceLeafProperties{
     L<:Union{LeafProspectProProperties,LeafMultiPigmentProperties},
@@ -595,7 +608,7 @@ function _validate_single_zone_leaf(leaf::LeafMultiPigmentProperties)
     end
 end
 
-"""
+@doc raw"""
     dorsiventral_budget(leaf::DorsiventralLeafProperties, optics;
                         μ_ad = 1, μ_ab = 1, hemispherical = false,
                         n_surface = nothing,
@@ -607,13 +620,15 @@ Compute paired adaxial-illuminated and abaxial-illuminated leaf optical budgets
 `(; transmission, reflectance, absorptance, absorptance_palisade, absorptance_spongy, reflectance_volume)`.
 
 Guarantees:
-1. Exact conservation `R + T + A_pal + A_spo ≈ 1` without clipping or rescaling.
+1. Exact passive conservation ``R + T + A_{\mathrm{pal}} + A_{\mathrm{spo}} = 1``
+   to floating-point roundoff without clipping or rescaling.
 2. Exact reduction to [`prospect_budget`](@ref) when palisade and spongy zones
    have equal per-plate optical depth and `ConeSurface(40, 1)` on both faces.
-3. Exact hemispherical (`hemispherical = true`) Helmholtz reciprocity
-   `adaxial.transmission ≈ abaxial.transmission` even for arbitrary pigment,
-   structural (`N_pal != N_spo`), cuticular (`surf_ad != surf_ab`), and wax
-   (`n_surface_adaxial != n_surface_abaxial`) asymmetry across all `N_tot >= 1`.
+3. Exact bi-hemispherical (`hemispherical = true`) Helmholtz reciprocity
+   ``T_{\mathrm{ad}} = T_{\mathrm{ab}}`` under arbitrary pigment, structural
+   (``N_{\mathrm{pal}} \neq N_{\mathrm{spo}}``), cuticular (`surf_ad != surf_ab`),
+   and wax (`n_surface_adaxial != n_surface_abaxial`) asymmetry across all
+   ``N_{\mathrm{tot}} \ge 1``.
 """
 function dorsiventral_budget(
     leaf::DorsiventralLeafProperties,

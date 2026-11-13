@@ -1,22 +1,25 @@
-"""
+@doc raw"""
     DorsiventralBiLambertianCanopyScattering{FT<:Real} <: AbstractCanopyScatteringType{FT}
 
 Dorsiventral bi-Lambertian canopy leaf scattering model with distinct adaxial
 (upper, sky-facing: `R_ad`, `T_ad`) and abaxial (lower, soil-facing: `R_ab`, `T_ab`)
 hemispherical reflectance and transmittance.
 
-Note: For true elastic leaf radiative transfer (e.g. [`dorsiventral_budget`](@ref)
+For true elastic leaf radiative transfer (such as [`dorsiventral_budget`](@ref)
 with `hemispherical = true`), bi-hemispherical Helmholtz reciprocity guarantees
-`T_ad == T_ab` even when `R_ad != R_ab`; unequal `T_ad != T_ab` is permitted here
-only for effective/upscaled asymmetric canopy elements (such as clumped shoots).
+``T_{\mathrm{ad}} = T_{\mathrm{ab}}`` even when ``R_{\mathrm{ad}} \neq R_{\mathrm{ab}}``;
+unequal ``T_{\mathrm{ad}} \neq T_{\mathrm{ab}}`` is permitted here only for
+effective/upscaled asymmetric canopy elements (such as clumped shoots).
 
-In `CanopyOptics`'s canopy coordinate convention (`+μ` = downward stream into the
-canopy, `-μ` = upward stream toward the sky), a leaf with inclination `θ_L ∈ [0, π/2]`
-(`μ_L = cos θ_L >= 0`) has downward abaxial normal `Ω_L = DirectionCosine(+μ_L, ϕ_L)`
-and upward adaxial normal `-Ω_L`. Because downward and upward streams illuminate
-opposite faces on average (`Z⁺⁺ != Z⁻⁻` and `Z⁻⁺ != Z⁺⁻` whenever `R_ad != R_ab`
-or `T_ad != T_ab`), use [`compute_Z_matrices_directional`](@ref) to assemble all
-four scattering blocks `(; Zpp, Zmp, Zpm, Zmm, ω_down, ω_up)`.
+In `CanopyOptics`'s canopy coordinate convention (``+\mu`` downward into the
+canopy, ``-\mu`` upward toward the sky), a leaf with inclination
+``\theta_L \in [0, \pi/2]`` (``\mu_L = \cos\theta_L \ge 0``) has downward abaxial
+normal `Ω_L = DirectionCosine(+μ_L, ϕ_L)` and upward adaxial normal ``-\Omega_L``.
+Because downward and upward streams illuminate opposite faces on average
+(``Z^{++} \neq Z^{--}`` and ``Z^{-+} \neq Z^{+-}`` whenever
+``R_{\mathrm{ad}} \neq R_{\mathrm{ab}}`` or ``T_{\mathrm{ad}} \neq T_{\mathrm{ab}}``),
+use [`compute_Z_matrices_directional`](@ref) to assemble all four scattering blocks
+`(; Zpp, Zmp, Zpm, Zmm, ω_down, ω_up)`.
 """
 struct DorsiventralBiLambertianCanopyScattering{FT<:Real} <: AbstractCanopyScatteringType{FT}
     R_ad::FT
@@ -71,13 +74,14 @@ end
            _same_val_and_partials(mod.T_ad, mod.T_ab)
 end
 
-"""
+@doc raw"""
     compute_Γ_directional(mod::DorsiventralBiLambertianCanopyScattering,
                           Ωⁱⁿ::DirectionCosine, Ωᵒᵘᵗ::DirectionCosine, LD; quadrature)
 
-Direct 2D `(θ_L, ϕ_L)` quadrature reference for the dorsiventral area scattering
-transfer function `Γ(Ωⁱⁿ → Ωᵒᵘᵗ)`. Reduces identically to `compute_Γ`
-when `R_ad == R_ab` and `T_ad == T_ab`.
+Evaluate the direct 2D ``(\theta_L, \phi_L)`` quadrature reference for the
+dorsiventral area scattering transfer function ``\Gamma(\Omega^{\mathrm{in}} \to \Omega^{\mathrm{out}})``.
+Reduces identically to [`CanopyOptics.compute_Γ`](@ref) when
+``R_{\mathrm{ad}} = R_{\mathrm{ab}}`` and ``T_{\mathrm{ad}} = T_{\mathrm{ab}}``.
 """
 function compute_Γ_directional(
     mod::DorsiventralBiLambertianCanopyScattering,
@@ -135,26 +139,30 @@ end
                   T_ab * N_in * N_out)
 end
 
-"""
+@doc raw"""
     compute_Z_matrices_directional(mod::DorsiventralBiLambertianCanopyScattering,
                                    μ::AbstractVector, LD::AbstractLeafDistribution,
                                    m_max::Int; quadrature = CanopyQuadrature(),
                                    npol = 1, normalize_by_ω = false)
 
-Analytic closed-form cosine Fourier moments `m = 0:m_max` for all four directional
-canopy scattering blocks `(; Zpp, Zmp, Zpm, Zmm, ω_down, ω_up)` with zero
-azimuthal quadrature:
-- `Zpp`: downward → downward (`+μ_j → +μ_i`)
-- `Zmp`: downward → upward (`+μ_j → -μ_i`, canopy top reflection)
-- `Zpm`: upward → downward (`-μ_j → +μ_i`, canopy bottom reflection)
-- `Zmm`: upward → upward (`-μ_j → -μ_i`)
-- `ω_down`, `ω_up`: exact stream-dependent single-scattering albedos for `+μ` and `-μ`.
+Compute analytic closed-form cosine Fourier moments `m = 0:m_max` for all four
+directional canopy scattering blocks `(; Zpp, Zmp, Zpm, Zmm, ω_down, ω_up)` with
+zero azimuthal quadrature:
+- `Zpp`: downward to downward (``+\mu_j \to +\mu_i``)
+- `Zmp`: downward to upward (``+\mu_j \to -\mu_i``, canopy top reflection)
+- `Zpm`: upward to downward (``-\mu_j \to +\mu_i``, canopy bottom reflection)
+- `Zmm`: upward to upward (``-\mu_j \to -\mu_i``)
+- `ω_down`, `ω_up`: exact stream-dependent single-scattering albedos for ``+\mu`` and ``-\mu``.
 
-By default (`normalize_by_ω = false`), columns are normalized by `G(μ_in)` only
-(so at `m = 0`, `0.5 * sum(w .* (Zpp[:, j, 1] .+ Zmp[:, j, 1])) ≈ ω_down[j]`),
-preventing `ϖ`-mixing bugs when combined with specular or coupled BSDF kernels.
+By default (`normalize_by_ω = false`), columns are normalized by ``G(\mu_{\mathrm{in}})`` only
+so at ``m = 0``,
+```math
+\frac{1}{2} \sum_i w_i \bigl(Z^{++}_{ij,0} + Z^{-+}_{ij,0}\bigr) \approx \omega_{\mathrm{down},j},
+```
+preventing ``\varpi``-mixing ambiguities when combined with specular or coupled BSDF kernels.
 Setting `normalize_by_ω = true` divides out `ω_down[j]` and `ω_up[j]`, matching
-legacy `BiLambertianCanopyScattering` identically when `R_ad == R_ab` and `T_ad == T_ab`.
+[`BiLambertianCanopyScattering`](@ref) identically when
+``R_{\mathrm{ad}} = R_{\mathrm{ab}}`` and ``T_{\mathrm{ad}} = T_{\mathrm{ab}}``.
 """
 function compute_Z_matrices_directional(
     mod::DorsiventralBiLambertianCanopyScattering,
@@ -347,21 +355,22 @@ end
     @inbounds return (one(T) - frac) * tab[idx] + frac * tab[idx + 1]
 end
 
-"""
+@doc raw"""
     compute_Z_matrices_coupled_bsdf(prep::PreparedLeafBSDFSpectrum, idx_λ::Integer,
                                     μ::AbstractVector, LD::AbstractLeafDistribution,
                                     m_max::Int; quadrature = CanopyQuadrature(n_leaf=16, n_azimuth=24))
 
 Project a coupled directional leaf BSDF ([`CoupledLeafBSDF`](@ref), prepared via
 [`prepare_leaf_bsdf`](@ref) at wavelength index `idx_λ`) onto the 4-block canopy
-Fourier phase matrices `(; Zpp, Zmp, Zpm, Zmm, ω_down, ω_up)` (`G_in`-normalized,
+Fourier phase matrices `(; Zpp, Zmp, Zpm, Zmm, ω_down, ω_up)` (``G(\mu_{\mathrm{in}})``-normalized,
 `normalize_by_ω = false`).
 
 Uses rotationally invariant 3D inner products for both surface microfacet
-reflection (`H = k_out - k_in`) and internal volume/forward-lobe scattering,
-preserving exact leaf-level energy conservation `R(μ_i) + T(μ_i) + A(μ_i) == 1`
-inside canopy radiative transfer. For very glossy leaves (`σ ≲ 0.05`, specular
-lobe width `~ σ` rad), increase `quadrature` (e.g. `n_leaf >= 32, n_azimuth >= 48`)
+reflection (``\mathbf{H} = \mathbf{k}_{\mathrm{out}} - \mathbf{k}_{\mathrm{in}}``)
+and internal volume/forward-lobe scattering, preserving exact leaf-level energy
+conservation ``R(\mu_i) + T(\mu_i) + A(\mu_i) = 1`` inside canopy radiative transfer.
+For very glossy leaves (``\sigma \lesssim 0.05``, specular lobe width ``\sim \sigma`` rad),
+increase `quadrature` (e.g. `CanopyQuadrature(n_leaf = 32, n_azimuth = 48)`)
 to resolve the narrow specular peak without angular aliasing.
 """
 function compute_Z_matrices_coupled_bsdf(

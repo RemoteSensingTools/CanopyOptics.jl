@@ -3,14 +3,22 @@
 Canopy radiative-transfer geometry in `CanopyOptics` combines continuous leaf-angle
 distributions (`AbstractLeafDistribution`), clumping and hotspot gap corrections,
 multi-component leaf/wood mixtures (`MixedCanopy`), and cosine Fourier scattering
-matrices `Z[i_out, j_in]` across bi-Lambertian, dorsiventral, specular, and coupled
-`4×4` leaf-BSDF scattering laws.
+matrices ``Z[i_{\mathrm{out}}, j_{\mathrm{in}}]`` across bi-Lambertian, dorsiventral,
+specular, and coupled ``4\times 4`` leaf-BSDF scattering laws.
 
 ## `Z`-Matrix Single-Scattering Albedo Conventions
 
-- **Symmetric bi-Lambertian (`BiLambertianCanopyScattering`, `LambertianWoodCanopyScattering`)**: Scalar single-scattering albedo `ϖ = R + T` is divided out of `Z` so downstream layer solvers multiply by `ϖ` separately; every non-black (`R + T > 0`) leaf satisfies `(1/2) ∑_i w_i (Z⁺⁺_{ij,0} + Z⁻⁺_{ij,0}) ≃ 1` (`= 1` under [`DiscreteAngularNormalization`](@ref)).
-- **Dorsiventral & coupled BSDF (`compute_Z_matrices_directional`, `compute_Z_matrices_coupled_bsdf`)**: By default (`normalize_by_ω = false`), `Z` is normalized by `G(μ_in)` only and retains directional albedo inside `Z` (`(1/2) ∑_i w_i (Z⁺⁺_{ij,0} + Z⁻⁺_{ij,0}) ≃ ω_down[j]`), composing directly without `ϖ`-mixing ambiguities.
-- **Pure surface specular (`SpecularCanopyScattering`)**: Retains Fresnel/microfacet reflectance strength directly inside `Z` in the right-handed `(e_s, e_p, k)` meridian Stokes basis.
+- **Symmetric bi-Lambertian (`BiLambertianCanopyScattering`, `LambertianWoodCanopyScattering`)**: Scalar single-scattering albedo ``\varpi = R + T`` is divided out of `Z` so downstream layer solvers multiply by ``\varpi`` separately; every non-black (``R + T > 0``) leaf satisfies
+  ```math
+  \frac{1}{2} \sum_i w_i \bigl(Z^{++}_{ij,0} + Z^{-+}_{ij,0}\bigr) \simeq 1
+  ```
+  (identically ``= 1`` under [`DiscreteAngularNormalization`](@ref)).
+- **Dorsiventral & coupled BSDF (`compute_Z_matrices_directional`, `compute_Z_matrices_coupled_bsdf`)**: By default (`normalize_by_ω = false`), `Z` is normalized by ``G(\mu_{\mathrm{in}})`` only and retains directional albedo inside `Z`,
+  ```math
+  \frac{1}{2} \sum_i w_i \bigl(Z^{++}_{ij,0} + Z^{-+}_{ij,0}\bigr) \simeq \omega_{\mathrm{down},j},
+  ```
+  composing directly without ``\varpi``-mixing ambiguities.
+- **Pure surface specular (`SpecularCanopyScattering`)**: Retains Fresnel/microfacet reflectance strength directly inside `Z` in the right-handed ``(\mathbf{e}_s, \mathbf{e}_p, \mathbf{k})`` meridian Stokes basis.
 
 ```@contents
 Pages = ["canopy_scattering.md"]

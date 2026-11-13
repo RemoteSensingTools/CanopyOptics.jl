@@ -14,7 +14,7 @@
 # hotspot, so you can read off the hotspot increment without rerunning
 # the model in a reduced mode.
 using CanopyOptics
-using CairoMakie
+include(joinpath(@__DIR__, "..", "..", "..", "d3_plots.jl")) # hide
 
 # ## Geometry — signed VZA in the principal plane
 #
@@ -109,50 +109,49 @@ end
 # direct/direct branch `rsost`). Bottom row: the hotspot increment
 # `rsot(h) − rsot(0)` is concentrated near `vza = −sza`, exactly where
 # the camera looks back along the sun direction.
-fig = Figure(size = (1100, 700))
-colors = (sail_nohot = :dodgerblue3,
-          sail_hot   = :seagreen4,
-          sail_ss    = :darkorange3,
-          increment  = :purple4)
-
+panels_hs = Any[]
 for (iλ, λ) in pairs(lambda_nm)
-    ax = Axis(fig[iλ, 1];
-        xlabel = iλ == length(lambda_nm) ?
-                 "signed VZA in solar principal plane (deg)" : "",
-        ylabel = "BRF",
-        title  = "$(Int(round(λ))) nm — principal-plane BRF")
-    lines!(ax, signed_vza, sail_nohot.rsot[iλ, :];
-           color = colors.sail_nohot, linewidth = 2.2, linestyle = :dash,
-           label = "rsot, h = 0")
-    lines!(ax, signed_vza, sail_hot.rsot[iλ, :];
-           color = colors.sail_hot,   linewidth = 2.5,
-           label = "rsot, h = $(hotspot_h)")
-    lines!(ax, signed_vza, sail_hot.rsost[iλ, :];
-           color = colors.sail_ss,    linewidth = 2.0, linestyle = :dot,
-           label = "rsost (direct/direct), h = $(hotspot_h)")
-    vlines!(ax, [-sza_deg]; color = :gray30, linestyle = :dashdot, linewidth = 1.2,
-            label = "hotspot direction")
-    vlines!(ax, [0.0];      color = :gray60, linestyle = :dot,    linewidth = 1.0)
-    axislegend(ax; position = :lt, framevisible = false)
-
-    axd = Axis(fig[iλ, 2];
-        xlabel = iλ == length(lambda_nm) ?
-                 "signed VZA in solar principal plane (deg)" : "",
-        ylabel = "Δ BRF",
-        title  = "$(Int(round(λ))) nm — hotspot increment")
-    lines!(axd, signed_vza, sail_hot.rsot[iλ, :] .- sail_nohot.rsot[iλ, :];
-           color = colors.increment, linewidth = 2.4,
-           label = "rsot(h) − rsot(0)")
-    hlines!(axd, [0.0]; color = :gray70, linewidth = 1.0)
-    vlines!(axd, [-sza_deg]; color = :gray30, linestyle = :dashdot, linewidth = 1.2)
-    axislegend(axd; position = :rt, framevisible = false)
+    xl = iλ == length(lambda_nm) ? "signed VZA in solar principal plane (deg)" : ""
+    push!(
+        panels_hs,
+        d3_cartesian(
+            title = "$(Int(round(λ))) nm — principal-plane BRF",
+            xlabel = xl,
+            ylabel = "BRF",
+            vlines = [
+                (; x = -sza_deg, color = "#555555", dash = "dashdot", width = 1.2),
+                (; x = 0.0,      color = "#999999", dash = "dot",     width = 1.0),
+            ],
+            series = [
+                d3_line(signed_vza, sail_nohot.rsot[iλ, :]; label = "rsot, h = 0", color = "#1874cd", dash = "dash", width = 2.1),
+                d3_line(signed_vza, sail_hot.rsot[iλ, :];   label = "rsot, h = $(hotspot_h)", color = "#2e8b57", width = 2.5),
+                d3_line(signed_vza, sail_hot.rsost[iλ, :];  label = "rsost (direct), h = $(hotspot_h)", color = "#cd6600", dash = "dot", width = 2.0),
+            ],
+        ),
+    )
+    push!(
+        panels_hs,
+        d3_cartesian(
+            title = "$(Int(round(λ))) nm — hotspot increment",
+            xlabel = xl,
+            ylabel = "Δ BRF",
+            hlines = [(; y = 0.0, color = "#999999", dash = "solid", width = 1.0)],
+            vlines = [(; x = -sza_deg, color = "#555555", dash = "dashdot", width = 1.2)],
+            series = [
+                d3_line(signed_vza, sail_hot.rsot[iλ, :] .- sail_nohot.rsot[iλ, :];
+                        label = "rsot(h) − rsot(0)", color = "#551a8b", width = 2.4),
+            ],
+        ),
+    )
 end
 
-Label(fig[0, 1:2],
-      "4SAIL principal-plane BRF and hotspot increment " *
-      "(SZA = $(Int(sza_deg))°, LAI = $(lai), planophile LAD, soil albedo = $(soil_albedo))";
-      fontsize = 16)
-fig
+D3Figure(
+    title = "4SAIL principal-plane BRF and hotspot increment",
+    subtitle = "SZA = $(Int(sza_deg))°, LAI = $(lai), planophile LAD, soil albedo = $(soil_albedo)",
+    cols = 2,
+    rowHeight = 275,
+    panels = panels_hs,
+)
 
 # ## Reading the figure
 #
