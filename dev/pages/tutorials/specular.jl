@@ -15,8 +15,8 @@ LD = CanopyOptics.planophile_leaves2()
 # Compute a directional reflection value for one incoming and one outgoing
 # direction. Directions are represented by signed `μ = cos(θ)` and azimuth
 # angle `ϕ`.
-incoming = CanopyOptics.dirVector_μ(0.8, 0.0)
-outgoing = CanopyOptics.dirVector_μ(0.4, π / 3)
+incoming = CanopyOptics.DirectionCosine(0.8, 0.0)
+outgoing = CanopyOptics.DirectionCosine(0.4, π / 3)
 CanopyOptics.compute_reflection(specular, incoming, outgoing, LD)
 
 # The specular model can also be projected onto Fourier Z matrices one moment
@@ -49,7 +49,7 @@ size(Z_mix⁻⁺)
 # the leaf-angle distribution changes.
 ϕ_a = range(0.0, 2π, length = 48)
 μ_a, _ = CanopyOptics.gauleg(28, 0.0, 1.0)
-dirs_a = [CanopyOptics.dirVector_μ(a, b) for a in μ_a, b in ϕ_a]
+dirs_a = [CanopyOptics.DirectionCosine(a, b) for a in μ_a, b in ϕ_a]
 θ_a = sort(acos.(μ_a))
 x = collect(0:0.01:1)
 αβ = [(0.8, 5.0), (1.5, 4.0), (2.5, 2.5), (4.0, 1.5), (5.0, 0.8)]

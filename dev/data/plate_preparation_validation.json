@@ -1,0 +1,67 @@
+{
+  "generated_utc": "2026-11-08T05:58:22.988586+00:00",
+  "scope": "Float32/Float64 host regular-plate preparation with independent angular/source-depth references and complete package CPU gates",
+  "reference": {
+    "optical_cases": 140,
+    "source_depth_integrals": 280,
+    "arithmetic_digits": 90,
+    "method": "Angular attenuation/Fresnel and numerical source-depth quadrature",
+    "integration_example_reference": "64-node depth quadrature and independent two-boundary linear solves"
+  },
+  "optical_inputs": {
+    "artifact_binding": "CanopyOptics-leaf-emission/Artifacts.toml",
+    "database": "../../.julia/artifacts/a66b6ee1a130b3620c09abd060d45bf60629f4a1/dataSpec_PRO.csv"
+  },
+  "source_sha256": {
+    "../../.julia/artifacts/a66b6ee1a130b3620c09abd060d45bf60629f4a1/dataSpec_PRO.csv": "4e3b8d310649d4310e02cecc9395c94dda22546a6deb986d34fedc5d5312f5b1",
+    "CanopyOptics-leaf-emission/Artifacts.toml": "01460164536c8f9565fdbe3c9b3645f1c2172552160f689b6a1fc3ec48a2e5a0",
+    "CanopyOptics-leaf-emission/src/CanopyOptics.jl": "32bbd1bc3d834c0f1f9bf4368461cbb1f42f8bc4f9eaa8aac3cd57b32e3a6098",
+    "CanopyOptics-leaf-emission/src/canopy_scattering/bilambertian_fourier.jl": "3c69bc32131139981df5bd53d7af1e0558aafc12ef768ba830c5ecc0ae9dddd8",
+    "CanopyOptics-leaf-emission/src/canopy_scattering/legacy_azimuth_reference.jl": "9783cad9ce375e3efe1ad2ba6d6bda2192ad3c596d4ab813b66856d612a90a08",
+    "CanopyOptics-leaf-emission/src/canopy_scattering/projection_geometry.jl": "441fa79b6d6164c19f942b2d00889819bfdea89f7c9af30e658a65587a01cac2",
+    "CanopyOptics-leaf-emission/src/canopy_scattering/quadrature_controls.jl": "f0fc4a67d65b54fb5d20be6dd12cda53d45a7d66c83aed4f46a475e6a9e9749c",
+    "CanopyOptics-leaf-emission/src/canopy_scattering/specular.jl": "c961048498753ce414253d309db78bf31b7d49a960f3308d5030db0fac625a0c",
+    "CanopyOptics-leaf-emission/src/canopy_scattering/stokes.jl": "27c157d918d1b556af09c4fcfdd0eff83968ba569ed8da53161e87cbdbb03a5a",
+    "CanopyOptics-leaf-emission/src/canopy_scattering/z_matrices.jl": "b4e877d0938bc932545c4dd55696083e0538d4634785b1082cca0c3578a079b8",
+    "CanopyOptics-leaf-emission/src/canopy_structure/clumping.jl": "710320513cb9cb7e571a8c391a12faed361881f67e57382724edc9b969581af0",
+    "CanopyOptics-leaf-emission/src/canopy_structure/components.jl": "b8cd33c6f71ecd89ebe4ebb085abe210e6f4448c6c449d452b1cb2ddd4931797",
+    "CanopyOptics-leaf-emission/src/canopy_structure/hotspot.jl": "9c45fcbd21bc9f23f42abbfe4b150782999127e8101576393bccb1369de5122e",
+    "CanopyOptics-leaf-emission/src/foursail/foursail.jl": "7b4b869e3ff799194a505241c196946583163ba348bc2160e5cf1b54779dd466",
+    "CanopyOptics-leaf-emission/src/initialization/constants.jl": "409f28b6b23a859a9576864e5b25ff13012142797e9ecea6660b548e2aad485a",
+    "CanopyOptics-leaf-emission/src/initialization/default_constructors.jl": "8bd2ecd4534a9b88d6de0502c45f0bf1583b7f67d9f3c6eebdee601cf9f3c571",
+    "CanopyOptics-leaf-emission/src/initialization/loadProspect.jl": "3f5420dee71a6c2ced62700412b0b0f6ffa7cd0e4af088ef2ae89f2a450eb4dd",
+    "CanopyOptics-leaf-emission/src/leaf_optics/excitation_selection.jl": "b44ab6c3acd4720640417e2500aee046c2f702d0f1cb9a8f881b7851ec2a925b",
+    "CanopyOptics-leaf-emission/src/leaf_optics/pigment_absorption.jl": "8976ce8e48d86d7d953157a39c172cc2c171efcfab821a9b7a09c5ad5fd95268",
+    "CanopyOptics-leaf-emission/src/leaf_optics/plate_emission.jl": "0c3d73e3cac005f5bca0016ce5170e409093e40dda5e1ac85e6fea66e8195f25",
+    "CanopyOptics-leaf-emission/src/leaf_optics/plate_preparation.jl": "ed69c7cf9312085d2feae1af93bf6cdf9b6135986b7a131a013e931e086e205b",
+    "CanopyOptics-leaf-emission/src/leaf_optics/prospect.jl": "7e202f5cf4b30504d89b01ae3f1cb41bfa39d84f93be3b231399f728e80184c9",
+    "CanopyOptics-leaf-emission/src/leaf_optics/prospect_layers.jl": "37f6d9df5b30e6b89a128187a9a96a2ca5f5d2799842320224fc43ecf6461ae7",
+    "CanopyOptics-leaf-emission/src/legacy/leaf_angle_routines_pre_analytic.jl": "ea7590c567fc26e99a26767b11c37a12cd331efae84217623b0ea481f14ba43e",
+    "CanopyOptics-leaf-emission/src/types/angle_types.jl": "d676f793d06e6910ebeb097e8e0260579b58f072f7f0bb3df9288a733cafd6cb",
+    "CanopyOptics-leaf-emission/src/types/canopy_types.jl": "1479d974ce3b3b72ec5385d247bed362e3ad810c4ece444798f353ca548fcae8",
+    "CanopyOptics-leaf-emission/src/types/material_types.jl": "fb1643f9dbdc2a4c6aeff3b92f81ea32b48f07f00496498aa72a7d8ce074f837",
+    "CanopyOptics-leaf-emission/src/types/polarization_types.jl": "25b485d298322adb42e9105724ef035c2ba696bc0ebe59c47ce6d1c4059f5509",
+    "CanopyOptics-leaf-emission/src/utils/canopy_angles.jl": "8eff63952aef5cbdd4f0c9bb93864954d0191a1a5e32cf6a4f3d3ef52bf44528",
+    "CanopyOptics-leaf-emission/src/utils/dielectric.jl": "8f9f0eeb4bdbcbcdf5934b851187e13fd3f7591c39b51ac7dfb6ef631a7ed6e7",
+    "CanopyOptics-leaf-emission/src/utils/fresnel.jl": "634a1b7339e23a1717cccbf46210d4f120e87139a0a12514f009500b6c97f71a",
+    "CanopyOptics-leaf-emission/src/utils/quadrature.jl": "3259c15fd50d78a5b5d3275496a8dae4ab63640021f0d173c3b7df007b84aa9b",
+    "CanopyOptics-leaf-emission/src/wood_optics/reflectance.jl": "60f259474a9c66f70624d0f5f760267b4bd077387eb2e6fcafdce4532f0e6556",
+    "CanopyOptics-leaf-emission/test/test_plate_preparation.jl": "40bdb7935aea6dc497c3edc128d40a0e2ba20d0ffc065fbecf88e44334a341dd",
+    "CanopyOptics-leaf-emission/test/runtests.jl": "7ab4558037962a183c63322de370c3203fe4d370c42c9e1aae9a9d6e7d6fc882",
+    "CanopyOptics-leaf-emission/test/reference/generate_plate_preparation_reference.py": "2aaefe81c1f288362d166e265b158936afbb2c990105126627a6af1b6c480ad3",
+    "CanopyOptics-leaf-emission/test/reference/generate_prospect_reference.py": "c4cf75644899e9c649489f30bf30260603cf1c82303bbc04a060c7f6af3eb0f6",
+    "CanopyOptics-leaf-emission/test/reference/plate_preparation_reference.csv": "c627a049e1aa73a8fad20897e22c6c671ca5b9bdd972c59c736b1ff37f88a800"
+  },
+  "logs": {
+    "preparation-full.log": {
+      "sha256": "6867f9f7f8ef562db323dbb8854ede1cf77e013ba31feb0c7099cbbc6f731cee",
+      "text": "Precompiling packages...\n    CanopyOptics Being precompiled by another process (pid: 1048852, pidfile: /tmp/leaf-photosynthesis-depot/compiled/v1.12/CanopyOptics/ARz3p_BLbwW.ji.pidfile)\n   8205.0 ms  \u2713 CanopyOptics\n  1 dependency successfully precompiled in 9 seconds. 172 already precompiled.\n[ Info: Testing spherical leaf G factor calculation ...\n\u250c Warning: Assuming unit of [nm] here for optical struct\n\u2514 @ CanopyOptics ~/code/gitHub/CanopyOptics-leaf-emission/src/initialization/loadProspect.jl:64\n\u250c Warning: Assuming unit of [nm] here for optical struct\n\u2514 @ CanopyOptics ~/code/gitHub/CanopyOptics-leaf-emission/src/initialization/loadProspect.jl:64\nTest Summary: |  Pass  Total   Time\nCanopyOptics  | 85541  85541  41.2s\nTest Summary:               | Pass  Total  Time\nShared leaf-area quadrature |   76     76  1.8s\nTest Summary:                                  | Pass  Total  Time\nSpecular azimuth preserves floating-point type |  312    312  0.8s\nTest Summary:                    | Pass  Total  Time\nSpecular roughness grazing limit |  170    170  0.3s\nTest Summary:                                                  | Pass  Total  Time\nSpecular reflection is independent of direction representation | 1024   1024  0.0s\nTest Summary:                         | Pass  Total  Time\nPROSPECT independent spectral budgets | 2832   2832  1.1s\nTest Summary:                                 | Pass  Total  Time\nPROSPECT extreme stacks and branch continuity |  178    178  0.3s\nTest Summary:                               | Pass  Total  Time\nPROSPECT actual optical data and public API |  168    168  3.8s\nTest Summary:                                     | Pass  Total  Time\nRegular plate emission construction and extension |   50     50  0.3s\nTest Summary:                                                    | Pass  Total  Time\nRegular plate numerical switches and independent path quadrature |  904    904  0.6s\nTest Summary:                                     |  Pass  Total  Time\nRegular plate independent high-precision balances | 43656  43656  0.9s\nTest Summary:                             | Pass  Total  Time\nDiffuse regular plate preparation domains |   62     62  0.1s\nTest Summary:                                         | Pass  Total  Time\nIndependent angular optics and source depth integrals | 1310   1310  0.1s\nTest Summary:                      |  Pass  Total  Time\nRegular plate emission CPU batches | 37638  37638  2.0s\nTest Summary:                                               | Pass  Total  Time\nHomogeneous pigment partition and independent optical paths | 1264   1264  0.4s\nTest Summary:                                                 | Pass  Total  Time\nPigment domains, zero material and photon-selection endpoints | 4168   4168  0.3s\nTest Summary:                  | Pass  Total  Time\nPigment allocation CPU batches | 1228   1228  2.2s\nTest Summary:                       | Pass  Total  Time\nActual PROSPECT pigment spectra CPU | 5508   5508  2.8s\n",
+      "passed_checks": 186089
+    },
+    "preparation-docs.log": {
+      "sha256": "66b49097e002d16df690f136e7a48f04701c37903fbf69cdef9d767c436d95e9",
+      "text": "\u250c Info: Building docs with CanopyOptics source\n\u2514   path = \"/home/cfranken/code/gitHub/CanopyOptics-leaf-emission/src/CanopyOptics.jl\"\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/bilambertian.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/bilambertian.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/specular.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/specular.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_hotspot.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_hotspot.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_brdf.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/foursail_brdf.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/dielectric.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/dielectric.md`\n[ Info: generating markdown page from `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/tree_canopy.jl`\n[ Info: writing result to `~/code/gitHub/CanopyOptics-leaf-emission/docs/src/pages/tutorials/tree_canopy.md`\n[ Info: SetupBuildDirectory: setting up build directory.\n[ Info: Doctest: running doctests.\n[ Info: ExpandTemplates: expanding markdown templates.\n[ Info: CrossReferences: building cross-references.\n[ Info: CheckDocument: running document checks.\n[ Info: Populate: populating indices.\n[ Info: RenderDocument: rendering document.\n[ Info: HTMLWriter: rendering HTML pages.\n\u250c Warning: Generated search index over size_threshold_warn limit:\n\u2502     Generated file size: 749.08 (KiB)\n\u2502     search_size_threshold_warn: 500.0 (KiB)\n\u2502     Search index file:   build/search_index.js\n\u2514 @ Documenter.HTMLWriter ~/.julia/packages/Documenter/eCrmY/src/html/HTMLWriter.jl:973\n[ Info: Automatic `version=\"0.2.2\"` for inventory from ../Project.toml\n",
+      "passed_checks": null
+    }
+  }
+}
