@@ -16,6 +16,12 @@ include("emission_spectrum_batches.jl")
 @testset "Conditional spectrum CPU application" begin
     check_emission_spectrum_batches(identity, () -> nothing)
 end
+include("test_excitation_allocation.jl")
+include("test_emission_operators.jl")
+include("emission_operator_batches.jl")
+@testset "Excitation allocation and emission operators CPU application" begin
+    check_emission_operator_batches(identity, () -> nothing)
+end
 include("plate_emission_batches.jl")
 @testset "Regular plate emission CPU batches" begin
     check_plate_emission_batches(identity,()->nothing)

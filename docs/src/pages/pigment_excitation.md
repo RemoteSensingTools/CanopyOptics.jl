@@ -86,6 +86,10 @@ then integrates Q2 over a declared spectral domain. A leaf model receiving this
 already allocated Q2 must not apply another PSII fraction. The same excitation
 should drive electron transport and the physiological fluorescence source.
 This optics package introduces no photosynthesis or fluorescence dependency.
+To allocate one bin to several photosystems at once, with a nonnegative remainder,
+use `allocate_excitation`; a one-sink call equals `photosystem_excitation`. See
+[several emission sources](multi_source_emission.md) for the two fraction
+conventions (of antenna excitation or of absorbed photons).
 
 Total material photon absorption, antenna excitation, PSII excitation and absorbed
 energy remain different quantities. Energy requires wavelength-specific photon

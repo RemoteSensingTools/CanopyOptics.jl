@@ -121,3 +121,53 @@ Invalid numerical inputs return typed NaN; no empirical fraction is supplied.
     zero(FT) <= fraction <= one(FT) || return FT(NaN)
     return fraction * antenna
 end
+
+"""
+    allocate_excitation(photons, fractions) -> (sinks, unallocated)
+
+Allocate `photons` jointly to any number of named sinks with explicit fractions,
+returning `(sinks = NamedTuple, unallocated = FT)`. `sinks` has the keys and order
+of `fractions`; each sink receives `fraction * photons`. Zero, one, two or more
+sinks are allowed. Values refer to one wavelength bin and photon/area unit.
+
+The function does not know what `photons` are; the caller's fractions state the
+convention. Fractions `f` of antenna excitation apply to `antenna_excitation`
+output. Fractions `a = h*f` of leaf-absorbed photons, with `h` the antenna share of
+absorbed photons, apply to total absorption. Applying `a` after antenna selection
+counts the transfer loss twice; applying `f` to total absorption omits it.
+
+`photons` and every fraction share one floating-point type; mixed precision is a
+`MethodError`, as for [`photosystem_excitation`](@ref). Valid input has finite
+`photons ≥ 0`, finite fractions in [0,1] and a fraction sum at most
+`1 + N*eps(FT)` for `N` sinks (left-to-right summation of `N` rounded fractions).
+Otherwise every sink and `unallocated` is typed NaN. With no sinks, valid photons
+are returned unallocated. `unallocated = max(1 - Σf, 0) * photons`: never negative
+and never above `photons`; within the allowance a sum above one leaves zero.
+A single sink reproduces `photosystem_excitation(photons, fraction)` exactly.
+The scalar call is type stable and allocation free for any `N`; broadcast it over
+CPU or GPU arrays. No empirical fraction, yield or rate constant is supplied.
+"""
+@inline function allocate_excitation(
+    photons::FT,
+    fractions::NamedTuple{Names,<:NTuple{N,FT}},
+) where {FT<:AbstractFloat,Names,N}
+    # Indexed left-to-right loop and Val(N) tuples: type stable and allocation free
+    # for any N (Base `map`/`values` over tuples longer than 32 allocate).
+    valid = isfinite(photons) && photons >= zero(FT)
+    total = zero(FT)
+    for i in 1:N
+        f = fractions[i]
+        valid &= isfinite(f) && zero(FT) <= f <= one(FT)
+        total += f
+    end
+    valid &= total <= one(FT) + N * eps(FT)
+    if !valid
+        unavailable = FT(NaN)
+        return (
+            sinks = NamedTuple{Names}(ntuple(_ -> unavailable, Val(N))),
+            unallocated = unavailable,
+        )
+    end
+    sinks = NamedTuple{Names}(ntuple(i -> fractions[i] * photons, Val(N)))
+    return (sinks = sinks, unallocated = max(one(FT) - total, zero(FT)) * photons)
+end

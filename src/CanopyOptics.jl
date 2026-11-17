@@ -82,6 +82,7 @@ include("leaf_optics/plate_emission.jl")
 include("leaf_optics/plate_preparation.jl")
 include("leaf_optics/dorsiventral_emission.jl")
 include("leaf_optics/emission_spectrum.jl")
+include("leaf_optics/emission_operators.jl")
 include("wood_optics/reflectance.jl")
 include("canopy_structure/clumping.jl")
 include("canopy_structure/hotspot.jl")
@@ -119,7 +120,8 @@ export prospect, prospect_budget, prospect_constituent_coefficients,
        DorsiventralBiLambertianCanopyScattering, compute_Γ_directional,
        compute_Z_matrices_directional, compute_Z_matrices_coupled_bsdf
 export TabulatedPhotonSpectrum, AbstractEmissionSupport, StrictStokes,
-       emission_allowed, emission_probabilities
+       emission_allowed, emission_probabilities, emission_operators,
+       emission_closure_residual, band_signal
 export AbstractLeafBirthProfile, UniformBirthProfile, ExponentialBirthProfile,
        RegularPlateEscape, DorsiventralPlateEscape, DorsiventralBirthProfile,
        leaf_emission_fates, diffuse_plate_optics, dorsiventral_plate_optics
@@ -127,7 +129,8 @@ export AbstractAbsorptionPartition, HomogeneousAbsorption, AbsorptionPartitionRe
        AbsorptionPartitionStatus, AbsorptionPartitionValid, AbsorptionNoMaterial,
        AbsorptionInvalidInput, AbsorptionIncompatibleInput, partition_absorption,
        absorption_valid, AbstractAntennaSelection, ChlorophyllOnly, CarotenoidAntenna,
-       antenna_excitation, select_absorbed_photons, photosystem_excitation
+       antenna_excitation, select_absorbed_photons, photosystem_excitation,
+       allocate_excitation
 export createLeafOpticalStruct, LeafProspectProProperties, LeafOpticalProperties,
        DirectionCosine, direction_from_angles, dirVector, dirVector_μ
 export AbstractCanopyScatteringType, CanopyQuadrature, BiLambertianCanopyScattering,

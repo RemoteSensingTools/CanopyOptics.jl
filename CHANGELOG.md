@@ -3,6 +3,17 @@
 ## Unreleased
 
 ### Added
+- Composable pieces for leaf fluorescence from any number of sources (for
+  example PSII and PSI): `allocate_excitation(photons, fractions)` allocates
+  photons jointly to named sinks with a nonnegative remainder and typed-NaN
+  status; `emission_operators(probabilities, fates)` builds one
+  front/back/reabsorbed operator per source, with the per-column photon-closure
+  diagnostic `emission_closure_residual`; and
+  `band_signal(response, operator, produced_photons)` evaluates a linear band
+  observation of hemispheric face totals. No spectra, fractions or yields are
+  supplied. New documentation page "Several emission sources" explains the two
+  allocation conventions (fractions of antenna excitation versus of absorbed
+  photons, `a = h*f`).
 - Microwave dielectric model for fresh leaves
   (`LeafUlabyElRayes1987` + `dielectric` method) and exported
   `AbstractMaterial`, `AbstractWater`, `AbstractSoil`,

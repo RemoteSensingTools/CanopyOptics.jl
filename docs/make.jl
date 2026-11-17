@@ -24,6 +24,7 @@ function build()
                 "Pigment excitation"             => "pages/pigment_excitation.md",
                 "Internal leaf emission"         => "pages/plate_emission.md",
                 "Emission spectra"               => "pages/emission_spectrum.md",
+                "Several emission sources"       => "pages/multi_source_emission.md",
                 "Model evaluations"              => "pages/leaf_model_evaluations.md",
             ],
             "Canopy Radiative Transfer" => [

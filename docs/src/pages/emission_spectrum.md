@@ -48,6 +48,9 @@ Do not multiply absorption or yield again. Share operators across equivalent
 optical/source classes instead of storing one spectral tensor per leaf population.
 The matrices can be transferred to CPU/GPU backends for batched application;
 the vector-owning source object and validation stay on the host.
+`emission_operators(p, fates)` forms the three products for one source and
+`emission_closure_residual` checks the column closure; see
+[several emission sources](multi_source_emission.md).
 
 Convert all three photon outcomes to energy using their **emission** wavelengths.
 Strict Stokes support gives a nonnegative excitation-to-emission energy difference
