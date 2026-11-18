@@ -79,6 +79,7 @@ include("leaf_optics/pigment_bases.jl")
 include("leaf_optics/dorsiventral.jl")
 include("leaf_optics/leaf_bsdf.jl")
 include("leaf_optics/plate_emission.jl")
+include("leaf_optics/piecewise_birth.jl")
 include("leaf_optics/plate_preparation.jl")
 include("leaf_optics/dorsiventral_emission.jl")
 include("leaf_optics/emission_spectrum.jl")
@@ -123,6 +124,7 @@ export TabulatedPhotonSpectrum, AbstractEmissionSupport, StrictStokes,
        emission_allowed, emission_probabilities, emission_operators,
        emission_closure_residual, band_signal
 export AbstractLeafBirthProfile, UniformBirthProfile, ExponentialBirthProfile,
+       PiecewiseUniformBirthProfile, birth_layer_fractions,
        RegularPlateEscape, DorsiventralPlateEscape, DorsiventralBirthProfile,
        leaf_emission_fates, diffuse_plate_optics, dorsiventral_plate_optics
 export AbstractAbsorptionPartition, HomogeneousAbsorption, AbsorptionPartitionResult,

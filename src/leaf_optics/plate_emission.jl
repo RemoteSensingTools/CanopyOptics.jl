@@ -161,9 +161,9 @@ no secondary emission, wavelength redistribution, absorptance or yield is applie
 Photon conservation holds to floating-point roundoff without clipping or rescaling.
 Hemispheric face totals do not specify directional canopy radiance.
 
-Built-in methods require the escape and exponential birth profile to share FT;
-`UniformBirthProfile()` has no numeric parameters. Additional escape or birth
-models can define methods without altering a LeafModel or host grid.
+Built-in methods require the escape and an exponential or piecewise-uniform birth
+profile to share FT; `UniformBirthProfile()` has no numeric parameters. Additional
+escape or birth models can define methods without altering a LeafModel or host grid.
 """
 function leaf_emission_fates end
 
@@ -173,7 +173,7 @@ function leaf_emission_fates end
     f::FT,
     g::FT,
 ) where {FT}
-    b, transmission = escape.emission_depth, escape.interface_transmission
+    b = escape.emission_depth
     half = inv(FT(2))
     iszero(b) && return (front = half, back = half, reabsorbed = zero(FT))
     same, opposite = emission_overlaps(a, b)
@@ -181,6 +181,23 @@ function leaf_emission_fates end
     first_back = (g * same + f * opposite) * half
     survival = (same + opposite) * half
     first_loss = emission_first_loss(a, b, survival)
+    return regular_plate_reflections(escape, first_front, first_back, survival, first_loss)
+end
+
+# Multiple-reflection closure after the first flight, shared by every birth profile
+# of the regular plate. `first_front`/`first_back` are the probabilities of reaching
+# the front/back interface on the first flight, `survival` their sum and
+# `first_loss` the first-flight reabsorption, each as the caller forms them (the
+# caller owns their accuracy). Faces sum to survival*t/(t+r*(1-exp(-b))), so the
+# fates close to `survival + first_loss`. Callers return early for b = 0.
+@inline function regular_plate_reflections(
+    escape::RegularPlateEscape{FT},
+    first_front::FT,
+    first_back::FT,
+    survival::FT,
+    first_loss::FT,
+) where {FT}
+    b, transmission = escape.emission_depth, escape.interface_transmission
     reflection = one(FT) - transmission
     loss = -expm1(-b)
     reflected_traversal = reflection * exp(-b)

@@ -6,7 +6,7 @@ embedding photosynthetic physiology:
 
 1. **Constituent absorption partitioning** ([`partition_absorption`](@ref)) splits total leaf material absorptance at each excitation wavelength across pigments, water, and dry matter in proportion to their specific optical depths.
 2. **Antenna selection & photosystem allocation** ([`antenna_excitation`](@ref), [`photosystem_excitation`](@ref)) converts absorbed spectral photons into photosynthetic antenna absorption (`ChlorophyllOnly`, `CarotenoidAntenna`, `MultiChlorophyllAntenna`) and PSII/PSI excitation rates ready for physiological models such as `LeafPhotosynthesis.jl`.
-3. **Internal photon escape & emission spectra** ([`diffuse_plate_optics`](@ref), [`dorsiventral_plate_optics`](@ref), [`leaf_emission_fates`](@ref), [`emission_probabilities`](@ref)) propagate internally emitted fluorescence photons through 1-zone (`RegularPlateEscape`) or 2-zone (`DorsiventralPlateEscape`) mesophyll stacks with exact photon conservation (``f_{\mathrm{front}} + f_{\mathrm{back}} + f_{\mathrm{reabsorbed}} = 1`` for all ``t \in (0, 1]``) and Stokes-valid emission support.
+3. **Internal photon escape & emission spectra** ([`diffuse_plate_optics`](@ref), [`dorsiventral_plate_optics`](@ref), [`leaf_emission_fates`](@ref), [`emission_probabilities`](@ref)) propagate internally emitted fluorescence photons through 1-zone (`RegularPlateEscape`) or 2-zone (`DorsiventralPlateEscape`) mesophyll stacks with exact photon conservation (``f_{\mathrm{front}} + f_{\mathrm{back}} + f_{\mathrm{reabsorbed}} = 1`` for all ``t \in (0, 1]``) and Stokes-valid emission support. A layer-wise [`PiecewiseUniformBirthProfile`](@ref), built by the caller from [`birth_layer_fractions`](@ref) and its own layer yields, carries depth-dependent production through the regular plate.
 4. **Several sources and band observation** ([`allocate_excitation`](@ref), [`emission_operators`](@ref), [`band_signal`](@ref)) allocate excitation jointly to any number of named sinks, build one front/back/reabsorbed operator per source and evaluate linear band observations of hemispheric face totals.
 
 ```@contents
@@ -48,6 +48,8 @@ allocate_excitation
 AbstractLeafBirthProfile
 UniformBirthProfile
 ExponentialBirthProfile
+PiecewiseUniformBirthProfile
+birth_layer_fractions
 DorsiventralBirthProfile
 RegularPlateEscape
 DorsiventralPlateEscape

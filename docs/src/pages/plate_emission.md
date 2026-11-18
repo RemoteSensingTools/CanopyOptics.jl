@@ -13,8 +13,11 @@ uniform_fates = leaf_emission_fates(escape, UniformBirthProfile())
 
 All numerical inputs use the same `Float32` or `Float64`. Construct validated
 parameters on the host, then apply the scalar function or broadcast it over
-arrays of prepared parameters on CPU/CUDA. Both built-in birth choices are
-isbits objects; application allocates no host memory. The module is
+arrays of prepared parameters on CPU/CUDA. The built-in birth choices are
+isbits objects; application allocates no host memory. Besides the uniform and
+exponential profiles, `PiecewiseUniformBirthProfile` carries a caller-built,
+layer-wise profile for depth-dependent yield on the regular plate; see
+[state-dependent birth profiles](multi_source_emission.md#State-dependent-birth-profiles). The module is
 `src/leaf_optics/plate_emission.jl`.
 
 ## What the parameters mean

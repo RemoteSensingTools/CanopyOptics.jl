@@ -22,6 +22,10 @@ include("emission_operator_batches.jl")
 @testset "Excitation allocation and emission operators CPU application" begin
     check_emission_operator_batches(identity, () -> nothing)
 end
+include("test_piecewise_birth.jl")
+@testset "Piecewise birth profile CPU batches" begin
+    check_piecewise_birth_batches(identity, () -> nothing)
+end
 include("plate_emission_batches.jl")
 @testset "Regular plate emission CPU batches" begin
     check_plate_emission_batches(identity,()->nothing)

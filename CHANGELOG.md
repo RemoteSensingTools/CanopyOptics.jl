@@ -14,6 +14,21 @@
   supplied. New documentation page "Several emission sources" explains the two
   allocation conventions (fractions of antenna excitation versus of absorbed
   photons, `a = h*f`).
+- State-dependent birth profiles for the regular plate:
+  `PiecewiseUniformBirthProfile(weights)` holds normalized weights of `N`
+  equal depth layers (uniform birth within a layer), with a closed-form,
+  allocation-free `leaf_emission_fates(::RegularPlateEscape, ...)` whose
+  first-flight reabsorption is evaluated without cancellation; and
+  `birth_layer_fractions(profile, Val(N)[, FT])` returns exact layer integrals
+  of an `ExponentialBirthProfile` (or `UniformBirthProfile`). Layer sums and the
+  weight normalization use compensated summation, so accuracy and closure do not
+  degrade with `N`. Callers multiply the fractions by their own antenna
+  excitation, layer allocation and layer yield to model depth-dependent
+  production; no allocation or yield is supplied. The documentation separates
+  allocation from yield and covers several illuminations, back illumination and
+  the limits of the layer representation. The two-zone escape is not covered.
+  The regular-plate reflection closure is shared between birth profiles;
+  existing results are bit-for-bit unchanged.
 - Microwave dielectric model for fresh leaves
   (`LeafUlabyElRayes1987` + `dielectric` method) and exported
   `AbstractMaterial`, `AbstractWater`, `AbstractSoil`,
