@@ -21,7 +21,8 @@ module CanopyOptics
 
 ###### Julia packages to import  ############
 using DelimitedFiles: readdlm
-using Distributions: Beta, Uniform, UnivariateDistribution, params, pdf, support
+# `CanopyOptics.Distributions` stays reachable: RRTMGP.jl's canopy extension reads `pdf` through it.
+using Distributions: Distributions, Beta, Uniform, UnivariateDistribution, params, pdf, support
 using FastGaussQuadrature: gausslegendre
 using ForwardDiff: ForwardDiff
 using KernelAbstractions: KernelAbstractions, @index, @kernel
