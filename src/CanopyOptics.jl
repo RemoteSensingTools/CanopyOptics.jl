@@ -53,6 +53,11 @@ import LinearAlgebra: dot
         :compute_Γ,
         :compute_Γ_isotropic,
         :compute_Z_matrices_aniso,
+        :band_weight,
+        :band_weight!,
+        :weight_interval_integral,
+        :spectral_domain,
+        :SpectralCoverageError,
     ))
 end
 
@@ -101,6 +106,8 @@ include("foursail/foursail.jl")
 
 include("initialization/loadProspect.jl")
 include("initialization/default_constructors.jl")
+
+include("spectral/band_average.jl")
 
 include("utils/dielectric.jl")
 
@@ -162,5 +169,12 @@ export compute_Z_matrices, compute_Z_matrices_aniso_analytic,
        G, G2, bfG
 export AbstractAngularNormalization, ContinuousAngularNormalization,
        DiscreteAngularNormalization, leaf_angular_scale, leaf_projection_moments
+export AbstractSpectralWeight, FlatWeight, PlanckWeight, TabulatedWeight,
+       ReferenceSolar,
+       band_average, band_average!,
+       subband_weights, subband_weights!,
+       wavelength_to_wavenumber, wavenumber_to_wavelength,
+       TabulatedLeaf, ConstantLeaf, CompositeLeaf,
+       leaf_spectrum, leaf_pigment_shares
 
 end # module

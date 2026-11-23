@@ -25,6 +25,7 @@ function build()
                 "Internal leaf emission"         => "pages/plate_emission.md",
                 "Emission spectra"               => "pages/emission_spectrum.md",
                 "Several emission sources"       => "pages/multi_source_emission.md",
+                "Spectral band aggregation"      => "pages/band_aggregation.md",
                 "Model evaluations"              => "pages/leaf_model_evaluations.md",
             ],
             "Canopy Radiative Transfer" => [
@@ -35,6 +36,7 @@ function build()
                 "Overview & Index"                 => "api/index.md",
                 "Leaf Optics & BSDF"               => "api/leaf_optics.md",
                 "Excitation & Leaf Fluorescence"   => "api/fluorescence_and_excitation.md",
+                "Spectral Band Aggregation"        => "api/spectral_aggregation.md",
                 "Canopy Structure & Scattering"    => "api/canopy_scattering.md",
                 "FourSAIL & Microwave Dielectrics" => "api/foursail_and_dielectrics.md",
             ],

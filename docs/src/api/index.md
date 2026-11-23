@@ -13,6 +13,7 @@ CanopyOptics
 | --- | --- | --- |
 | Leaf optical tables, PROSPECT / Multi-Pigment / Leaf-SIP / dorsiventral budgets, smooth & microfacet dielectric surfaces, wax dispersion, and coupled ``4\times 4`` polarized leaf BSDF | [Leaf Optics & BSDF](leaf_optics.md) | [PROSPECT budgets](../pages/prospect_budget.md), [Leaf surfaces and BSDF](../pages/leaf_surfaces_and_bsdf.md), [Dorsiventral and multi-pigment](../pages/dorsiventral_and_multi_pigment.md), [Model evaluations](../pages/leaf_model_evaluations.md) |
 | Constituent absorption partitioning, antenna selection, PSII/PSI excitation, 1-zone & 2-zone internal photon escape, and conditional emission spectra | [Excitation & Leaf Fluorescence](fluorescence_and_excitation.md) | [Pigment excitation](../pages/pigment_excitation.md), [Internal leaf emission](../pages/plate_emission.md), [Emission spectra](../pages/emission_spectrum.md) |
+| Exact-overlap wavenumber band averaging, Planck/solar/tabulated weights, `nm ↔ cm⁻¹` Jacobian conversion, composable leaf spectra, and PROSPECT pigment shares | [Spectral Band Aggregation](spectral_aggregation.md) | [Spectral band aggregation](../pages/band_aggregation.md) |
 | Spherical directions, leaf angle distributions, Ross ``G`` functions, clumping, hotspot, wood/tree components, Fourier ``Z``-matrices, and conservative angular normalization | [Canopy Structure & Scattering](canopy_scattering.md) | [Angular normalization](../pages/angular_normalization.md) |
 | `FourSAIL` canopy radiative transfer, microwave dielectric permittivity ``\varepsilon(T, f)``, and deprecated aliases | [FourSAIL & Microwave Dielectrics](foursail_and_dielectrics.md) | Tutorials in sidebar |
 
@@ -27,6 +28,7 @@ CanopyOptics
 Pages = [
     "leaf_optics.md",
     "fluorescence_and_excitation.md",
+    "spectral_aggregation.md",
     "canopy_scattering.md",
     "foursail_and_dielectrics.md",
 ]
@@ -40,6 +42,7 @@ Pages = [
     "index.md",
     "leaf_optics.md",
     "fluorescence_and_excitation.md",
+    "spectral_aggregation.md",
     "canopy_scattering.md",
     "foursail_and_dielectrics.md",
 ]

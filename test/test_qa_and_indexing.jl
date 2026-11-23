@@ -210,6 +210,11 @@ using Unitful
                 foursail([0.1, 0.4], [0.05, 0.4], 0.15, FourSAILGeometry(spherical_leaves(); sza_deg = 30.0, vza_deg = 10.0, raa_deg = 45.0), 3.0),
             ),
             (TabulatedPhotonSpectrum([650.0, 700.0, 740.0], [0.1, 0.6, 0.3]), TabulatedPhotonSpectrum([650.0, 700.0, 740.0], [0.1, 0.6, 0.3])),
+            (PlanckWeight(300.0), PlanckWeight(300.0f0)),
+            (TabulatedWeight([1000.0, 2000.0], [0.0]), TabulatedWeight([1000.0, 2000.0], [-0.0])),
+            (TabulatedLeaf([1000.0, 2000.0], [0.2], [0.0]), TabulatedLeaf([1000.0, 2000.0], [0.2], [-0.0])),
+            (ConstantLeaf(0.25, 0.0), ConstantLeaf(0.25f0, -0.0f0)),
+            (CompositeLeaf(ConstantLeaf(0.25, 0.0)), CompositeLeaf(ConstantLeaf(0.25f0, -0.0f0))),
         ]
         for (x, y) in pairs_to_check
             @test x !== y || x isa LeafDistribution
@@ -328,6 +333,28 @@ using Unitful
         @test_throws ArgumentError foursail(OffsetArray([0.1, 0.4], -1), [0.05, 0.4], 0.15, geom1, 3.0)
         res1 = foursail([0.1, 0.4], [0.05, 0.4], 0.15, geom1, 3.0)
         @test_throws ArgumentError foursail!(res1, [0.1, 0.4], OffsetArray([0.05, 0.4], 2), 0.15, geom1, 3.0)
+
+        # Spectral band aggregation & leaf spectrum OffsetArray and @view contracts
+        λ_ba = collect(410.0:10.0:800.0)
+        irr_ba = fill(1.2, length(λ_ba))
+        edges_ba, irr_nu_ba = wavelength_to_wavenumber(OffsetArray(λ_ba, -3), OffsetArray(irr_ba, 4); density = true)
+        @test (edges_ba, irr_nu_ba) == wavelength_to_wavenumber(λ_ba, irr_ba; density = true)
+        @test wavenumber_to_wavelength(OffsetArray(edges_ba, -2), OffsetArray(irr_nu_ba, 5); density = true) ==
+              wavenumber_to_wavelength(edges_ba, irr_nu_ba; density = true)
+        sol_ba = ReferenceSolar(OffsetArray(λ_ba, -4), OffsetArray(irr_ba, 2))
+        @test sol_ba == ReferenceSolar(λ_ba, irr_ba)
+        r_ba, t_ba = leaf_spectrum(LeafProspectProProperties(), OffsetArray(edges_ba, -5))
+        @test r_ba == leaf_spectrum(LeafProspectProProperties(), edges_ba)[1]
+        @test leaf_pigment_shares(LeafProspectProProperties(), OffsetArray(edges_ba, 3)) ==
+              leaf_pigment_shares(LeafProspectProProperties(), edges_ba)
+        bands_ba = [13000.0 16000.0; 16000.0 22000.0]
+        bands_ba_off = OffsetArray(bands_ba, -1, 10)
+        ba_off = band_average(OffsetArray(r_ba, -2), OffsetArray(edges_ba, 6), bands_ba_off, sol_ba)
+        @test axes(ba_off) == (axes(bands_ba_off, 2),)
+        @test collect(ba_off) ≈ band_average(r_ba, edges_ba, bands_ba, sol_ba)
+        sh_ba_off = subband_weights(bands_ba_off, OffsetArray([13000.0, 22000.0], -3), sol_ba)
+        @test axes(sh_ba_off) == (axes(bands_ba_off, 2),)
+        @test collect(sh_ba_off) ≈ subband_weights(bands_ba, [13000.0, 22000.0], sol_ba)
     end
 
     @testset "32-node Chebyshev rough-surface accuracy and ForwardDiff agreement" begin

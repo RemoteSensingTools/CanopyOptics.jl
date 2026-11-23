@@ -81,6 +81,20 @@ types. It transports already-produced photons into front/back escape and
 reabsorption on CPU/CUDA in either precision. Optical preparation, intrinsic
 spectra and canopy transport compose outside that scalar interface.
 
+## Spectral band aggregation
+
+[Spectral band aggregation](docs/src/pages/band_aggregation.md) (`src/spectral/band_average.jl`)
+averages fine-grid bin means onto arbitrary wavenumber bands (`(2, nbnd)` limits in
+`cm⁻¹`) by exact bin overlap via `band_average` and `band_average!` (zero heap
+allocation for matching `Float32` or `Float64` element types with built-in weights). Supported spectral
+weights (`FlatWeight`, `PlanckWeight(T)`, `TabulatedWeight`, and `ReferenceSolar`)
+fall back explicitly to `FlatWeight` on bands not covered by a weight table, while
+uncovered leaf-spectrum bands throw an `ArgumentError`. `wavelength_to_wavenumber`
+converts regular `nm` point grids (including the `|dλ / dν|` bin-averaged Jacobian
+`λ_lo * λ_hi / 10^7` for per-`nm` irradiances), and `leaf_spectrum` composes
+`LeafProspectProProperties`, `TabulatedLeaf`, and `ConstantLeaf` via `CompositeLeaf`
+(with PROSPECT pigment shares in `leaf_pigment_shares`).
+
 ## Conventions
 
 Canopy Z matrices use `Z[i_out, j_in]` and normalize BiLambertian

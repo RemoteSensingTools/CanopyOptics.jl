@@ -43,4 +43,5 @@ end
 
 include("test_angular_normalization.jl")
 include("test_leaf_model_families.jl")
+include("test_band_average.jl")
 include("test_qa_and_indexing.jl")
